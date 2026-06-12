@@ -1,0 +1,243 @@
+# Architecture
+
+# Context
+
+Investment Analyzer is a transaction-led portfolio analytics platform. The system treats buy, sell, dividend, fee, and tax transactions as the source of truth, then derives holdings, portfolio value, gains, dividend income, and decision-level metrics from those records.
+
+The architecture should optimize for:
+
+- reproducible analytics
+- auditability back to imported source data
+- calculated holdings rather than stored holdings
+- future broker independence
+- a clear separation between ingestion, domain logic, analytics, and presentation
+
+# System Overview
+
+The initial product can be delivered as a Next.js application backed by Supabase.
+
+Core components:
+
+- Next.js frontend for authenticated user workflows and analytics views
+- Supabase Auth for registration, login, session handling, and user identity
+- Supabase Postgres for transaction, price, import, and source-document data
+- Supabase Storage for imported broker files, CSV uploads, and postbox documents
+- Domain service layer for portfolio, transaction, dividend, performance, import, and market data logic
+- Broker adapter layer for Comdirect first, with additional brokers added through the same ingestion contracts
+
+# Logical Architecture
+
+```mermaid
+flowchart TD
+  UI["Next.js UI"]
+  Auth["Supabase Auth"]
+  Services["Domain Services"]
+  Analytics["Analytics Calculators"]
+  DB["Supabase Postgres"]
+  Storage["Supabase Storage"]
+  Import["Import Pipeline"]
+  Adapter["Broker / CSV Adapters"]
+  Market["Market Data Provider"]
+
+  UI --> Auth
+  UI --> Services
+  Services --> Analytics
+  Services --> DB
+  Services --> Storage
+  Import --> Adapter
+  Import --> Storage
+  Import --> DB
+  Services --> Market
+  Market --> DB
+```
+
+# Application Layers
+
+## Presentation Layer
+
+Responsible for rendering user workflows and analytics.
+
+Primary screens:
+
+- authentication
+- dashboard
+- portfolio development
+- securities list
+- transaction list
+- lot-level purchase analytics
+- dividend analytics
+- import history and source traceability
+
+The UI should request derived values from domain services rather than implementing calculations directly in components.
+
+## Domain Service Layer
+
+The domain layer is the center of application behavior. It should expose use-case-oriented services such as:
+
+- `portfolioService`
+- `transactionService`
+- `dividendService`
+- `performanceService`
+- `importService`
+- `marketDataService`
+
+Responsibilities:
+
+- validate user-owned data access
+- normalize transaction inputs
+- derive holdings from transactions
+- calculate realized and unrealized gains
+- calculate dividend analytics
+- calculate portfolio development over time
+- connect metrics back to source transactions
+- provide stable contracts to the UI
+
+## Analytics Layer
+
+Analytics should be deterministic functions over transaction, price, and dividend data.
+
+Important calculators:
+
+- current holdings by security
+- lot inventory and remaining quantity
+- invested capital over time
+- portfolio value over time
+- realized and unrealized gain
+- total dividends received
+- dividend income by security and lot
+- annualized return by purchase lot
+- yield on cost by purchase lot
+
+Analytics should return trace metadata whenever possible so the user can understand which transactions contributed to a metric.
+
+## Data Access Layer
+
+The data access layer should isolate Supabase queries from business logic.
+
+Responsibilities:
+
+- typed database reads and writes
+- row-level-security-aware queries
+- transactional import writes where possible
+- idempotency checks for imports
+- reusable query functions for transactions, prices, securities, and source documents
+
+## Ingestion Layer
+
+The ingestion layer should normalize all external inputs into a shared canonical model.
+
+Initial sources:
+
+- manual entry
+- CSV import
+- Comdirect import
+
+Future sources:
+
+- Comdirect API synchronization
+- Comdirect postbox parsing
+- Trade Republic
+- Interactive Brokers
+
+Each source should implement the same import stages:
+
+1. Capture source file or external payload.
+2. Parse broker-specific data.
+3. Normalize rows into canonical transaction candidates.
+4. Validate securities, quantities, currencies, fees, and taxes.
+5. Detect duplicates.
+6. Persist accepted records.
+7. Store import run status and source traceability.
+
+# Broker Adapter Boundary
+
+Broker-specific logic should stay behind adapter interfaces. The rest of the application should not need to know whether a transaction came from Comdirect, CSV, manual entry, or another broker.
+
+Adapter responsibilities:
+
+- parse external fields
+- map broker transaction types to canonical transaction types
+- normalize dates, currencies, quantities, fees, and taxes
+- preserve external identifiers
+- attach source document references
+
+Canonical transaction types:
+
+- `buy`
+- `sell`
+- `dividend`
+- `fee`
+- `tax`
+
+# Portfolio Calculation Strategy
+
+Holdings must be calculated from transactions, not stored as master data.
+
+For each security:
+
+1. Sort buy and sell transactions by trade date.
+2. Build purchase lots from buy transactions.
+3. Apply sell transactions against lots using a selected lot policy.
+4. Derive remaining quantity and cost basis from open lots.
+5. Join latest prices to calculate current value.
+6. Join dividend allocations to calculate income and yield on cost.
+
+The MVP should define one lot policy and keep it explicit. FIFO is a practical default because it is simple, reproducible, and common for tax and accounting workflows. The design should leave room for additional policies later.
+
+# Portfolio Development Strategy
+
+Portfolio development over time should be derived from transaction history and historical prices.
+
+The chart should support:
+
+- invested capital
+- portfolio value
+- capital gains
+- dividend income
+
+Initial implementation can calculate daily or monthly points depending on available price data. The schema should support daily prices so the product can become more precise over time.
+
+# Auditability
+
+Every imported transaction should be traceable to its origin.
+
+Traceable entities:
+
+- source document
+- import run
+- external transaction identifier
+- original broker payload or CSV row metadata
+- normalized transaction record
+
+For calculated metrics, service responses should include contributing transaction IDs where useful. This enables drill-down behavior without compromising the principle that transactions remain the source of truth.
+
+# Security And Access Control
+
+Supabase Row Level Security should enforce user isolation for all user-owned tables.
+
+Principles:
+
+- users can only read and write their own portfolios, transactions, imports, and documents
+- shared market reference data may be globally readable
+- mutation APIs should validate ownership even when RLS is enabled
+- source documents should be stored in user-scoped storage paths
+
+# MVP Architecture Decisions
+
+- Use Supabase Auth as the identity provider.
+- Use Postgres as the canonical data store.
+- Store transactions as immutable source-of-truth facts where possible.
+- Store prices as external market data, separate from user transactions.
+- Calculate holdings and analytics at read time for MVP.
+- Introduce cached snapshots only for performance or charting needs, never as master holdings.
+- Keep broker import logic separate from analytics.
+- Start with manual entry and/or CSV-style import, then add Comdirect-specific automation.
+
+# Open Design Questions
+
+- Which lot matching policy should be the MVP default: FIFO, average cost, or user-selectable?
+- Which currencies are required for MVP, and how should FX rates be represented?
+- Should fees and taxes be stored as separate transactions, transaction components, or both?
+- What market data provider will supply current and historical prices?
+- How precise should portfolio development be in MVP: daily, weekly, monthly, or transaction-date based?
+- Should users have one default portfolio or multiple portfolios from the start?

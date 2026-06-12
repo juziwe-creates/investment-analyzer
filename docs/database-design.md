@@ -1,0 +1,472 @@
+# Database Design
+
+# Goals
+
+The database design supports Investment Analyzer's core principle: transactions are the source of truth.
+
+The schema should make it possible to:
+
+- store every investment event at transaction level
+- derive holdings instead of storing them as master data
+- calculate lot-level performance
+- calculate dividend analytics
+- trace imported records back to their source
+- support multiple brokers and import formats over time
+- protect user data with Supabase Row Level Security
+
+# Entity Overview
+
+Primary entities:
+
+- `profiles`
+- `portfolios`
+- `securities`
+- `transactions`
+- `transaction_components`
+- `prices`
+- `source_documents`
+- `import_runs`
+- `import_rows`
+- `portfolio_snapshots`
+
+Supporting entities that may be added after MVP:
+
+- `brokers`
+- `broker_accounts`
+- `fx_rates`
+- `corporate_actions`
+- `watchlist_items`
+- `benchmark_prices`
+
+# Domain Model
+
+```mermaid
+erDiagram
+  profiles ||--o{ portfolios : owns
+  portfolios ||--o{ transactions : contains
+  securities ||--o{ transactions : references
+  transactions ||--o{ transaction_components : has
+  securities ||--o{ prices : priced_as
+  import_runs ||--o{ import_rows : contains
+  import_runs ||--o{ transactions : creates
+  source_documents ||--o{ import_runs : used_by
+  source_documents ||--o{ transactions : supports
+  portfolios ||--o{ portfolio_snapshots : summarizes
+```
+
+# Core Tables
+
+## profiles
+
+Stores application profile data for Supabase Auth users.
+
+Suggested columns:
+
+- `id uuid primary key references auth.users(id)`
+- `display_name text`
+- `base_currency text not null default 'EUR'`
+- `created_at timestamptz not null`
+- `updated_at timestamptz not null`
+
+Notes:
+
+- Supabase Auth remains the identity source.
+- Profile rows hold product-specific user preferences.
+
+## portfolios
+
+Stores user portfolios. Even if MVP starts with one portfolio per user, modeling portfolios explicitly keeps the product ready for multiple broker accounts later.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `user_id uuid not null references profiles(id)`
+- `name text not null`
+- `base_currency text not null default 'EUR'`
+- `created_at timestamptz not null`
+- `updated_at timestamptz not null`
+
+Constraints:
+
+- unique portfolio name per user, if desired
+- row ownership by `user_id`
+
+## securities
+
+Stores normalized security reference data.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `name text not null`
+- `isin text`
+- `wkn text`
+- `ticker text`
+- `exchange text`
+- `currency text`
+- `asset_type text`
+- `created_at timestamptz not null`
+- `updated_at timestamptz not null`
+
+Constraints:
+
+- unique `isin` when present
+- optional unique combination of `ticker`, `exchange`, and `currency`
+
+Notes:
+
+- Securities can be global reference data.
+- User-specific aliases from broker imports can be added later if needed.
+
+## transactions
+
+Stores canonical investment events. This is the central source-of-truth table.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `user_id uuid not null references profiles(id)`
+- `portfolio_id uuid not null references portfolios(id)`
+- `security_id uuid references securities(id)`
+- `type text not null`
+- `trade_date date not null`
+- `settlement_date date`
+- `quantity numeric`
+- `unit_price numeric`
+- `gross_amount numeric`
+- `net_amount numeric`
+- `currency text not null`
+- `external_id text`
+- `broker text`
+- `source_document_id uuid references source_documents(id)`
+- `import_run_id uuid references import_runs(id)`
+- `notes text`
+- `created_at timestamptz not null`
+- `updated_at timestamptz not null`
+
+Transaction types:
+
+- `buy`
+- `sell`
+- `dividend`
+- `fee`
+- `tax`
+
+Recommended sign conventions:
+
+- quantities are positive numbers
+- transaction type determines whether quantity increases or decreases holdings
+- cash amounts should use an explicit convention and remain consistent across all services
+- fees and taxes can be captured as components or standalone transactions depending on source data
+
+## transaction_components
+
+Stores fee, tax, withholding tax, and other monetary components attached to a transaction.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `transaction_id uuid not null references transactions(id)`
+- `component_type text not null`
+- `amount numeric not null`
+- `currency text not null`
+- `description text`
+- `created_at timestamptz not null`
+
+Component types:
+
+- `fee`
+- `tax`
+- `withholding_tax`
+- `exchange_fee`
+- `broker_fee`
+- `other`
+
+Notes:
+
+- This supports auditability when a broker provides a single transaction with multiple monetary parts.
+- Standalone `fee` and `tax` transactions can still exist when the source provides them separately.
+
+## prices
+
+Stores current and historical market prices.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `security_id uuid not null references securities(id)`
+- `price_date date not null`
+- `close_price numeric not null`
+- `currency text not null`
+- `source text`
+- `created_at timestamptz not null`
+
+Constraints:
+
+- unique `security_id`, `price_date`, and `source`
+
+Notes:
+
+- Current value is derived from latest price times current quantity.
+- Historical portfolio development uses dated prices.
+
+## source_documents
+
+Stores metadata for imported files, broker documents, and other source artifacts.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `user_id uuid not null references profiles(id)`
+- `portfolio_id uuid references portfolios(id)`
+- `document_type text not null`
+- `source_type text not null`
+- `storage_path text`
+- `original_filename text`
+- `content_hash text`
+- `broker text`
+- `uploaded_at timestamptz not null`
+- `created_at timestamptz not null`
+
+Document types:
+
+- `csv`
+- `broker_statement`
+- `postbox_document`
+- `manual_entry`
+- `api_payload`
+
+Source types:
+
+- `manual`
+- `csv`
+- `comdirect`
+- `trade_republic`
+- `interactive_brokers`
+
+## import_runs
+
+Tracks every import attempt.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `user_id uuid not null references profiles(id)`
+- `portfolio_id uuid not null references portfolios(id)`
+- `source_document_id uuid references source_documents(id)`
+- `source_type text not null`
+- `broker text`
+- `status text not null`
+- `started_at timestamptz not null`
+- `finished_at timestamptz`
+- `rows_total integer`
+- `rows_imported integer`
+- `rows_failed integer`
+- `error_message text`
+- `created_at timestamptz not null`
+
+Statuses:
+
+- `pending`
+- `processing`
+- `completed`
+- `completed_with_errors`
+- `failed`
+
+## import_rows
+
+Preserves row-level import traceability.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `import_run_id uuid not null references import_runs(id)`
+- `row_number integer`
+- `raw_payload jsonb not null`
+- `normalized_payload jsonb`
+- `status text not null`
+- `transaction_id uuid references transactions(id)`
+- `error_message text`
+- `created_at timestamptz not null`
+
+Notes:
+
+- This table is especially useful for CSV and broker statement imports.
+- It supports reproducible import debugging without polluting canonical transactions.
+
+## portfolio_snapshots
+
+Stores derived portfolio development points for performance and charting. These are cache-like records, not source-of-truth holdings.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `user_id uuid not null references profiles(id)`
+- `portfolio_id uuid not null references portfolios(id)`
+- `snapshot_date date not null`
+- `invested_capital numeric not null`
+- `portfolio_value numeric not null`
+- `capital_gain numeric not null`
+- `dividend_income numeric not null`
+- `currency text not null`
+- `calculation_version text`
+- `created_at timestamptz not null`
+
+Constraints:
+
+- unique `portfolio_id`, `snapshot_date`, and `calculation_version`
+
+Notes:
+
+- Snapshots can be regenerated from transactions and prices.
+- They should not be edited manually.
+
+# Derived Models
+
+These should be represented in services or database views rather than stored as master data.
+
+## Holding
+
+Derived from transactions.
+
+Fields:
+
+- `portfolio_id`
+- `security_id`
+- `quantity`
+- `cost_basis`
+- `average_cost`
+- `latest_price`
+- `current_value`
+- `unrealized_gain`
+- `unrealized_gain_percent`
+
+## Purchase Lot
+
+Derived primarily from buy transactions and adjusted by sell transactions.
+
+Fields:
+
+- `buy_transaction_id`
+- `security_id`
+- `buy_date`
+- `original_quantity`
+- `remaining_quantity`
+- `unit_price`
+- `cost_basis`
+- `current_value`
+- `unrealized_gain`
+- `unrealized_gain_percent`
+- `annualized_return`
+- `total_dividends_received`
+- `yield_on_cost`
+
+## Dividend Allocation
+
+Derived by associating dividend transactions with eligible held lots.
+
+Fields:
+
+- `dividend_transaction_id`
+- `buy_transaction_id`
+- `security_id`
+- `ex_date` or `payment_date`
+- `allocated_amount`
+- `currency`
+
+The MVP can start by allocating dividends proportionally to held quantity on the dividend date. The exact allocation rule must be documented because dividend analytics depend on it.
+
+# Row Level Security
+
+Tables with user-owned data should include `user_id` and enforce RLS policies:
+
+- `profiles`
+- `portfolios`
+- `transactions`
+- `source_documents`
+- `import_runs`
+- `import_rows`
+- `portfolio_snapshots`
+
+Shared or reference-like tables:
+
+- `securities`
+- `prices`
+
+Security principles:
+
+- users can only access their own financial records
+- source documents must be scoped by user
+- import rows should inherit access through `import_runs`
+- writes should validate portfolio ownership
+
+# Indexing Strategy
+
+Recommended indexes:
+
+- `transactions(user_id, portfolio_id, trade_date)`
+- `transactions(portfolio_id, security_id, trade_date)`
+- `transactions(import_run_id)`
+- `transactions(source_document_id)`
+- `prices(security_id, price_date desc)`
+- `import_runs(user_id, portfolio_id, started_at desc)`
+- `import_rows(import_run_id, row_number)`
+- `portfolio_snapshots(portfolio_id, snapshot_date)`
+- `source_documents(user_id, uploaded_at desc)`
+
+# Idempotency And Duplicate Detection
+
+Imports should avoid duplicate transactions.
+
+Useful duplicate keys:
+
+- broker external transaction ID
+- source document hash plus row number
+- normalized transaction fingerprint
+
+Example fingerprint inputs:
+
+- portfolio
+- security
+- type
+- trade date
+- quantity
+- unit price
+- net amount
+- currency
+- broker
+
+The system should store enough import metadata to explain why a row was imported, skipped, or rejected.
+
+# MVP Schema Scope
+
+Required for MVP:
+
+- `profiles`
+- `portfolios`
+- `securities`
+- `transactions`
+- `transaction_components`
+- `prices`
+- `source_documents`
+- `import_runs`
+- `import_rows`
+
+Optional but recommended for MVP charts:
+
+- `portfolio_snapshots`
+
+Deferrable until after MVP:
+
+- `broker_accounts`
+- `fx_rates`
+- `corporate_actions`
+- `benchmark_prices`
+
+# Open Database Questions
+
+- Should the MVP support multiple currencies, or assume EUR while keeping currency columns ready?
+- Should dividend transactions reference `security_id` only, or also a broker cash account later?
+- Should taxes and fees be modeled as components first, standalone transactions first, or both?
+- Should market prices be user-imported initially or fetched from a provider?
+- Should snapshots be calculated on demand first and persisted only when performance requires it?
