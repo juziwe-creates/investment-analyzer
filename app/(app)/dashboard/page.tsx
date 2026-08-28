@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CapitalDeploymentChart } from "@/components/capital-deployment-chart";
 import { PortfolioDevelopmentChart } from "@/components/portfolio-development-chart";
 import {
@@ -19,13 +20,51 @@ const intervals: { label: string; value: ChartInterval }[] = [
   { label: "Monthly", value: "monthly" }
 ];
 
+function isDate(value: string | undefined) {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
+function filterPointsByDate<T extends { date: string }>(
+  points: T[],
+  fromDate: string,
+  toDate: string
+) {
+  return points.filter((point) => {
+    if (fromDate && point.date < fromDate) {
+      return false;
+    }
+
+    if (toDate && point.date > toDate) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function dashboardHref(interval: ChartInterval, fromDate: string, toDate: string) {
+  const params = new URLSearchParams({ interval });
+
+  if (fromDate) {
+    params.set("from", fromDate);
+  }
+
+  if (toDate) {
+    params.set("to", toDate);
+  }
+
+  return `/dashboard?${params.toString()}`;
+}
+
 export default async function DashboardPage({
   searchParams
 }: {
-  searchParams: Promise<{ interval?: string }>;
+  searchParams: Promise<{ interval?: string; from?: string; to?: string }>;
 }) {
-  const { interval: rawInterval } = await searchParams;
+  const { interval: rawInterval, from: rawFromDate, to: rawToDate } = await searchParams;
   const interval = parseChartInterval(rawInterval);
+  const fromDate = isDate(rawFromDate) ? rawFromDate ?? "" : "";
+  const toDate = isDate(rawToDate) ? rawToDate ?? "" : "";
   const supabase = await createClient();
   const { data: transactions, error: transactionsError } = await supabase
     .from("transactions")
@@ -53,12 +92,18 @@ export default async function DashboardPage({
     latestMarketPrices ?? [],
     manualPrices ?? []
   );
-  const developmentPoints = calculatePortfolioDevelopment(
+  const allDevelopmentPoints = calculatePortfolioDevelopment(
     transactions ?? [],
     marketPrices ?? [],
     interval
   );
-  const capitalDeploymentPoints = calculateCapitalDeployment(transactions ?? [], interval);
+  const allCapitalDeploymentPoints = calculateCapitalDeployment(transactions ?? [], interval);
+  const developmentPoints = filterPointsByDate(allDevelopmentPoints, fromDate, toDate);
+  const capitalDeploymentPoints = filterPointsByDate(
+    allCapitalDeploymentPoints,
+    fromDate,
+    toDate
+  );
   const earliestBuyDate =
     transactions
       ?.filter((transaction) => transaction.type === "buy")
@@ -66,6 +111,7 @@ export default async function DashboardPage({
       .sort()[0] ?? null;
   const firstDevelopmentPointDate = developmentPoints[0]?.date ?? null;
   const hasDevelopmentCoverageGap =
+    !fromDate &&
     earliestBuyDate !== null &&
     firstDevelopmentPointDate !== null &&
     earliestBuyDate < firstDevelopmentPointDate;
@@ -178,22 +224,61 @@ export default async function DashboardPage({
       </div>
 
       <Card>
-        <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Portfolio development</CardTitle>
-          <div className="flex rounded-md border p-1">
-            {intervals.map((option) => (
-              <a
-                key={option.value}
-                href={`/dashboard?interval=${option.value}`}
-                className={cn(
-                  "rounded px-3 py-1 text-sm text-muted-foreground",
-                  option.value === interval && "bg-primary text-primary-foreground"
-                )}
-              >
-                {option.label}
-              </a>
-            ))}
+        <CardHeader>
+          <CardTitle>Chart filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex w-fit rounded-md border p-1">
+              {intervals.map((option) => (
+                <a
+                  key={option.value}
+                  href={dashboardHref(option.value, fromDate, toDate)}
+                  className={cn(
+                    "rounded px-3 py-1 text-sm text-muted-foreground",
+                    option.value === interval && "bg-primary text-primary-foreground"
+                  )}
+                >
+                  {option.label}
+                </a>
+              ))}
+            </div>
+            <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+              <input type="hidden" name="interval" value={interval} />
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">From</span>
+                <input
+                  type="date"
+                  name="from"
+                  defaultValue={fromDate}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">To</span>
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={toDate}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <Button type="submit">Apply</Button>
+              <Button asChild type="button" variant="outline">
+                <a href={`/dashboard?interval=${interval}`}>Clear</a>
+              </Button>
+            </form>
+            <p className="text-xs text-muted-foreground">
+              Showing {developmentPoints.length} portfolio points and{" "}
+              {capitalDeploymentPoints.length} capital deployment points.
+            </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Portfolio development</CardTitle>
         </CardHeader>
         <CardContent>
           <PortfolioDevelopmentChart

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, type MouseEvent } from "react";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import type { ChartInterval, PortfolioDevelopmentPoint } from "@/lib/analytics/portfolio";
 
@@ -15,6 +18,11 @@ const padding = {
   right: 24,
   bottom: 44,
   left: 72
+};
+
+type HoverPoint = {
+  point: PortfolioDevelopmentPoint;
+  x: number;
 };
 
 function areaPath(
@@ -50,12 +58,33 @@ function dateTimestamp(date: string) {
   return new Date(`${date}T00:00:00Z`).getTime();
 }
 
+function nearestPoint(
+  points: PortfolioDevelopmentPoint[],
+  svgX: number,
+  xForPoint: (point: PortfolioDevelopmentPoint) => number
+) {
+  return points.reduce(
+    (nearest, point) => {
+      const distance = Math.abs(xForPoint(point) - svgX);
+
+      if (distance < nearest.distance) {
+        return { point, distance };
+      }
+
+      return nearest;
+    },
+    { point: points[0], distance: Number.POSITIVE_INFINITY }
+  ).point;
+}
+
 export function PortfolioDevelopmentChart({
   points,
   interval,
   emptyMessage = "Sync market prices to see portfolio development.",
   earliestBuyDate
 }: PortfolioDevelopmentChartProps) {
+  const [hoverPoint, setHoverPoint] = useState<HoverPoint | null>(null);
+
   if (points.length === 0) {
     return (
       <div className="flex h-72 items-center justify-center rounded-md border border-dashed text-center text-sm text-muted-foreground">
@@ -96,6 +125,24 @@ export function PortfolioDevelopmentChart({
   const unpricedPointCount = points.filter((point) => !point.hasCompletePricing).length;
   const hasPositiveGain = points.some((point) => point.investmentGain > 0);
   const hasNegativeGain = points.some((point) => point.investmentGain < 0);
+  const tooltipWidth = 230;
+  const tooltipX =
+    hoverPoint && hoverPoint.x > chartWidth - padding.right - tooltipWidth
+      ? hoverPoint.x - tooltipWidth - 12
+      : (hoverPoint?.x ?? 0) + 12;
+
+  function handleMouseMove(event: MouseEvent<SVGSVGElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * chartWidth;
+
+    if (svgX < padding.left || svgX > chartWidth - padding.right) {
+      setHoverPoint(null);
+      return;
+    }
+
+    const point = nearestPoint(points, svgX, xForPoint);
+    setHoverPoint({ point, x: xForPoint(point) });
+  }
 
   return (
     <div className="space-y-4">
@@ -104,7 +151,9 @@ export function PortfolioDevelopmentChart({
           role="img"
           aria-label={`Portfolio development chart with ${interval} interval`}
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          className="h-80 min-w-[720px] w-full"
+          className="h-80 min-w-[720px] w-full cursor-crosshair"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverPoint(null)}
         >
           <line
             x1={padding.left}
@@ -154,6 +203,54 @@ export function PortfolioDevelopmentChart({
             strokeWidth="2"
             strokeDasharray="5 5"
           />
+          {hoverPoint ? (
+            <g pointerEvents="none">
+              <line
+                x1={hoverPoint.x}
+                y1={padding.top}
+                x2={hoverPoint.x}
+                y2={chartHeight - padding.bottom}
+                stroke="hsl(var(--foreground) / 0.35)"
+                strokeDasharray="4 4"
+              />
+              <circle
+                cx={hoverPoint.x}
+                cy={yForValue(hoverPoint.point.portfolioValue)}
+                r="4"
+                fill="hsl(var(--foreground))"
+              />
+              <circle
+                cx={hoverPoint.x}
+                cy={yForValue(hoverPoint.point.investedCapital)}
+                r="4"
+                fill="hsl(var(--primary))"
+              />
+              <g transform={`translate(${tooltipX} ${padding.top + 8})`}>
+                <rect
+                  width={tooltipWidth}
+                  height="116"
+                  rx="8"
+                  fill="hsl(var(--background))"
+                  stroke="hsl(var(--border))"
+                />
+                <text x="12" y="22" className="fill-foreground text-xs font-semibold">
+                  {formatDate(hoverPoint.point.date)}
+                </text>
+                <text x="12" y="44" className="fill-muted-foreground text-xs">
+                  Portfolio: {formatCurrency(hoverPoint.point.portfolioValue, currency)}
+                </text>
+                <text x="12" y="64" className="fill-muted-foreground text-xs">
+                  Invested: {formatCurrency(hoverPoint.point.investedCapital, currency)}
+                </text>
+                <text x="12" y="84" className="fill-muted-foreground text-xs">
+                  Gain/loss: {formatCurrency(hoverPoint.point.investmentGain, currency)}
+                </text>
+                <text x="12" y="104" className="fill-muted-foreground text-xs">
+                  Dividends: {formatCurrency(hoverPoint.point.dividendsReceived, currency)}
+                </text>
+              </g>
+            </g>
+          ) : null}
           {[0, 0.5, 1].map((tick) => {
             const value = minValue + range * tick;
 

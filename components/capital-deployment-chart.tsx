@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, type MouseEvent } from "react";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import type { CapitalDeploymentPoint, ChartInterval } from "@/lib/analytics/portfolio";
 
@@ -15,8 +18,32 @@ const padding = {
   left: 72
 };
 
+type HoverPoint = {
+  point: CapitalDeploymentPoint;
+  x: number;
+};
+
 function dateTimestamp(date: string) {
   return new Date(`${date}T00:00:00Z`).getTime();
+}
+
+function nearestPoint(
+  points: CapitalDeploymentPoint[],
+  svgX: number,
+  xForPoint: (point: CapitalDeploymentPoint) => number
+) {
+  return points.reduce(
+    (nearest, point) => {
+      const distance = Math.abs(xForPoint(point) - svgX);
+
+      if (distance < nearest.distance) {
+        return { point, distance };
+      }
+
+      return nearest;
+    },
+    { point: points[0], distance: Number.POSITIVE_INFINITY }
+  ).point;
 }
 
 function areaPath(
@@ -56,6 +83,8 @@ export function CapitalDeploymentChart({
   points,
   interval
 }: CapitalDeploymentChartProps) {
+  const [hoverPoint, setHoverPoint] = useState<HoverPoint | null>(null);
+
   if (points.length === 0) {
     return (
       <div className="flex h-72 items-center justify-center rounded-md border border-dashed text-center text-sm text-muted-foreground">
@@ -84,6 +113,24 @@ export function CapitalDeploymentChart({
     padding.left + ((dateTimestamp(point.date) - firstTimestamp) / timeRange) * plotWidth;
   const yForValue = (value: number) =>
     padding.top + plotHeight - ((value - minValue) / range) * plotHeight;
+  const tooltipWidth = 230;
+  const tooltipX =
+    hoverPoint && hoverPoint.x > chartWidth - padding.right - tooltipWidth
+      ? hoverPoint.x - tooltipWidth - 12
+      : (hoverPoint?.x ?? 0) + 12;
+
+  function handleMouseMove(event: MouseEvent<SVGSVGElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * chartWidth;
+
+    if (svgX < padding.left || svgX > chartWidth - padding.right) {
+      setHoverPoint(null);
+      return;
+    }
+
+    const point = nearestPoint(points, svgX, xForPoint);
+    setHoverPoint({ point, x: xForPoint(point) });
+  }
 
   return (
     <div className="space-y-4">
@@ -92,7 +139,9 @@ export function CapitalDeploymentChart({
           role="img"
           aria-label={`Capital deployment chart with ${interval} interval`}
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          className="h-72 min-w-[720px] w-full"
+          className="h-72 min-w-[720px] w-full cursor-crosshair"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverPoint(null)}
         >
           <line
             x1={padding.left}
@@ -117,6 +166,48 @@ export function CapitalDeploymentChart({
             stroke="hsl(142 70% 38%)"
             strokeWidth="2"
           />
+          {hoverPoint ? (
+            <g pointerEvents="none">
+              <line
+                x1={hoverPoint.x}
+                y1={padding.top}
+                x2={hoverPoint.x}
+                y2={chartHeight - padding.bottom}
+                stroke="hsl(var(--foreground) / 0.35)"
+                strokeDasharray="4 4"
+              />
+              <circle
+                cx={hoverPoint.x}
+                cy={yForValue(hoverPoint.point.capitalDeployed)}
+                r="4"
+                fill="hsl(var(--primary))"
+              />
+              <circle
+                cx={hoverPoint.x}
+                cy={yForValue(hoverPoint.point.dividendsCollected)}
+                r="4"
+                fill="hsl(142 70% 38%)"
+              />
+              <g transform={`translate(${tooltipX} ${padding.top + 8})`}>
+                <rect
+                  width={tooltipWidth}
+                  height="78"
+                  rx="8"
+                  fill="hsl(var(--background))"
+                  stroke="hsl(var(--border))"
+                />
+                <text x="12" y="22" className="fill-foreground text-xs font-semibold">
+                  {formatDate(hoverPoint.point.date)}
+                </text>
+                <text x="12" y="44" className="fill-muted-foreground text-xs">
+                  Net deployed: {formatCurrency(hoverPoint.point.capitalDeployed, currency)}
+                </text>
+                <text x="12" y="64" className="fill-muted-foreground text-xs">
+                  Dividends: {formatCurrency(hoverPoint.point.dividendsCollected, currency)}
+                </text>
+              </g>
+            </g>
+          ) : null}
           {[0, 0.5, 1].map((tick) => {
             const value = minValue + range * tick;
 
