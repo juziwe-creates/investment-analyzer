@@ -1,9 +1,16 @@
 import {
   buildValuationPrices,
   calculateLotProfitability,
-  type LotProfitability,
-  type ValuationPrice
+  type LotProfitability
 } from "@/lib/analytics/profitability";
+import {
+  acquisitionCost,
+  buildPortfolioTimeline,
+  dividendAmount,
+  saleProceeds,
+  type AnalyticsPrice,
+  type AnalyticsTransaction
+} from "@/lib/analytics/engine";
 import type { Database } from "@/types/database";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
@@ -101,6 +108,35 @@ function cashAmount(transaction: Transaction) {
   }
 
   return 0;
+}
+
+function toAnalyticsTransaction(transaction: Transaction): AnalyticsTransaction {
+  return {
+    id: transaction.id,
+    type: transaction.type,
+    trade_date: transaction.trade_date,
+    security_name: transaction.security_name,
+    isin: transaction.isin,
+    wkn: transaction.wkn,
+    ticker: transaction.ticker,
+    quantity: transaction.quantity,
+    unit_price: transaction.unit_price,
+    gross_amount: transaction.gross_amount,
+    net_amount: transaction.net_amount,
+    currency: transaction.currency,
+    created_at: transaction.created_at
+  };
+}
+
+function toAnalyticsPrices(marketPrices: MarketPrice[]): AnalyticsPrice[] {
+  return marketPrices.map((price) => ({
+    security_key: price.security_key,
+    price: price.adjusted_close_price ?? price.close_price,
+    price_date: price.price_date,
+    currency: price.currency,
+    source: "market",
+    id: price.id
+  }));
 }
 
 function intervalKey(date: string, interval: ChartInterval) {
@@ -307,85 +343,29 @@ export function buildCurrentAnalytics(
   };
 }
 
-function valuationPricesForDate(
-  prices: MarketPrice[],
-  date: string,
-  currency: string
-): ValuationPrice[] {
-  const latestBySecurity = new Map<string, MarketPrice>();
-  const targetTime = dateTimestamp(date);
-
-  for (const price of prices) {
-    if (dateTimestamp(price.price_date) > targetTime) {
-      continue;
-    }
-
-    const existing = latestBySecurity.get(price.security_key);
-
-    if (!existing || price.price_date > existing.price_date) {
-      latestBySecurity.set(price.security_key, price);
-    }
-  }
-
-  return [...latestBySecurity.values()].map((price) => ({
-    security_key: price.security_key,
-    price: price.adjusted_close_price ?? price.close_price,
-    price_date: price.price_date,
-    currency: price.currency || currency,
-    source: "market"
-  }));
-}
-
 export function calculatePortfolioDevelopment(
   transactions: Transaction[],
   marketPrices: MarketPrice[],
   interval: ChartInterval
 ): PortfolioDevelopmentPoint[] {
-  const dates = [
-    ...new Set([
-      ...marketPrices.map((price) => price.price_date),
-      ...transactions.map((transaction) => transaction.trade_date)
-    ])
-  ].sort((a, b) => dateTimestamp(a) - dateTimestamp(b));
-  const baseCurrency = transactions[0]?.currency ?? marketPrices[0]?.currency ?? "EUR";
-  const dailyPoints = dates
-    .map((date) => {
-      const targetTime = dateTimestamp(date);
-      const transactionsUntilDate = transactions.filter(
-        (transaction) => dateTimestamp(transaction.trade_date) <= targetTime
-      );
-      const valuationPrices = valuationPricesForDate(marketPrices, date, baseCurrency);
-      const lots = calculateLotProfitability(transactionsUntilDate, valuationPrices);
-      const summary = calculatePortfolioSummary(lots, transactionsUntilDate);
-      const investedCapital = summary.hasCompletePricing
-        ? summary.investedCapital
-        : summary.pricedInvestedCapital;
-      const portfolioValue = summary.hasCompletePricing
-        ? summary.portfolioValue
-        : summary.pricedPortfolioValue;
-      const investmentGain = summary.hasCompletePricing
-        ? summary.investmentGain
-        : summary.pricedInvestmentGain;
-
-      if (portfolioValue === null || investmentGain === null) {
-        return null;
-      }
-
-      return {
-        date,
-        investedCapital,
-        investmentGain,
-        portfolioValue,
-        unpricedInvestedCapital: summary.unpricedInvestedCapital,
-        unpricedOpenLots: summary.unpricedOpenLots,
-        hasCompletePricing: summary.hasCompletePricing,
-        dividendsReceived: summary.dividendsReceived,
-        currency: summary.currency
-      };
-    })
-    .filter((point): point is PortfolioDevelopmentPoint =>
-      Boolean(point && point.investedCapital > 0)
-    );
+  const dailyPoints = buildPortfolioTimeline(
+    transactions.map(toAnalyticsTransaction),
+    toAnalyticsPrices(marketPrices)
+  )
+    .map((point): PortfolioDevelopmentPoint => ({
+      date: point.date,
+      investedCapital: point.hasCompletePricing
+        ? point.currentDeployedCapital
+        : point.pricedCurrentDeployedCapital,
+      investmentGain: point.unrealizedGain,
+      portfolioValue: point.portfolioMarketValue,
+      unpricedInvestedCapital: point.unpricedCurrentDeployedCapital,
+      unpricedOpenLots: point.missingPriceSecurityKeys.length,
+      hasCompletePricing: point.hasCompletePricing,
+      dividendsReceived: point.dividendsCollected,
+      currency: point.currency
+    }))
+    .filter((point) => point.investedCapital > 0 || point.portfolioValue > 0);
 
   const intervalPoints = new Map<string, PortfolioDevelopmentPoint>();
 
@@ -418,18 +398,18 @@ export function calculateCapitalDeployment(
   let dividendsCollected = 0;
 
   for (const transaction of relevantTransactions) {
-    const amount = cashAmount(transaction);
+    const analyticsTransaction = toAnalyticsTransaction(transaction);
 
     if (transaction.type === "buy") {
-      capitalDeployed += amount;
+      capitalDeployed += acquisitionCost(analyticsTransaction);
     }
 
     if (transaction.type === "sell") {
-      capitalDeployed -= amount;
+      capitalDeployed -= saleProceeds(analyticsTransaction);
     }
 
     if (transaction.type === "dividend") {
-      dividendsCollected += amount;
+      dividendsCollected += dividendAmount(analyticsTransaction);
     }
 
     points.push({
