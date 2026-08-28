@@ -5,6 +5,7 @@ type PortfolioDevelopmentChartProps = {
   points: PortfolioDevelopmentPoint[];
   interval: ChartInterval;
   emptyMessage?: string;
+  earliestBuyDate?: string | null;
 };
 
 const chartWidth = 900;
@@ -52,7 +53,8 @@ function dateTimestamp(date: string) {
 export function PortfolioDevelopmentChart({
   points,
   interval,
-  emptyMessage = "Sync market prices to see portfolio development."
+  emptyMessage = "Sync market prices to see portfolio development.",
+  earliestBuyDate
 }: PortfolioDevelopmentChartProps) {
   if (points.length === 0) {
     return (
@@ -90,7 +92,6 @@ export function PortfolioDevelopmentChart({
     ...point,
     portfolioValue: Math.min(point.portfolioValue, point.investedCapital)
   }));
-  const firstInvestedPoint = points.find((point) => point.investedCapital > 0);
   const hasPositiveGain = points.some((point) => point.investmentGain > 0);
   const hasNegativeGain = points.some((point) => point.investmentGain < 0);
 
@@ -199,11 +200,12 @@ export function PortfolioDevelopmentChart({
         <span>Solid line: portfolio value</span>
         <span>Dashed line: invested capital</span>
       </div>
-      {firstInvestedPoint ? (
+      {firstPoint ? (
         <div className="text-xs text-muted-foreground">
-          First invested point: {formatDate(firstInvestedPoint.date)} with{" "}
-          {formatCurrency(firstInvestedPoint.investedCapital, currency)} invested and{" "}
-          {formatCurrency(firstInvestedPoint.portfolioValue, currency)} portfolio value.
+          Earliest buy seen: {earliestBuyDate ? formatDate(earliestBuyDate) : "none"}. First
+          valued point: {formatDate(firstPoint.date)} with{" "}
+          {formatCurrency(firstPoint.investedCapital, currency)} invested and{" "}
+          {formatCurrency(firstPoint.portfolioValue, currency)} portfolio value.
         </div>
       ) : null}
     </div>

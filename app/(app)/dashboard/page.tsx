@@ -55,6 +55,16 @@ export default async function DashboardPage({
     marketPrices ?? [],
     interval
   );
+  const earliestBuyDate =
+    transactions
+      ?.filter((transaction) => transaction.type === "buy")
+      .map((transaction) => transaction.trade_date)
+      .sort()[0] ?? null;
+  const firstDevelopmentPointDate = developmentPoints[0]?.date ?? null;
+  const hasDevelopmentCoverageGap =
+    earliestBuyDate !== null &&
+    firstDevelopmentPointDate !== null &&
+    earliestBuyDate < firstDevelopmentPointDate;
   const unpricedHoldings = holdings.filter(
     (holding) => holding.quantity > 0 && holding.marketValue === null
   );
@@ -115,6 +125,13 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
+      {hasDevelopmentCoverageGap ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          The earliest buy transaction is before the first valued chart point. This usually
+          means an older transaction has no matching market price key yet.
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
           <Card key={metric.label}>
@@ -152,6 +169,7 @@ export default async function DashboardPage({
           <PortfolioDevelopmentChart
             points={developmentPoints}
             interval={interval}
+            earliestBuyDate={earliestBuyDate}
             emptyMessage={
               marketPrices && marketPrices.length > 0
                 ? "Complete price coverage is needed before portfolio development can be shown."

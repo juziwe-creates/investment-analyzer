@@ -269,7 +269,9 @@ export function calculatePortfolioDevelopment(
         currency: summary.currency
       };
     })
-    .filter((point): point is PortfolioDevelopmentPoint => Boolean(point));
+    .filter((point): point is PortfolioDevelopmentPoint =>
+      Boolean(point && point.investedCapital > 0)
+    );
 
   const intervalPoints = new Map<string, PortfolioDevelopmentPoint>();
 
