@@ -8,17 +8,26 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function PortfolioPage() {
   const supabase = await createClient();
-  const { data: transactions, error: transactionsError } = await supabase
+  const transactionsQuery = supabase
     .from("transactions")
     .select("*")
     .order("trade_date", { ascending: true })
     .order("created_at", { ascending: true });
-  const { data: latestMarketPrices, error: latestPricesError } = await supabase
+  const latestMarketPricesQuery = supabase
     .from("latest_market_prices")
     .select("*");
-  const { data: manualPrices, error: manualPricesError } = await supabase
+  const manualPricesQuery = supabase
     .from("manual_security_prices")
     .select("*");
+  const [
+    { data: transactions, error: transactionsError },
+    { data: latestMarketPrices, error: latestPricesError },
+    { data: manualPrices, error: manualPricesError }
+  ] = await Promise.all([
+    transactionsQuery,
+    latestMarketPricesQuery,
+    manualPricesQuery
+  ]);
   const errors = [transactionsError, latestPricesError, manualPricesError].filter(Boolean);
   const { holdings } = buildCurrentAnalytics(
     transactions ?? [],

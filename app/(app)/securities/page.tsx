@@ -12,21 +12,26 @@ export default async function SecuritiesPage({
 }) {
   const { message } = await searchParams;
   const supabase = await createClient();
-  const { data: prices, error: pricesError } = await supabase
+  const manualPricesQuery = supabase
     .from("manual_security_prices")
     .select(
       "id,user_id,portfolio_id,security_key,security_name,isin,ticker,price,currency,price_date,created_at,updated_at"
     );
-  const { data: marketPrices, error: marketPricesError } = await supabase
+  const marketPricesQuery = supabase
     .from("latest_market_prices")
     .select(
       "id,user_id,portfolio_id,security_key,security_name,isin,ticker,provider,provider_symbol,price_date,close_price,adjusted_close_price,currency,created_at,updated_at"
     );
-  const { data: transactions, error: transactionsError } = await supabase
+  const transactionsQuery = supabase
     .from("transactions")
     .select("*")
     .order("trade_date", { ascending: true })
     .order("created_at", { ascending: true });
+  const [
+    { data: prices, error: pricesError },
+    { data: marketPrices, error: marketPricesError },
+    { data: transactions, error: transactionsError }
+  ] = await Promise.all([manualPricesQuery, marketPricesQuery, transactionsQuery]);
   const { holdings } = buildCurrentAnalytics(
     transactions ?? [],
     marketPrices ?? [],

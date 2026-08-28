@@ -66,21 +66,32 @@ export default async function DashboardPage({
   const fromDate = isDate(rawFromDate) ? rawFromDate ?? "" : "";
   const toDate = isDate(rawToDate) ? rawToDate ?? "" : "";
   const supabase = await createClient();
-  const { data: transactions, error: transactionsError } = await supabase
+  const transactionsQuery = supabase
     .from("transactions")
     .select("*")
     .order("trade_date", { ascending: true })
     .order("created_at", { ascending: true });
-  const { data: latestMarketPrices, error: latestPricesError } = await supabase
+  const latestMarketPricesQuery = supabase
     .from("latest_market_prices")
     .select("*");
-  const { data: manualPrices, error: manualPricesError } = await supabase
+  const manualPricesQuery = supabase
     .from("manual_security_prices")
     .select("*");
-  const { data: marketPrices, error: marketPricesError } = await supabase
+  const marketPricesQuery = supabase
     .from("market_prices")
     .select("*")
     .order("price_date", { ascending: true });
+  const [
+    { data: transactions, error: transactionsError },
+    { data: latestMarketPrices, error: latestPricesError },
+    { data: manualPrices, error: manualPricesError },
+    { data: marketPrices, error: marketPricesError }
+  ] = await Promise.all([
+    transactionsQuery,
+    latestMarketPricesQuery,
+    manualPricesQuery,
+    marketPricesQuery
+  ]);
   const errors = [
     transactionsError,
     latestPricesError,
