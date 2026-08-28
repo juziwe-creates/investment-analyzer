@@ -5,6 +5,7 @@ import {
   buildCurrentAnalytics,
   calculateCapitalDeployment,
   calculatePortfolioDevelopment,
+  findSecuritiesWithoutBuyHistory,
   parseChartInterval,
   type ChartInterval
 } from "@/lib/analytics/portfolio";
@@ -71,6 +72,12 @@ export default async function DashboardPage({
   const hasIncompleteDevelopmentPoints = developmentPoints.some(
     (point) => !point.hasCompletePricing
   );
+  const missingBuyHistory = findSecuritiesWithoutBuyHistory(transactions ?? []);
+  const missingBuyHistoryNames = missingBuyHistory
+    .slice(0, 3)
+    .map((security) => security.securityName)
+    .join(", ");
+  const hasMoreMissingBuyHistory = missingBuyHistory.length > 3;
   const unpricedHoldings = holdings.filter(
     (holding) => holding.quantity > 0 && holding.marketValue === null
   );
@@ -143,6 +150,15 @@ export default async function DashboardPage({
           The portfolio development chart includes only positions with historical prices
           at each point in time. Add historical prices for the remaining securities to turn
           it into a complete portfolio chart.
+        </div>
+      ) : null}
+
+      {missingBuyHistory.length > 0 ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {missingBuyHistory.length} securities have dividends or sells, but no buy
+          transactions yet{missingBuyHistoryNames ? `: ${missingBuyHistoryNames}` : ""}
+          {hasMoreMissingBuyHistory ? " and more" : ""}. They are excluded from current
+          holdings until their buy history is imported.
         </div>
       ) : null}
 

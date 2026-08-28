@@ -1,5 +1,9 @@
+import { MissingBuyHistoryTable } from "@/components/missing-buy-history-table";
 import { PortfolioHoldingsTable } from "@/components/portfolio-holdings-table";
-import { buildCurrentAnalytics } from "@/lib/analytics/portfolio";
+import {
+  buildCurrentAnalytics,
+  findSecuritiesWithoutBuyHistory
+} from "@/lib/analytics/portfolio";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function PortfolioPage() {
@@ -21,6 +25,7 @@ export default async function PortfolioPage() {
     latestMarketPrices ?? [],
     manualPrices ?? []
   );
+  const missingBuyHistory = findSecuritiesWithoutBuyHistory(transactions ?? []);
 
   return (
     <div className="space-y-6">
@@ -38,6 +43,7 @@ export default async function PortfolioPage() {
       ) : null}
 
       <PortfolioHoldingsTable holdings={holdings} />
+      <MissingBuyHistoryTable securities={missingBuyHistory} />
     </div>
   );
 }

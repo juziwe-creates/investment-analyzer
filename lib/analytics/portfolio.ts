@@ -62,6 +62,18 @@ export type CapitalDeploymentPoint = {
   currency: string;
 };
 
+export type SecurityActivityWithoutBuyHistory = {
+  securityKey: string;
+  securityName: string;
+  isin: string | null;
+  ticker: string | null;
+  dividendCount: number;
+  sellCount: number;
+  totalDividends: number;
+  latestTransactionDate: string;
+  currency: string;
+};
+
 function cashAmount(transaction: Transaction) {
   if (transaction.net_amount !== null) {
     return Math.abs(transaction.net_amount);
@@ -98,6 +110,12 @@ function parseDate(date: string) {
 
 function dateTimestamp(date: string) {
   return parseDate(date).getTime();
+}
+
+function transactionSecurityKey(
+  transaction: Pick<Transaction, "isin" | "ticker" | "security_name">
+) {
+  return transaction.isin ?? transaction.ticker ?? transaction.security_name;
 }
 
 export function parseChartInterval(value: string | undefined): ChartInterval {
@@ -357,4 +375,65 @@ export function calculateCapitalDeployment(
   return [...intervalPoints.values()].filter(
     (point) => point.capitalDeployed !== 0 || point.dividendsCollected !== 0
   );
+}
+
+export function findSecuritiesWithoutBuyHistory(
+  transactions: Transaction[]
+): SecurityActivityWithoutBuyHistory[] {
+  const activityBySecurity = new Map<
+    string,
+    SecurityActivityWithoutBuyHistory & { buyCount: number }
+  >();
+
+  for (const transaction of transactions) {
+    const key = transactionSecurityKey(transaction);
+    const existing = activityBySecurity.get(key);
+    const activity = existing ?? {
+      securityKey: key,
+      securityName: transaction.security_name,
+      isin: transaction.isin,
+      ticker: transaction.ticker,
+      buyCount: 0,
+      dividendCount: 0,
+      sellCount: 0,
+      totalDividends: 0,
+      latestTransactionDate: transaction.trade_date,
+      currency: transaction.currency
+    };
+
+    if (transaction.type === "buy") {
+      activity.buyCount += 1;
+    }
+
+    if (transaction.type === "sell") {
+      activity.sellCount += 1;
+    }
+
+    if (transaction.type === "dividend") {
+      activity.dividendCount += 1;
+      activity.totalDividends += cashAmount(transaction);
+    }
+
+    if (dateTimestamp(transaction.trade_date) > dateTimestamp(activity.latestTransactionDate)) {
+      activity.latestTransactionDate = transaction.trade_date;
+    }
+
+    activityBySecurity.set(key, activity);
+  }
+
+  return [...activityBySecurity.values()]
+    .filter((activity) => activity.buyCount === 0)
+    .filter((activity) => activity.dividendCount > 0 || activity.sellCount > 0)
+    .map((activity) => ({
+      securityKey: activity.securityKey,
+      securityName: activity.securityName,
+      isin: activity.isin,
+      ticker: activity.ticker,
+      dividendCount: activity.dividendCount,
+      sellCount: activity.sellCount,
+      totalDividends: activity.totalDividends,
+      latestTransactionDate: activity.latestTransactionDate,
+      currency: activity.currency
+    }))
+    .sort((a, b) => a.securityName.localeCompare(b.securityName));
 }
