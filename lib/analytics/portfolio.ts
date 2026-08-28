@@ -43,6 +43,23 @@ export type PortfolioHolding = {
   currency: string;
 };
 
+export type SecurityInventoryItem = {
+  user_id: string;
+  portfolio_id: string;
+  security_key: string;
+  security_name: string;
+  isin: string | null;
+  wkn: string | null;
+  ticker: string | null;
+  exchange: string | null;
+  security_currency: string | null;
+  asset_type: string | null;
+  transaction_count: number;
+  first_trade_date: string;
+  last_trade_date: string;
+  ownedQuantity: number;
+};
+
 export type PortfolioDevelopmentPoint = {
   date: string;
   investedCapital: number;
@@ -215,6 +232,63 @@ export function calculatePortfolioHoldings(lots: LotProfitability[]): PortfolioH
 
   return [...holdingsBySecurity.values()].sort((a, b) =>
     a.securityName.localeCompare(b.securityName)
+  );
+}
+
+export function calculateSecurityInventory(
+  transactions: Transaction[],
+  holdings: PortfolioHolding[]
+): SecurityInventoryItem[] {
+  const holdingsBySecurity = new Map(
+    holdings.map((holding) => [holding.securityKey, holding])
+  );
+  const inventoryBySecurity = new Map<string, SecurityInventoryItem>();
+
+  for (const transaction of transactions) {
+    const key = transactionSecurityKey(transaction);
+    const existing = inventoryBySecurity.get(key);
+
+    if (!existing) {
+      inventoryBySecurity.set(key, {
+        user_id: transaction.user_id,
+        portfolio_id: transaction.portfolio_id,
+        security_key: key,
+        security_name: transaction.security_name,
+        isin: transaction.isin,
+        wkn: transaction.wkn,
+        ticker: transaction.ticker,
+        exchange: transaction.exchange,
+        security_currency: transaction.security_currency,
+        asset_type: transaction.asset_type,
+        transaction_count: 1,
+        first_trade_date: transaction.trade_date,
+        last_trade_date: transaction.trade_date,
+        ownedQuantity: holdingsBySecurity.get(key)?.quantity ?? 0
+      });
+      continue;
+    }
+
+    existing.transaction_count += 1;
+
+    if (dateTimestamp(transaction.trade_date) < dateTimestamp(existing.first_trade_date)) {
+      existing.first_trade_date = transaction.trade_date;
+    }
+
+    if (dateTimestamp(transaction.trade_date) >= dateTimestamp(existing.last_trade_date)) {
+      existing.security_name = transaction.security_name;
+      existing.isin = transaction.isin ?? existing.isin;
+      existing.wkn = transaction.wkn ?? existing.wkn;
+      existing.ticker = transaction.ticker ?? existing.ticker;
+      existing.exchange = transaction.exchange ?? existing.exchange;
+      existing.security_currency =
+        transaction.security_currency ?? existing.security_currency;
+      existing.asset_type = transaction.asset_type ?? existing.asset_type;
+      existing.last_trade_date = transaction.trade_date;
+    }
+  }
+
+  return [...inventoryBySecurity.values()].sort((a, b) =>
+    a.security_name.localeCompare(b.security_name)
   );
 }
 

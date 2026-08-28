@@ -1,5 +1,8 @@
 import { SecurityList } from "@/components/security-list";
-import { buildCurrentAnalytics } from "@/lib/analytics/portfolio";
+import {
+  buildCurrentAnalytics,
+  calculateSecurityInventory
+} from "@/lib/analytics/portfolio";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function SecuritiesPage({
@@ -9,12 +12,6 @@ export default async function SecuritiesPage({
 }) {
   const { message } = await searchParams;
   const supabase = await createClient();
-  const { data: securities, error } = await supabase
-    .from("user_securities")
-    .select(
-      "user_id,portfolio_id,security_key,security_name,isin,wkn,ticker,exchange,security_currency,asset_type,transaction_count,first_trade_date,last_trade_date"
-    )
-    .order("security_name", { ascending: true });
   const { data: prices, error: pricesError } = await supabase
     .from("manual_security_prices")
     .select(
@@ -35,6 +32,7 @@ export default async function SecuritiesPage({
     marketPrices ?? [],
     prices ?? []
   );
+  const securities = calculateSecurityInventory(transactions ?? [], holdings);
 
   return (
     <div className="space-y-6">
@@ -51,18 +49,16 @@ export default async function SecuritiesPage({
         </div>
       ) : null}
 
-      {error || pricesError || marketPricesError || transactionsError ? (
+      {pricesError || marketPricesError || transactionsError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error?.message ??
-            pricesError?.message ??
+          {pricesError?.message ??
             marketPricesError?.message ??
             transactionsError?.message}
         </div>
       ) : null}
 
       <SecurityList
-        securities={securities ?? []}
-        holdings={holdings}
+        securities={securities}
         prices={prices ?? []}
         marketPrices={marketPrices ?? []}
       />
