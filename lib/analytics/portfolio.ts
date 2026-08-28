@@ -48,6 +48,9 @@ export type PortfolioDevelopmentPoint = {
   investedCapital: number;
   investmentGain: number;
   portfolioValue: number;
+  unpricedInvestedCapital: number;
+  unpricedOpenLots: number;
+  hasCompletePricing: boolean;
   dividendsReceived: number;
   currency: string;
 };
@@ -255,16 +258,28 @@ export function calculatePortfolioDevelopment(
       const valuationPrices = valuationPricesForDate(marketPrices, date, baseCurrency);
       const lots = calculateLotProfitability(transactionsUntilDate, valuationPrices);
       const summary = calculatePortfolioSummary(lots, transactionsUntilDate);
+      const investedCapital = summary.hasCompletePricing
+        ? summary.investedCapital
+        : summary.pricedInvestedCapital;
+      const portfolioValue = summary.hasCompletePricing
+        ? summary.portfolioValue
+        : summary.pricedPortfolioValue;
+      const investmentGain = summary.hasCompletePricing
+        ? summary.investmentGain
+        : summary.pricedInvestmentGain;
 
-      if (summary.portfolioValue === null || summary.investmentGain === null) {
+      if (portfolioValue === null || investmentGain === null) {
         return null;
       }
 
       return {
         date,
-        investedCapital: summary.investedCapital,
-        investmentGain: summary.investmentGain,
-        portfolioValue: summary.portfolioValue,
+        investedCapital,
+        investmentGain,
+        portfolioValue,
+        unpricedInvestedCapital: summary.unpricedInvestedCapital,
+        unpricedOpenLots: summary.unpricedOpenLots,
+        hasCompletePricing: summary.hasCompletePricing,
         dividendsReceived: summary.dividendsReceived,
         currency: summary.currency
       };

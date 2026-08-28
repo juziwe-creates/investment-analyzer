@@ -92,6 +92,8 @@ export function PortfolioDevelopmentChart({
     ...point,
     portfolioValue: Math.min(point.portfolioValue, point.investedCapital)
   }));
+  const hasIncompletePoints = points.some((point) => !point.hasCompletePricing);
+  const unpricedPointCount = points.filter((point) => !point.hasCompletePricing).length;
   const hasPositiveGain = points.some((point) => point.investmentGain > 0);
   const hasNegativeGain = points.some((point) => point.investmentGain < 0);
 
@@ -195,17 +197,31 @@ export function PortfolioDevelopmentChart({
         </svg>
       </div>
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span>Filled base: invested capital</span>
+        <span>
+          Filled base: {hasIncompletePoints ? "priced invested capital" : "invested capital"}
+        </span>
         <span>Green/red area: investment gain/loss</span>
-        <span>Solid line: portfolio value</span>
-        <span>Dashed line: invested capital</span>
+        <span>
+          Solid line: {hasIncompletePoints ? "priced portfolio value" : "portfolio value"}
+        </span>
+        <span>
+          Dashed line: {hasIncompletePoints ? "priced invested capital" : "invested capital"}
+        </span>
       </div>
       {firstPoint ? (
-        <div className="text-xs text-muted-foreground">
-          Earliest buy seen: {earliestBuyDate ? formatDate(earliestBuyDate) : "none"}. First
-          valued point: {formatDate(firstPoint.date)} with{" "}
-          {formatCurrency(firstPoint.investedCapital, currency)} invested and{" "}
-          {formatCurrency(firstPoint.portfolioValue, currency)} portfolio value.
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <div>
+            Earliest buy seen: {earliestBuyDate ? formatDate(earliestBuyDate) : "none"}. First
+            chart point: {formatDate(firstPoint.date)} with{" "}
+            {formatCurrency(firstPoint.investedCapital, currency)} priced invested capital and{" "}
+            {formatCurrency(firstPoint.portfolioValue, currency)} priced portfolio value.
+          </div>
+          {hasIncompletePoints ? (
+            <div>
+              {unpricedPointCount} chart {unpricedPointCount === 1 ? "point excludes" : "points exclude"}{" "}
+              holdings without historical prices.
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -65,6 +65,9 @@ export default async function DashboardPage({
     earliestBuyDate !== null &&
     firstDevelopmentPointDate !== null &&
     earliestBuyDate < firstDevelopmentPointDate;
+  const hasIncompleteDevelopmentPoints = developmentPoints.some(
+    (point) => !point.hasCompletePricing
+  );
   const unpricedHoldings = holdings.filter(
     (holding) => holding.quantity > 0 && holding.marketValue === null
   );
@@ -127,8 +130,16 @@ export default async function DashboardPage({
 
       {hasDevelopmentCoverageGap ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          The earliest buy transaction is before the first valued chart point. This usually
-          means an older transaction has no matching market price key yet.
+          The earliest buy transaction is before the first chart point. This means no
+          historical price was available yet for that first holding.
+        </div>
+      ) : null}
+
+      {hasIncompleteDevelopmentPoints ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          The portfolio development chart includes only positions with historical prices
+          at each point in time. Add historical prices for the remaining securities to turn
+          it into a complete portfolio chart.
         </div>
       ) : null}
 
@@ -172,7 +183,7 @@ export default async function DashboardPage({
             earliestBuyDate={earliestBuyDate}
             emptyMessage={
               marketPrices && marketPrices.length > 0
-                ? "Complete price coverage is needed before portfolio development can be shown."
+                ? "Historical prices are needed before portfolio development can be shown."
                 : "Sync market prices to see portfolio development."
             }
           />
