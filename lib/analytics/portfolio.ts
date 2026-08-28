@@ -65,7 +65,7 @@ function cashAmount(transaction: Transaction) {
 }
 
 function intervalKey(date: string, interval: ChartInterval) {
-  const parsedDate = new Date(`${date}T00:00:00Z`);
+  const parsedDate = parseDate(date);
   const year = parsedDate.getUTCFullYear();
 
   if (interval === "monthly") {
@@ -80,6 +80,14 @@ function intervalKey(date: string, interval: ChartInterval) {
   }
 
   return date;
+}
+
+function parseDate(date: string) {
+  return new Date(`${date}T00:00:00Z`);
+}
+
+function dateTimestamp(date: string) {
+  return parseDate(date).getTime();
 }
 
 export function parseChartInterval(value: string | undefined): ChartInterval {
@@ -203,9 +211,10 @@ function valuationPricesForDate(
   currency: string
 ): ValuationPrice[] {
   const latestBySecurity = new Map<string, MarketPrice>();
+  const targetTime = dateTimestamp(date);
 
   for (const price of prices) {
-    if (price.price_date > date) {
+    if (dateTimestamp(price.price_date) > targetTime) {
       continue;
     }
 
@@ -230,12 +239,18 @@ export function calculatePortfolioDevelopment(
   marketPrices: MarketPrice[],
   interval: ChartInterval
 ): PortfolioDevelopmentPoint[] {
-  const dates = [...new Set(marketPrices.map((price) => price.price_date))].sort();
+  const dates = [
+    ...new Set([
+      ...marketPrices.map((price) => price.price_date),
+      ...transactions.map((transaction) => transaction.trade_date)
+    ])
+  ].sort((a, b) => dateTimestamp(a) - dateTimestamp(b));
   const baseCurrency = transactions[0]?.currency ?? marketPrices[0]?.currency ?? "EUR";
   const dailyPoints = dates
     .map((date) => {
+      const targetTime = dateTimestamp(date);
       const transactionsUntilDate = transactions.filter(
-        (transaction) => transaction.trade_date <= date
+        (transaction) => dateTimestamp(transaction.trade_date) <= targetTime
       );
       const valuationPrices = valuationPricesForDate(marketPrices, date, baseCurrency);
       const lots = calculateLotProfitability(transactionsUntilDate, valuationPrices);

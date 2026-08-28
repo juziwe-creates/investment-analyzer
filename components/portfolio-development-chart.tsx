@@ -18,20 +18,17 @@ const padding = {
 
 function areaPath(
   points: PortfolioDevelopmentPoint[],
-  xForIndex: (index: number) => number,
+  xForPoint: (point: PortfolioDevelopmentPoint) => number,
   yForValue: (value: number) => number,
   topValue: (point: PortfolioDevelopmentPoint) => number,
   bottomValue: (point: PortfolioDevelopmentPoint) => number
 ) {
   const top = points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${xForIndex(index)} ${yForValue(topValue(point))}`)
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${xForPoint(point)} ${yForValue(topValue(point))}`)
     .join(" ");
   const bottom = [...points]
     .reverse()
-    .map((point, reverseIndex) => {
-      const index = points.length - 1 - reverseIndex;
-      return `L ${xForIndex(index)} ${yForValue(bottomValue(point))}`;
-    })
+    .map((point) => `L ${xForPoint(point)} ${yForValue(bottomValue(point))}`)
     .join(" ");
 
   return `${top} ${bottom} Z`;
@@ -39,13 +36,17 @@ function areaPath(
 
 function linePath(
   points: PortfolioDevelopmentPoint[],
-  xForIndex: (index: number) => number,
+  xForPoint: (point: PortfolioDevelopmentPoint) => number,
   yForValue: (value: number) => number,
   value: (point: PortfolioDevelopmentPoint) => number
 ) {
   return points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${xForIndex(index)} ${yForValue(value(point))}`)
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${xForPoint(point)} ${yForValue(value(point))}`)
     .join(" ");
+}
+
+function dateTimestamp(date: string) {
+  return new Date(`${date}T00:00:00Z`).getTime();
 }
 
 export function PortfolioDevelopmentChart({
@@ -74,8 +75,11 @@ export function PortfolioDevelopmentChart({
   const currency = points[points.length - 1]?.currency ?? "EUR";
   const firstPoint = points[0];
   const lastPoint = points[points.length - 1];
-  const xForIndex = (index: number) =>
-    padding.left + (points.length === 1 ? plotWidth : (index / (points.length - 1)) * plotWidth);
+  const firstTimestamp = dateTimestamp(firstPoint.date);
+  const lastTimestamp = dateTimestamp(lastPoint.date);
+  const timeRange = lastTimestamp - firstTimestamp || 1;
+  const xForPoint = (point: PortfolioDevelopmentPoint) =>
+    padding.left + ((dateTimestamp(point.date) - firstTimestamp) / timeRange) * plotWidth;
   const yForValue = (value: number) =>
     padding.top + plotHeight - ((value - minValue) / range) * plotHeight;
   const positiveGainPoints = points.map((point) => ({
@@ -86,6 +90,7 @@ export function PortfolioDevelopmentChart({
     ...point,
     portfolioValue: Math.min(point.portfolioValue, point.investedCapital)
   }));
+  const firstInvestedPoint = points.find((point) => point.investedCapital > 0);
   const hasPositiveGain = points.some((point) => point.investmentGain > 0);
   const hasNegativeGain = points.some((point) => point.investmentGain < 0);
 
@@ -106,14 +111,14 @@ export function PortfolioDevelopmentChart({
             stroke="hsl(var(--border))"
           />
           <path
-            d={areaPath(points, xForIndex, yForValue, (point) => point.investedCapital, () => 0)}
+            d={areaPath(points, xForPoint, yForValue, (point) => point.investedCapital, () => 0)}
             fill="hsl(var(--primary) / 0.22)"
           />
           {hasPositiveGain ? (
             <path
               d={areaPath(
                 positiveGainPoints,
-                xForIndex,
+                xForPoint,
                 yForValue,
                 (point) => point.portfolioValue,
                 (point) => point.investedCapital
@@ -125,7 +130,7 @@ export function PortfolioDevelopmentChart({
             <path
               d={areaPath(
                 negativeGainPoints,
-                xForIndex,
+                xForPoint,
                 yForValue,
                 (point) => point.investedCapital,
                 (point) => point.portfolioValue
@@ -134,13 +139,13 @@ export function PortfolioDevelopmentChart({
             />
           ) : null}
           <path
-            d={linePath(points, xForIndex, yForValue, (point) => point.portfolioValue)}
+            d={linePath(points, xForPoint, yForValue, (point) => point.portfolioValue)}
             fill="none"
             stroke="hsl(var(--foreground))"
             strokeWidth="2"
           />
           <path
-            d={linePath(points, xForIndex, yForValue, (point) => point.investedCapital)}
+            d={linePath(points, xForPoint, yForValue, (point) => point.investedCapital)}
             fill="none"
             stroke="hsl(var(--primary))"
             strokeWidth="2"
@@ -194,6 +199,13 @@ export function PortfolioDevelopmentChart({
         <span>Solid line: portfolio value</span>
         <span>Dashed line: invested capital</span>
       </div>
+      {firstInvestedPoint ? (
+        <div className="text-xs text-muted-foreground">
+          First invested point: {formatDate(firstInvestedPoint.date)} with{" "}
+          {formatCurrency(firstInvestedPoint.investedCapital, currency)} invested and{" "}
+          {formatCurrency(firstInvestedPoint.portfolioValue, currency)} portfolio value.
+        </div>
+      ) : null}
     </div>
   );
 }
