@@ -12,7 +12,7 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
       <CardHeader>
         <CardTitle>Transaction profitability</CardTitle>
         <CardDescription>
-          Buy-lot profitability from current price, open cost basis, and allocated dividends.
+          Buy-lot profitability from current price, open cost basis, allocated dividends, and annualized return.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -22,7 +22,7 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-sm">
+            <table className="w-full min-w-[1200px] text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Buy date</th>
@@ -35,6 +35,7 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
                   <th className="px-3 py-2 text-right font-medium">Dividends</th>
                   <th className="px-3 py-2 text-right font-medium">Total</th>
                   <th className="px-3 py-2 text-right font-medium">Return</th>
+                  <th className="px-3 py-2 text-right font-medium">Annualized</th>
                   <th className="px-3 py-2 font-medium">Price date</th>
                 </tr>
               </thead>
@@ -65,6 +66,9 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
                     <td className="px-3 py-3 text-right">
                       {formatPercent(lot.totalReturnPercent)}
                     </td>
+                    <td className="px-3 py-3 text-right">
+                      {formatPercent(lot.annualizedReturnPercent)}
+                    </td>
                     <td className="px-3 py-3 text-muted-foreground">
                       {lot.priceDate ? formatDate(lot.priceDate) : "Add price"}
                     </td>
@@ -78,4 +82,3 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
     </Card>
   );
 }
-

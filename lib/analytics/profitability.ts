@@ -20,6 +20,7 @@ export type LotProfitability = {
   accumulatedDividends: number;
   totalProfitability: number | null;
   totalReturnPercent: number | null;
+  annualizedReturnPercent: number | null;
   currency: string;
 };
 
@@ -53,6 +54,28 @@ function cashAmount(transaction: Transaction) {
   }
 
   return 0;
+}
+
+function yearsBetween(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`).getTime();
+  const end = new Date(`${endDate}T00:00:00Z`).getTime();
+  return (end - start) / (1000 * 60 * 60 * 24 * 365.25);
+}
+
+function annualizedReturnPercent(
+  costBasisValue: number,
+  totalProfitability: number,
+  startDate: string,
+  endDate: string
+) {
+  const years = yearsBetween(startDate, endDate);
+  const growthMultiple = (costBasisValue + totalProfitability) / costBasisValue;
+
+  if (costBasisValue <= 0 || years <= 0 || growthMultiple <= 0) {
+    return null;
+  }
+
+  return (growthMultiple ** (1 / years) - 1) * 100;
 }
 
 export function calculateLotProfitability(
@@ -94,6 +117,7 @@ export function calculateLotProfitability(
         accumulatedDividends: 0,
         totalProfitability: null,
         totalReturnPercent: null,
+        annualizedReturnPercent: null,
         currency: transaction.currency
       });
 
@@ -160,9 +184,14 @@ export function calculateLotProfitability(
     lot.totalProfitability = lot.unrealizedGainLoss + lot.accumulatedDividends;
     lot.totalReturnPercent =
       lot.costBasis > 0 ? (lot.totalProfitability / lot.costBasis) * 100 : null;
+    lot.annualizedReturnPercent = annualizedReturnPercent(
+      lot.costBasis,
+      lot.totalProfitability,
+      lot.tradeDate,
+      price.price_date
+    );
     lot.currency = price.currency;
   }
 
   return lots.sort((a, b) => b.tradeDate.localeCompare(a.tradeDate));
 }
-
