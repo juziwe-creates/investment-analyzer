@@ -424,6 +424,8 @@ Fields:
 - `annualized_return`
 - `total_dividends_received`
 - `yield_on_cost`
+- `current_dividend_profitability`
+- `average_dividend_profitability`
 
 ## Dividend Allocation
 
@@ -439,6 +441,13 @@ Fields:
 - `currency`
 
 The MVP can start by allocating dividends proportionally to held quantity on the dividend date. The exact allocation rule must be documented because dividend analytics depend on it.
+
+MVP dividend profitability definitions:
+
+- Current dividend profitability is trailing-12-month allocated dividend per currently open share divided by the buy-lot price.
+- Average dividend profitability is lifetime allocated dividends divided by years held, divided by original lot quantity, divided by the buy-lot price.
+- Buy-lot price is derived as lot cost basis divided by original quantity.
+- These are yield-on-cost style metrics, not current market dividend yield.
 
 # Row Level Security
 

@@ -1,10 +1,7 @@
 import { TransactionForm } from "@/components/transaction-form";
 import { TransactionList } from "@/components/transaction-list";
 import { ProfitabilityTable } from "@/components/profitability-table";
-import {
-  buildValuationPrices,
-  calculateLotProfitability
-} from "@/lib/analytics/profitability";
+import { buildCurrentAnalytics } from "@/lib/analytics/portfolio";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function TransactionsPage({
@@ -17,6 +14,11 @@ export default async function TransactionsPage({
   const { data: transactions, error } = await supabase
     .from("transactions")
     .select("*")
+    .order("trade_date", { ascending: true })
+    .order("created_at", { ascending: true });
+  const { data: recentTransactions, error: recentTransactionsError } = await supabase
+    .from("transactions")
+    .select("*")
     .order("trade_date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(50);
@@ -26,8 +28,11 @@ export default async function TransactionsPage({
   const { data: marketPrices, error: marketPricesError } = await supabase
     .from("latest_market_prices")
     .select("*");
-  const valuationPrices = buildValuationPrices(marketPrices ?? [], prices ?? []);
-  const profitabilityLots = calculateLotProfitability(transactions ?? [], valuationPrices);
+  const { lots: profitabilityLots } = buildCurrentAnalytics(
+    transactions ?? [],
+    marketPrices ?? [],
+    prices ?? []
+  );
 
   return (
     <div className="space-y-6">
@@ -44,15 +49,18 @@ export default async function TransactionsPage({
         </div>
       ) : null}
 
-      {error || pricesError || marketPricesError ? (
+      {error || recentTransactionsError || pricesError || marketPricesError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error?.message ?? pricesError?.message ?? marketPricesError?.message}
+          {error?.message ??
+            recentTransactionsError?.message ??
+            pricesError?.message ??
+            marketPricesError?.message}
         </div>
       ) : null}
 
       <ProfitabilityTable lots={profitabilityLots} />
       <TransactionForm />
-      <TransactionList transactions={transactions ?? []} />
+      <TransactionList transactions={recentTransactions ?? []} />
     </div>
   );
 }

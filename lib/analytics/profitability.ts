@@ -20,6 +20,7 @@ export type LotProfitability = {
   type: "buy";
   quantity: number;
   remainingQuantity: number;
+  buyPrice: number | null;
   costBasis: number;
   remainingCostBasis: number;
   latestPrice: number | null;
@@ -28,10 +29,21 @@ export type LotProfitability = {
   currentValue: number | null;
   unrealizedGainLoss: number | null;
   accumulatedDividends: number;
+  currentDividendProfitabilityPercent: number | null;
+  averageDividendProfitabilityPercent: number | null;
   totalProfitability: number | null;
   totalReturnPercent: number | null;
   annualizedReturnPercent: number | null;
   currency: string;
+};
+
+type DividendAllocation = {
+  date: string;
+  amount: number;
+};
+
+type WorkingLot = LotProfitability & {
+  dividendAllocations: DividendAllocation[];
 };
 
 function securityKey(transaction: Pick<Transaction, "isin" | "ticker" | "security_name">) {
@@ -88,12 +100,52 @@ function annualizedReturnPercent(
   return (growthMultiple ** (1 / years) - 1) * 100;
 }
 
+function dateDaysBefore(date: string, days: number) {
+  const timestamp = new Date(`${date}T00:00:00Z`).getTime();
+  return new Date(timestamp - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function dividendYieldPercent(dividendPerShare: number, buyPrice: number | null) {
+  if (!buyPrice || buyPrice <= 0) {
+    return null;
+  }
+
+  return (dividendPerShare / buyPrice) * 100;
+}
+
+function toLotProfitability(lot: WorkingLot): LotProfitability {
+  return {
+    id: lot.id,
+    tradeDate: lot.tradeDate,
+    securityKey: lot.securityKey,
+    securityName: lot.securityName,
+    type: lot.type,
+    quantity: lot.quantity,
+    remainingQuantity: lot.remainingQuantity,
+    buyPrice: lot.buyPrice,
+    costBasis: lot.costBasis,
+    remainingCostBasis: lot.remainingCostBasis,
+    latestPrice: lot.latestPrice,
+    priceSource: lot.priceSource,
+    priceDate: lot.priceDate,
+    currentValue: lot.currentValue,
+    unrealizedGainLoss: lot.unrealizedGainLoss,
+    accumulatedDividends: lot.accumulatedDividends,
+    currentDividendProfitabilityPercent: lot.currentDividendProfitabilityPercent,
+    averageDividendProfitabilityPercent: lot.averageDividendProfitabilityPercent,
+    totalProfitability: lot.totalProfitability,
+    totalReturnPercent: lot.totalReturnPercent,
+    annualizedReturnPercent: lot.annualizedReturnPercent,
+    currency: lot.currency
+  };
+}
+
 export function calculateLotProfitability(
   transactions: Transaction[],
   prices: ValuationPrice[]
 ) {
   const pricesBySecurity = new Map(prices.map((price) => [price.security_key, price]));
-  const lots: LotProfitability[] = [];
+  const lots: WorkingLot[] = [];
 
   const chronologicalTransactions = [...transactions].sort((a, b) => {
     if (a.trade_date === b.trade_date) {
@@ -118,6 +170,7 @@ export function calculateLotProfitability(
         type: "buy",
         quantity,
         remainingQuantity: quantity,
+        buyPrice: quantity > 0 ? basis / quantity : null,
         costBasis: basis,
         remainingCostBasis: basis,
         latestPrice: null,
@@ -126,10 +179,13 @@ export function calculateLotProfitability(
         currentValue: null,
         unrealizedGainLoss: null,
         accumulatedDividends: 0,
+        currentDividendProfitabilityPercent: null,
+        averageDividendProfitabilityPercent: null,
         totalProfitability: null,
         totalReturnPercent: null,
         annualizedReturnPercent: null,
-        currency: transaction.currency
+        currency: transaction.currency,
+        dividendAllocations: []
       });
 
       continue;
@@ -175,8 +231,12 @@ export function calculateLotProfitability(
       }
 
       for (const lot of eligibleLots) {
-        lot.accumulatedDividends +=
-          dividendAmount * (lot.remainingQuantity / totalEligibleQuantity);
+        const allocatedDividend = dividendAmount * (lot.remainingQuantity / totalEligibleQuantity);
+        lot.accumulatedDividends += allocatedDividend;
+        lot.dividendAllocations.push({
+          date: transaction.trade_date,
+          amount: allocatedDividend
+        });
       }
     }
   }
@@ -202,10 +262,33 @@ export function calculateLotProfitability(
       lot.tradeDate,
       price.price_date
     );
+    const trailingDividendStartDate = dateDaysBefore(price.price_date, 365);
+    const trailingDividendAmount = lot.dividendAllocations
+      .filter(
+        (allocation) =>
+          allocation.date > trailingDividendStartDate && allocation.date <= price.price_date
+      )
+      .reduce((sum, allocation) => sum + allocation.amount, 0);
+    const currentDividendPerShare =
+      lot.remainingQuantity > 0 ? trailingDividendAmount / lot.remainingQuantity : null;
+    const yearsHeld = yearsBetween(lot.tradeDate, price.price_date);
+    const averageAnnualDividendPerShare =
+      yearsHeld > 0 && lot.quantity > 0
+        ? lot.accumulatedDividends / yearsHeld / lot.quantity
+        : null;
+
+    lot.currentDividendProfitabilityPercent =
+      currentDividendPerShare === null
+        ? null
+        : dividendYieldPercent(currentDividendPerShare, lot.buyPrice);
+    lot.averageDividendProfitabilityPercent =
+      averageAnnualDividendPerShare === null
+        ? null
+        : dividendYieldPercent(averageAnnualDividendPerShare, lot.buyPrice);
     lot.currency = price.currency;
   }
 
-  return lots.sort((a, b) => b.tradeDate.localeCompare(a.tradeDate));
+  return lots.map(toLotProfitability).sort((a, b) => b.tradeDate.localeCompare(a.tradeDate));
 }
 
 export function buildValuationPrices(

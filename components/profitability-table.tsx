@@ -22,7 +22,7 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1200px] text-sm">
+            <table className="w-full min-w-[1450px] text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Buy date</th>
@@ -33,6 +33,8 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
                   <th className="px-3 py-2 text-right font-medium">Current value</th>
                   <th className="px-3 py-2 text-right font-medium">Gain/loss</th>
                   <th className="px-3 py-2 text-right font-medium">Dividends</th>
+                  <th className="px-3 py-2 text-right font-medium">Current div. yield</th>
+                  <th className="px-3 py-2 text-right font-medium">Avg. div. yield</th>
                   <th className="px-3 py-2 text-right font-medium">Total</th>
                   <th className="px-3 py-2 text-right font-medium">Return</th>
                   <th className="px-3 py-2 text-right font-medium">Annualized</th>
@@ -60,6 +62,12 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
                     </td>
                     <td className="px-3 py-3 text-right">
                       {formatCurrency(lot.accumulatedDividends, lot.currency)}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {formatPercent(lot.currentDividendProfitabilityPercent)}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {formatPercent(lot.averageDividendProfitabilityPercent)}
                     </td>
                     <td className="px-3 py-3 text-right font-medium">
                       {formatCurrency(lot.totalProfitability, lot.currency)}
