@@ -20,7 +20,7 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-muted/40">
-      <div className="mx-auto flex min-h-screen max-w-7xl">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1800px]">
         <aside className="hidden w-64 border-r bg-background px-4 py-6 md:block">
           <div className="mb-8">
             <p className="text-sm font-medium text-muted-foreground">Investment</p>
@@ -53,4 +53,3 @@ export default async function AppLayout({
     </div>
   );
 }
-
