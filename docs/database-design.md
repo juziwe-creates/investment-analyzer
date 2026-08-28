@@ -22,7 +22,9 @@ Primary MVP entities:
 - `portfolios`
 - `transactions`
 - `transaction_components`
-- `prices`
+- `market_prices`
+- `market_dividends`
+- `market_data_sync_runs`
 - `source_documents`
 - `import_runs`
 - `import_rows`
@@ -171,29 +173,102 @@ Notes:
 - This supports auditability when a broker provides a single transaction with multiple monetary parts.
 - Standalone `fee` and `tax` transactions can still exist when the source provides them separately.
 
-## prices
+## market_prices
 
-Stores current and historical market prices.
+Stores user-scoped current and historical daily market prices fetched from an external provider.
 
 Suggested columns:
 
 - `id uuid primary key`
-- `security_id uuid not null references securities(id)`
+- `user_id uuid not null references profiles(id)`
+- `portfolio_id uuid not null references portfolios(id)`
+- `security_key text not null`
+- `security_name text not null`
+- `isin text`
+- `ticker text`
+- `provider text not null`
+- `provider_symbol text not null`
 - `price_date date not null`
+- `open_price numeric`
+- `high_price numeric`
+- `low_price numeric`
 - `close_price numeric not null`
+- `adjusted_close_price numeric`
+- `volume numeric`
 - `currency text not null`
-- `source text`
 - `created_at timestamptz not null`
+- `updated_at timestamptz not null`
 
 Constraints:
 
-- unique `security_id`, `price_date`, and `source`
+- unique `user_id`, `portfolio_id`, `security_key`, `provider`, and `price_date`
 
 Notes:
 
 - Current value is derived from latest price times current quantity.
 - Historical portfolio development uses dated prices.
-- For the transaction-first MVP, price lookup may initially use transaction security identifiers such as ISIN or ticker before a canonical security table becomes necessary.
+- Prices are persisted daily when provider limits allow it.
+- Weekly, monthly, or yearly chart values should be derived from daily prices rather than fetched separately.
+- For the transaction-first MVP, price lookup uses transaction-derived identifiers such as ticker and `security_key` before a canonical security table becomes necessary.
+
+## market_dividends
+
+Stores user-scoped reference dividend events fetched from an external market data provider.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `user_id uuid not null references profiles(id)`
+- `portfolio_id uuid not null references portfolios(id)`
+- `security_key text not null`
+- `security_name text not null`
+- `isin text`
+- `ticker text`
+- `provider text not null`
+- `provider_symbol text not null`
+- `ex_dividend_date date not null`
+- `declaration_date date`
+- `record_date date`
+- `payment_date date`
+- `amount_per_share numeric not null`
+- `currency text not null`
+- `created_at timestamptz not null`
+- `updated_at timestamptz not null`
+
+Constraints:
+
+- unique `user_id`, `portfolio_id`, `security_key`, `provider`, `ex_dividend_date`, and `amount_per_share`
+
+Notes:
+
+- These are market/reference dividends, not necessarily the user's actual received cash.
+- Actual received dividends remain `transactions` with type `dividend`, because broker data includes taxes, withholding tax, FX, and payment timing.
+- Reference dividends can later support reconciliation and expected-dividend analytics.
+
+## market_data_sync_runs
+
+Tracks market data fetch attempts.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `user_id uuid not null references profiles(id)`
+- `portfolio_id uuid not null references portfolios(id)`
+- `security_key text`
+- `provider text not null`
+- `provider_symbol text`
+- `status text not null`
+- `prices_imported integer not null`
+- `dividends_imported integer not null`
+- `error_message text`
+- `started_at timestamptz not null`
+- `finished_at timestamptz`
+- `created_at timestamptz not null`
+
+Notes:
+
+- Sync runs make provider failures and rate-limit issues visible.
+- The MVP syncs per security first to avoid accidentally exceeding provider limits.
 
 ## source_documents
 
@@ -379,7 +454,7 @@ Tables with user-owned data should include `user_id` and enforce RLS policies:
 
 Shared or reference-like tables:
 
-- `prices`
+- `market_prices`
 
 Security principles:
 
@@ -399,7 +474,9 @@ Recommended indexes:
 - `transactions(portfolio_id, security_id, trade_date)`
 - `transactions(import_run_id)`
 - `transactions(source_document_id)`
-- `prices(security_id, price_date desc)`
+- `market_prices(user_id, portfolio_id, security_key, price_date desc)`
+- `market_dividends(user_id, portfolio_id, security_key, ex_dividend_date desc)`
+- `market_data_sync_runs(user_id, created_at desc)`
 - `import_runs(user_id, portfolio_id, started_at desc)`
 - `import_rows(import_run_id, row_number)`
 - `portfolio_snapshots(portfolio_id, snapshot_date)`
@@ -437,7 +514,8 @@ Required for MVP:
 - `portfolios`
 - `transactions`
 - `transaction_components`
-- `prices`
+- `market_prices`
+- `market_dividends`
 - `source_documents`
 - `import_runs`
 - `import_rows`

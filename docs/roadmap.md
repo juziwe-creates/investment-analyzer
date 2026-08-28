@@ -170,6 +170,28 @@ Success criteria:
 - user can see yield on cost per purchase lot
 - dividend analytics are reproducible from transactions
 
+## Phase 6A: Market Data Foundation
+
+Goal: persist daily market prices and reference dividend events so profitability can be calculated for real valuation dates.
+
+Scope:
+
+- provider abstraction for market data vendors
+- daily historical market price storage
+- reference dividend event storage
+- per-security market data sync
+- sync run tracking for provider errors and rate limits
+- latest market price lookup for profitability calculations
+- manual price fallback when market data is missing
+
+Success criteria:
+
+- user can sync daily prices for a discovered security with a ticker
+- daily prices are persisted in `market_prices`
+- reference dividends are persisted in `market_dividends`
+- sync attempts are visible in `market_data_sync_runs`
+- profitability uses latest fetched market price before manual fallback
+
 ## Phase 7: Portfolio Development
 
 Goal: explain how wealth evolved over time.

@@ -1,18 +1,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SecurityMarketDataForm } from "@/components/security-market-data-form";
 import { SecurityPriceForm } from "@/components/security-price-form";
-import { formatDate } from "@/lib/formatters";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 import type { Database } from "@/types/database";
 
 type UserSecurity = Database["public"]["Views"]["user_securities"]["Row"];
 type ManualSecurityPrice = Database["public"]["Tables"]["manual_security_prices"]["Row"];
+type LatestMarketPrice = Database["public"]["Views"]["latest_market_prices"]["Row"];
 
 type SecurityListProps = {
   securities: UserSecurity[];
   prices: ManualSecurityPrice[];
+  marketPrices: LatestMarketPrice[];
 };
 
-export function SecurityList({ securities, prices }: SecurityListProps) {
+export function SecurityList({ securities, prices, marketPrices }: SecurityListProps) {
   const pricesBySecurity = new Map(prices.map((price) => [price.security_key, price]));
+  const marketPricesBySecurity = new Map(
+    marketPrices.map((price) => [price.security_key, price])
+  );
 
   return (
     <Card>
@@ -29,7 +35,7 @@ export function SecurityList({ securities, prices }: SecurityListProps) {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Name</th>
@@ -39,29 +45,57 @@ export function SecurityList({ securities, prices }: SecurityListProps) {
                   <th className="px-3 py-2 font-medium">Currency</th>
                   <th className="px-3 py-2 text-right font-medium">Transactions</th>
                   <th className="px-3 py-2 font-medium">First seen</th>
-                  <th className="px-3 py-2 font-medium">Latest price</th>
+                  <th className="px-3 py-2 font-medium">Latest market price</th>
+                  <th className="px-3 py-2 font-medium">Manual fallback</th>
+                  <th className="px-3 py-2 font-medium">Market data</th>
                 </tr>
               </thead>
               <tbody>
-                {securities.map((security) => (
-                  <tr key={security.security_key} className="border-b last:border-0">
-                    <td className="px-3 py-3 font-medium">{security.security_name}</td>
-                    <td className="px-3 py-3 text-muted-foreground">{security.isin ?? "-"}</td>
-                    <td className="px-3 py-3 text-muted-foreground">{security.ticker ?? "-"}</td>
-                    <td className="px-3 py-3 text-muted-foreground">{security.exchange ?? "-"}</td>
-                    <td className="px-3 py-3 text-muted-foreground">
-                      {security.security_currency ?? "-"}
-                    </td>
-                    <td className="px-3 py-3 text-right">{security.transaction_count}</td>
-                    <td className="px-3 py-3">{formatDate(security.first_trade_date)}</td>
-                    <td className="px-3 py-3">
-                      <SecurityPriceForm
-                        security={security}
-                        price={pricesBySecurity.get(security.security_key)}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {securities.map((security) => {
+                  const marketPrice = marketPricesBySecurity.get(security.security_key);
+                  const marketPriceValue = marketPrice
+                    ? marketPrice.adjusted_close_price ?? marketPrice.close_price
+                    : null;
+
+                  return (
+                    <tr key={security.security_key} className="border-b last:border-0">
+                      <td className="px-3 py-3 font-medium">{security.security_name}</td>
+                      <td className="px-3 py-3 text-muted-foreground">{security.isin ?? "-"}</td>
+                      <td className="px-3 py-3 text-muted-foreground">{security.ticker ?? "-"}</td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {security.exchange ?? "-"}
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {security.security_currency ?? "-"}
+                      </td>
+                      <td className="px-3 py-3 text-right">{security.transaction_count}</td>
+                      <td className="px-3 py-3">{formatDate(security.first_trade_date)}</td>
+                      <td className="px-3 py-3">
+                        {marketPrice ? (
+                          <div>
+                            <div className="font-medium">
+                              {formatCurrency(marketPriceValue, marketPrice.currency)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatDate(marketPrice.price_date)} via {marketPrice.provider}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Not synced</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <SecurityPriceForm
+                          security={security}
+                          price={pricesBySecurity.get(security.security_key)}
+                        />
+                      </td>
+                      <td className="px-3 py-3">
+                        <SecurityMarketDataForm security={security} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

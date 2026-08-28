@@ -2,6 +2,15 @@ import type { Database } from "@/types/database";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 type ManualSecurityPrice = Database["public"]["Tables"]["manual_security_prices"]["Row"];
+type LatestMarketPrice = Database["public"]["Views"]["latest_market_prices"]["Row"];
+
+export type ValuationPrice = {
+  security_key: string;
+  price: number;
+  price_date: string;
+  currency: string;
+  source: "market" | "manual";
+};
 
 export type LotProfitability = {
   id: string;
@@ -14,6 +23,7 @@ export type LotProfitability = {
   costBasis: number;
   remainingCostBasis: number;
   latestPrice: number | null;
+  priceSource: "market" | "manual" | null;
   priceDate: string | null;
   currentValue: number | null;
   unrealizedGainLoss: number | null;
@@ -80,7 +90,7 @@ function annualizedReturnPercent(
 
 export function calculateLotProfitability(
   transactions: Transaction[],
-  prices: ManualSecurityPrice[]
+  prices: ValuationPrice[]
 ) {
   const pricesBySecurity = new Map(prices.map((price) => [price.security_key, price]));
   const lots: LotProfitability[] = [];
@@ -111,6 +121,7 @@ export function calculateLotProfitability(
         costBasis: basis,
         remainingCostBasis: basis,
         latestPrice: null,
+        priceSource: null,
         priceDate: null,
         currentValue: null,
         unrealizedGainLoss: null,
@@ -178,6 +189,7 @@ export function calculateLotProfitability(
     }
 
     lot.latestPrice = price.price;
+    lot.priceSource = price.source;
     lot.priceDate = price.price_date;
     lot.currentValue = lot.remainingQuantity * price.price;
     lot.unrealizedGainLoss = lot.currentValue - lot.remainingCostBasis;
@@ -194,4 +206,33 @@ export function calculateLotProfitability(
   }
 
   return lots.sort((a, b) => b.tradeDate.localeCompare(a.tradeDate));
+}
+
+export function buildValuationPrices(
+  marketPrices: LatestMarketPrice[],
+  manualPrices: ManualSecurityPrice[]
+): ValuationPrice[] {
+  const pricesBySecurity = new Map<string, ValuationPrice>();
+
+  for (const manualPrice of manualPrices) {
+    pricesBySecurity.set(manualPrice.security_key, {
+      security_key: manualPrice.security_key,
+      price: manualPrice.price,
+      price_date: manualPrice.price_date,
+      currency: manualPrice.currency,
+      source: "manual"
+    });
+  }
+
+  for (const marketPrice of marketPrices) {
+    pricesBySecurity.set(marketPrice.security_key, {
+      security_key: marketPrice.security_key,
+      price: marketPrice.adjusted_close_price ?? marketPrice.close_price,
+      price_date: marketPrice.price_date,
+      currency: marketPrice.currency,
+      source: "market"
+    });
+  }
+
+  return [...pricesBySecurity.values()];
 }

@@ -4,6 +4,54 @@ This file captures raw and semi-structured product ideas for later review. Ideas
 
 # Inbox
 
+## Portfolio Development Stacked Chart
+
+Status: unreviewed
+
+Problem:
+
+- The first analytics view should make it easy to understand how the portfolio developed over time.
+- A single current profitability number is useful, but it does not show when capital was invested, when gains appeared, or how portfolio value changed across market cycles.
+
+Idea:
+
+- Add a portfolio development chart with time on the x-axis and money on the y-axis.
+- The time interval should be configurable, for example daily, weekly, monthly, quarterly, or yearly.
+- Show invested capital as the first stacked area.
+- Show investment gain as the second stacked area on top of invested capital.
+- Investment gain for a date means total security market value on that date minus overall invested capital on that date.
+- The stacked total therefore represents portfolio market value on that date.
+
+User Value:
+
+- Users can see whether portfolio growth came from adding capital or from investment performance.
+- Users can understand how their invested capital changed over time.
+- Users can visually connect market gains and losses to the portfolio timeline.
+- This creates a natural first dashboard graph once historical prices are available.
+
+Potential Display Behavior:
+
+- Allow the user to switch chart interval without changing the underlying stored daily prices.
+- Use daily data as the base when available, then aggregate for wider chart intervals.
+- Show invested capital and investment gain as distinct colors in a stacked area chart.
+- Support negative investment gain by showing losses below the invested-capital baseline or with a clear alternate visual treatment.
+- Consider adding tooltips with date, invested capital, investment gain, portfolio value, and total return percentage.
+
+Open Questions:
+
+- Should invested capital mean total buy cost basis minus sell proceeds, or cumulative net cash invested?
+- Should dividends be shown as a third stacked area, a separate line, or excluded from the first version?
+- Should taxes and fees be included in invested capital from the beginning?
+- Should the chart use trade date or settlement date?
+- How should missing historical prices be filled: previous close, nearest close, or gap?
+
+Implementation Notes:
+
+- This should be derived from transactions plus historical market prices.
+- Store daily historical prices, then aggregate to the selected chart interval at query/calculation time.
+- The first version can use FIFO lot state per date to calculate holdings and value.
+- The calculation should remain traceable back to transactions and price rows.
+
 ## Obfuscated Portfolio Presentation Mode
 
 Status: unreviewed
@@ -47,4 +95,3 @@ Implementation Notes:
 - Never persist obfuscated transactions as canonical data.
 - The random factor should be stable for the active presentation session and discarded afterward unless the user explicitly saves a presentation profile.
 - This feature should be designed carefully so derived metrics stay mathematically coherent.
-

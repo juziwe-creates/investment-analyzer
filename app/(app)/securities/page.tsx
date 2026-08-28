@@ -1,7 +1,12 @@
 import { SecurityList } from "@/components/security-list";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function SecuritiesPage() {
+export default async function SecuritiesPage({
+  searchParams
+}: {
+  searchParams: Promise<{ message?: string }>;
+}) {
+  const { message } = await searchParams;
   const supabase = await createClient();
   const { data: securities, error } = await supabase
     .from("user_securities")
@@ -14,6 +19,11 @@ export default async function SecuritiesPage() {
     .select(
       "id,user_id,portfolio_id,security_key,security_name,isin,ticker,price,currency,price_date,created_at,updated_at"
     );
+  const { data: marketPrices, error: marketPricesError } = await supabase
+    .from("latest_market_prices")
+    .select(
+      "id,user_id,portfolio_id,security_key,security_name,isin,ticker,provider,provider_symbol,price_date,close_price,adjusted_close_price,currency,created_at,updated_at"
+    );
 
   return (
     <div className="space-y-6">
@@ -24,13 +34,23 @@ export default async function SecuritiesPage() {
         </p>
       </div>
 
-      {error || pricesError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error?.message ?? pricesError?.message}
+      {message ? (
+        <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
+          {message}
         </div>
       ) : null}
 
-      <SecurityList securities={securities ?? []} prices={prices ?? []} />
+      {error || pricesError || marketPricesError ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error?.message ?? pricesError?.message ?? marketPricesError?.message}
+        </div>
+      ) : null}
+
+      <SecurityList
+        securities={securities ?? []}
+        prices={prices ?? []}
+        marketPrices={marketPrices ?? []}
+      />
     </div>
   );
 }

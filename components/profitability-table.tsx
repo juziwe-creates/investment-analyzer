@@ -12,7 +12,7 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
       <CardHeader>
         <CardTitle>Transaction profitability</CardTitle>
         <CardDescription>
-          Buy-lot profitability from current price, open cost basis, allocated dividends, and annualized return.
+          Buy-lot profitability from market prices when available, with manual prices as fallback.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -37,6 +37,7 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
                   <th className="px-3 py-2 text-right font-medium">Return</th>
                   <th className="px-3 py-2 text-right font-medium">Annualized</th>
                   <th className="px-3 py-2 font-medium">Price date</th>
+                  <th className="px-3 py-2 font-medium">Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -71,6 +72,9 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
                     </td>
                     <td className="px-3 py-3 text-muted-foreground">
                       {lot.priceDate ? formatDate(lot.priceDate) : "Add price"}
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground">
+                      {lot.priceSource ?? "-"}
                     </td>
                   </tr>
                 ))}

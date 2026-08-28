@@ -230,7 +230,8 @@ Principles:
 - Use Supabase Auth as the identity provider.
 - Use Postgres as the canonical data store.
 - Store transactions as immutable source-of-truth facts where possible.
-- Store prices as external market data, separate from user transactions.
+- Store daily prices as user-scoped external market data, separate from user transactions.
+- Store provider dividend events as reference data; actual received dividends remain transaction records.
 - Calculate holdings and analytics at read time for MVP.
 - Introduce cached snapshots only for performance or charting needs, never as master holdings.
 - Keep broker import logic separate from analytics.
@@ -244,3 +245,17 @@ Principles:
 - What market data provider will supply current and historical prices?
 - How precise should portfolio development be in MVP: daily, weekly, monthly, or transaction-date based?
 - Should users have one default portfolio or multiple portfolios from the start?
+
+# Market Data Provider Boundary
+
+Market data integrations should sit behind a provider adapter interface.
+
+Responsibilities:
+
+- translate app security identifiers into provider symbols
+- fetch daily OHLCV prices
+- fetch reference dividend events
+- normalize provider payloads into app-owned records
+- expose provider errors without leaking API keys to the browser
+
+The first implementation syncs one discovered security at a time using its ticker. This keeps provider limits under control and allows ISIN-to-symbol enrichment to be added later without changing profitability calculations.
