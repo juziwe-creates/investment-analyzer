@@ -4,6 +4,7 @@ import type { ChartInterval, PortfolioDevelopmentPoint } from "@/lib/analytics/p
 type PortfolioDevelopmentChartProps = {
   points: PortfolioDevelopmentPoint[];
   interval: ChartInterval;
+  emptyMessage?: string;
 };
 
 const chartWidth = 900;
@@ -49,12 +50,13 @@ function linePath(
 
 export function PortfolioDevelopmentChart({
   points,
-  interval
+  interval,
+  emptyMessage = "Sync market prices to see portfolio development."
 }: PortfolioDevelopmentChartProps) {
   if (points.length === 0) {
     return (
       <div className="flex h-72 items-center justify-center rounded-md border border-dashed text-center text-sm text-muted-foreground">
-        Sync market prices to see portfolio development.
+        {emptyMessage}
       </div>
     );
   }

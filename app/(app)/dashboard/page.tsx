@@ -45,7 +45,7 @@ export default async function DashboardPage({
     manualPricesError,
     marketPricesError
   ].filter(Boolean);
-  const { summary } = buildCurrentAnalytics(
+  const { holdings, summary } = buildCurrentAnalytics(
     transactions ?? [],
     latestMarketPrices ?? [],
     manualPrices ?? []
@@ -55,18 +55,32 @@ export default async function DashboardPage({
     marketPrices ?? [],
     interval
   );
+  const unpricedHoldings = holdings.filter(
+    (holding) => holding.quantity > 0 && holding.marketValue === null
+  );
+  const unpricedHoldingNames = unpricedHoldings
+    .slice(0, 3)
+    .map((holding) => holding.securityName)
+    .join(", ");
+  const hasMoreUnpricedHoldings = unpricedHoldings.length > 3;
   const metrics = [
     {
-      label: "Portfolio value",
-      value: formatCurrency(summary.portfolioValue, summary.currency)
+      label: summary.hasCompletePricing ? "Portfolio value" : "Priced value",
+      value: formatCurrency(
+        summary.hasCompletePricing ? summary.portfolioValue : summary.pricedPortfolioValue,
+        summary.currency
+      )
     },
     {
       label: "Invested capital",
       value: formatCurrency(summary.investedCapital, summary.currency)
     },
     {
-      label: "Investment gain/loss",
-      value: formatCurrency(summary.investmentGain, summary.currency)
+      label: summary.hasCompletePricing ? "Investment gain/loss" : "Priced gain/loss",
+      value: formatCurrency(
+        summary.hasCompletePricing ? summary.investmentGain : summary.pricedInvestmentGain,
+        summary.currency
+      )
     },
     {
       label: "Dividends received",
@@ -86,6 +100,18 @@ export default async function DashboardPage({
       {errors.length > 0 ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {errors[0]?.message}
+        </div>
+      ) : null}
+
+      {!summary.hasCompletePricing ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Prices are missing for {unpricedHoldings.length} open{" "}
+          {unpricedHoldings.length === 1 ? "position" : "positions"}
+          {unpricedHoldingNames ? `: ${unpricedHoldingNames}` : ""}
+          {hasMoreUnpricedHoldings ? " and more" : ""}. Invested capital includes all
+          open positions, but value and gain/loss currently show only the priced subset.
+          Unpriced invested capital:{" "}
+          {formatCurrency(summary.unpricedInvestedCapital, summary.currency)}.
         </div>
       ) : null}
 
@@ -123,7 +149,15 @@ export default async function DashboardPage({
           </div>
         </CardHeader>
         <CardContent>
-          <PortfolioDevelopmentChart points={developmentPoints} interval={interval} />
+          <PortfolioDevelopmentChart
+            points={developmentPoints}
+            interval={interval}
+            emptyMessage={
+              marketPrices && marketPrices.length > 0
+                ? "Complete price coverage is needed before portfolio development can be shown."
+                : "Sync market prices to see portfolio development."
+            }
+          />
         </CardContent>
       </Card>
     </div>

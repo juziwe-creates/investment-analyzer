@@ -17,6 +17,13 @@ export type PortfolioSummary = {
   portfolioValue: number | null;
   investedCapital: number;
   investmentGain: number | null;
+  pricedPortfolioValue: number;
+  pricedInvestedCapital: number;
+  pricedInvestmentGain: number;
+  unpricedInvestedCapital: number;
+  openLots: number;
+  unpricedOpenLots: number;
+  hasCompletePricing: boolean;
   dividendsReceived: number;
   totalProfitability: number | null;
   currency: string;
@@ -83,21 +90,38 @@ export function calculatePortfolioSummary(
   lots: LotProfitability[],
   transactions: Transaction[]
 ): PortfolioSummary {
-  const investedCapital = lots.reduce((sum, lot) => sum + lot.remainingCostBasis, 0);
-  const portfolioValue = lots.reduce(
-    (sum, lot) => (lot.currentValue === null ? sum : sum + lot.currentValue),
+  const openLots = lots.filter((lot) => lot.remainingQuantity > 0);
+  const pricedOpenLots = openLots.filter((lot) => lot.currentValue !== null);
+  const investedCapital = openLots.reduce((sum, lot) => sum + lot.remainingCostBasis, 0);
+  const pricedInvestedCapital = pricedOpenLots.reduce(
+    (sum, lot) => sum + lot.remainingCostBasis,
     0
   );
-  const hasPortfolioValue = lots.some((lot) => lot.currentValue !== null);
+  const pricedPortfolioValue = pricedOpenLots.reduce(
+    (sum, lot) => sum + (lot.currentValue ?? 0),
+    0
+  );
+  const unpricedInvestedCapital = investedCapital - pricedInvestedCapital;
+  const unpricedOpenLots = openLots.length - pricedOpenLots.length;
+  const hasCompletePricing = unpricedOpenLots === 0;
   const dividendsReceived = transactions
     .filter((transaction) => transaction.type === "dividend")
     .reduce((sum, transaction) => sum + cashAmount(transaction), 0);
-  const investmentGain = hasPortfolioValue ? portfolioValue - investedCapital : null;
+  const portfolioValue = hasCompletePricing ? pricedPortfolioValue : null;
+  const investmentGain = hasCompletePricing ? pricedPortfolioValue - investedCapital : null;
+  const pricedInvestmentGain = pricedPortfolioValue - pricedInvestedCapital;
 
   return {
-    portfolioValue: hasPortfolioValue ? portfolioValue : null,
+    portfolioValue,
     investedCapital,
     investmentGain,
+    pricedPortfolioValue,
+    pricedInvestedCapital,
+    pricedInvestmentGain,
+    unpricedInvestedCapital,
+    openLots: openLots.length,
+    unpricedOpenLots,
+    hasCompletePricing,
     dividendsReceived,
     totalProfitability: investmentGain === null ? null : investmentGain + dividendsReceived,
     currency: lots[0]?.currency ?? transactions[0]?.currency ?? "EUR"
