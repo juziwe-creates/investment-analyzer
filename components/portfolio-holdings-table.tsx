@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency, formatDate, formatNumber } from "@/lib/formatters";
+import { formatCurrency, formatDate, formatNumber, formatPercent } from "@/lib/formatters";
 import type { PortfolioHolding } from "@/lib/analytics/portfolio";
 
 type PortfolioHoldingsTableProps = {
@@ -22,7 +22,7 @@ export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="w-full min-w-[1240px] text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Security</th>
@@ -32,7 +32,11 @@ export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps
                   <th className="px-3 py-2 text-right font-medium">Market value</th>
                   <th className="px-3 py-2 text-right font-medium">Gain/loss</th>
                   <th className="px-3 py-2 text-right font-medium">Dividends</th>
-                  <th className="px-3 py-2 text-right font-medium">Total</th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Total gain incl. dividends
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">Total return</th>
+                  <th className="px-3 py-2 text-right font-medium">Annualized return</th>
                   <th className="px-3 py-2 font-medium">Price date</th>
                 </tr>
               </thead>
@@ -58,6 +62,12 @@ export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps
                     </td>
                     <td className="px-3 py-3 text-right font-medium">
                       {formatCurrency(holding.totalProfitability, holding.currency)}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {formatPercent(holding.totalReturnPercent)}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {formatPercent(holding.annualizedReturnPercent)}
                     </td>
                     <td className="px-3 py-3 text-muted-foreground">
                       {holding.priceDate ? formatDate(holding.priceDate) : "Add price"}

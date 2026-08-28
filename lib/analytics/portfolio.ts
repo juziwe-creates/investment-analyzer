@@ -6,10 +6,12 @@ import {
 import {
   acquisitionCost,
   buildPortfolioTimeline,
+  calculateXirr,
   dividendAmount,
   saleProceeds,
   type AnalyticsPrice,
-  type AnalyticsTransaction
+  type AnalyticsTransaction,
+  type LotCashFlow
 } from "@/lib/analytics/engine";
 import type { Database } from "@/types/database";
 
@@ -47,6 +49,8 @@ export type PortfolioHolding = {
   investmentGain: number | null;
   dividendsReceived: number;
   totalProfitability: number | null;
+  totalReturnPercent: number | null;
+  annualizedReturnPercent: number | null;
   currency: string;
 };
 
@@ -96,6 +100,13 @@ export type SecurityActivityWithoutBuyHistory = {
   totalDividends: number;
   latestTransactionDate: string;
   currency: string;
+};
+
+type WorkingPortfolioHolding = PortfolioHolding & {
+  totalAcquisitionCost: number;
+  saleProceeds: number;
+  cashFlows: LotCashFlow[];
+  hasUnpricedOpenLot: boolean;
 };
 
 function cashAmount(transaction: Transaction) {
@@ -218,14 +229,13 @@ export function calculatePortfolioSummary(
 }
 
 export function calculatePortfolioHoldings(lots: LotProfitability[]): PortfolioHolding[] {
-  const holdingsBySecurity = new Map<string, PortfolioHolding>();
+  const holdingsBySecurity = new Map<string, WorkingPortfolioHolding>();
 
   for (const lot of lots) {
-    if (lot.remainingQuantity <= 0) {
-      continue;
-    }
-
     const existing = holdingsBySecurity.get(lot.securityKey);
+    const hasUnpricedOpenLot = lot.remainingQuantity > 0 && lot.currentValue === null;
+    const currentValue = hasUnpricedOpenLot ? null : lot.currentValue ?? 0;
+    const unrealizedGainLoss = hasUnpricedOpenLot ? null : lot.unrealizedGainLoss ?? 0;
 
     if (!existing) {
       holdingsBySecurity.set(lot.securityKey, {
@@ -235,30 +245,36 @@ export function calculatePortfolioHoldings(lots: LotProfitability[]): PortfolioH
         investedCapital: lot.remainingCostBasis,
         latestPrice: lot.latestPrice,
         priceDate: lot.priceDate,
-        marketValue: lot.currentValue,
-        investmentGain: lot.unrealizedGainLoss,
+        marketValue: currentValue,
+        investmentGain: unrealizedGainLoss,
         dividendsReceived: lot.accumulatedDividends,
-        totalProfitability: lot.totalProfitability,
-        currency: lot.currency
+        totalProfitability: null,
+        totalReturnPercent: null,
+        annualizedReturnPercent: null,
+        currency: lot.currency,
+        totalAcquisitionCost: lot.costBasis,
+        saleProceeds: lot.attributedSaleProceeds,
+        cashFlows: [...lot.cashFlows],
+        hasUnpricedOpenLot
       });
       continue;
     }
 
     existing.quantity += lot.remainingQuantity;
     existing.investedCapital += lot.remainingCostBasis;
-    existing.marketValue =
-      existing.marketValue === null || lot.currentValue === null
-        ? null
-        : existing.marketValue + lot.currentValue;
-    existing.investmentGain =
-      existing.investmentGain === null || lot.unrealizedGainLoss === null
-        ? null
-        : existing.investmentGain + lot.unrealizedGainLoss;
+    existing.totalAcquisitionCost += lot.costBasis;
+    existing.saleProceeds += lot.attributedSaleProceeds;
     existing.dividendsReceived += lot.accumulatedDividends;
-    existing.totalProfitability =
-      existing.totalProfitability === null || lot.totalProfitability === null
+    existing.cashFlows.push(...lot.cashFlows);
+    existing.hasUnpricedOpenLot = existing.hasUnpricedOpenLot || hasUnpricedOpenLot;
+    existing.marketValue =
+      existing.marketValue === null || currentValue === null
         ? null
-        : existing.totalProfitability + lot.totalProfitability;
+        : existing.marketValue + currentValue;
+    existing.investmentGain =
+      existing.investmentGain === null || unrealizedGainLoss === null
+        ? null
+        : existing.investmentGain + unrealizedGainLoss;
 
     if (lot.priceDate && (!existing.priceDate || lot.priceDate > existing.priceDate)) {
       existing.latestPrice = lot.latestPrice;
@@ -266,9 +282,40 @@ export function calculatePortfolioHoldings(lots: LotProfitability[]): PortfolioH
     }
   }
 
-  return [...holdingsBySecurity.values()].sort((a, b) =>
-    a.securityName.localeCompare(b.securityName)
-  );
+  return [...holdingsBySecurity.values()]
+    .filter((holding) => holding.quantity > 0)
+    .map((holding): PortfolioHolding => {
+      const totalProfitability =
+        holding.marketValue === null
+          ? null
+          : holding.marketValue +
+            holding.saleProceeds +
+            holding.dividendsReceived -
+            holding.totalAcquisitionCost;
+      const xirr = holding.hasUnpricedOpenLot
+        ? { value: null }
+        : calculateXirr(holding.cashFlows);
+
+      return {
+        securityKey: holding.securityKey,
+        securityName: holding.securityName,
+        quantity: holding.quantity,
+        investedCapital: holding.investedCapital,
+        latestPrice: holding.latestPrice,
+        priceDate: holding.priceDate,
+        marketValue: holding.marketValue,
+        investmentGain: holding.investmentGain,
+        dividendsReceived: holding.dividendsReceived,
+        totalProfitability,
+        totalReturnPercent:
+          totalProfitability === null || holding.totalAcquisitionCost <= 0
+            ? null
+            : (totalProfitability / holding.totalAcquisitionCost) * 100,
+        annualizedReturnPercent: xirr.value,
+        currency: holding.currency
+      };
+    })
+    .sort((a, b) => a.securityName.localeCompare(b.securityName));
 }
 
 export function calculateSecurityInventory(

@@ -1,7 +1,9 @@
 import {
   calculatePurchaseLots,
   type AnalyticsPrice,
-  type AnalyticsTransaction
+  type AnalyticsTransaction,
+  type LotCashFlow,
+  type XirrStatus
 } from "@/lib/analytics/engine";
 import type { Database } from "@/types/database";
 
@@ -32,10 +34,14 @@ export type LotProfitability = {
   accumulatedDividends: number;
   currentDividendProfitabilityPercent: number | null;
   averageDividendProfitabilityPercent: number | null;
+  attributedSaleProceeds: number;
+  totalEconomicValue: number | null;
   totalProfitability: number | null;
   totalReturnPercent: number | null;
   annualizedReturnPercent: number | null;
+  annualizedReturnStatus: XirrStatus;
   currency: string;
+  cashFlows: LotCashFlow[];
 };
 
 function toAnalyticsTransaction(transaction: Transaction): AnalyticsTransaction {
@@ -88,10 +94,14 @@ export function calculateLotProfitability(
       accumulatedDividends: lot.attributedDividends,
       currentDividendProfitabilityPercent: lot.currentDividendProfitabilityPercent,
       averageDividendProfitabilityPercent: lot.averageDividendProfitabilityPercent,
+      attributedSaleProceeds: lot.attributedSaleProceeds,
+      totalEconomicValue: lot.totalEconomicValue,
       totalProfitability: lot.totalGain,
       totalReturnPercent: lot.totalReturnPercent,
       annualizedReturnPercent: lot.annualizedReturnPercent,
-      currency: lot.currency
+      annualizedReturnStatus: lot.annualizedReturnStatus,
+      currency: lot.currency,
+      cashFlows: lot.cashFlows
     }))
     .sort((a, b) => b.tradeDate.localeCompare(a.tradeDate));
 }

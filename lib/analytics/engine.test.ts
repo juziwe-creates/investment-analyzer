@@ -5,6 +5,7 @@ import {
   buildPortfolioTimeline,
   calculateLifetimeDeployedCapital,
   calculatePurchaseLots,
+  calculateXirr,
   saleProceeds,
   type AnalyticsPrice,
   type AnalyticsTransaction
@@ -292,4 +293,18 @@ test("keeps lifetime deployed capital independent from sells", () => {
   ];
 
   assertClose(calculateLifetimeDeployedCapital(transactions), 1000);
+});
+
+test("calculates XIRR from cashflows even when callers provide them out of order", () => {
+  const ordered = calculateXirr([
+    { date: "2020-01-01", amount: -1000, kind: "buy" },
+    { date: "2021-01-01", amount: 1100, kind: "terminal_value" }
+  ]);
+  const unordered = calculateXirr([
+    { date: "2021-01-01", amount: 1100, kind: "terminal_value" },
+    { date: "2020-01-01", amount: -1000, kind: "buy" }
+  ]);
+
+  assert.equal(unordered.status, "valid");
+  assertClose(unordered.value, ordered.value ?? 0);
 });

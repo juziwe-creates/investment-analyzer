@@ -237,10 +237,13 @@ function xnpv(rate: number, cashFlows: LotCashFlow[]) {
 }
 
 export function calculateXirr(cashFlows: LotCashFlow[]) {
-  const hasPositive = cashFlows.some((cashFlow) => cashFlow.amount > 0);
-  const hasNegative = cashFlows.some((cashFlow) => cashFlow.amount < 0);
+  const chronologicalCashFlows = [...cashFlows].sort(
+    (a, b) => dateTimestamp(a.date) - dateTimestamp(b.date)
+  );
+  const hasPositive = chronologicalCashFlows.some((cashFlow) => cashFlow.amount > 0);
+  const hasNegative = chronologicalCashFlows.some((cashFlow) => cashFlow.amount < 0);
 
-  if (cashFlows.length < 2 || !hasPositive || !hasNegative) {
+  if (chronologicalCashFlows.length < 2 || !hasPositive || !hasNegative) {
     return { value: null, status: "insufficient_cashflows" as XirrStatus };
   }
 
@@ -266,10 +269,10 @@ export function calculateXirr(cashFlows: LotCashFlow[]) {
     let low: number | null = null;
     let high: number | null = null;
     let previousRate = candidates[0];
-    let previousValue = xnpv(previousRate, cashFlows);
+    let previousValue = xnpv(previousRate, chronologicalCashFlows);
 
     for (const rate of candidates.slice(1)) {
-      const value = xnpv(rate, cashFlows);
+      const value = xnpv(rate, chronologicalCashFlows);
 
       if (!Number.isFinite(previousValue) || !Number.isFinite(value)) {
         previousRate = rate;
@@ -300,8 +303,8 @@ export function calculateXirr(cashFlows: LotCashFlow[]) {
 
     for (let index = 0; index < 100; index += 1) {
       const middle = (bracketLow + bracketHigh) / 2;
-      const lowValue = xnpv(bracketLow, cashFlows);
-      const middleValue = xnpv(middle, cashFlows);
+      const lowValue = xnpv(bracketLow, chronologicalCashFlows);
+      const middleValue = xnpv(middle, chronologicalCashFlows);
 
       if (!Number.isFinite(lowValue) || !Number.isFinite(middleValue)) {
         return { value: null, status: "calculation_error" as XirrStatus };
