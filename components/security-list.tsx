@@ -1,14 +1,19 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SecurityPriceForm } from "@/components/security-price-form";
 import { formatDate } from "@/lib/formatters";
 import type { Database } from "@/types/database";
 
 type UserSecurity = Database["public"]["Views"]["user_securities"]["Row"];
+type ManualSecurityPrice = Database["public"]["Tables"]["manual_security_prices"]["Row"];
 
 type SecurityListProps = {
   securities: UserSecurity[];
+  prices: ManualSecurityPrice[];
 };
 
-export function SecurityList({ securities }: SecurityListProps) {
+export function SecurityList({ securities, prices }: SecurityListProps) {
+  const pricesBySecurity = new Map(prices.map((price) => [price.security_key, price]));
+
   return (
     <Card>
       <CardHeader>
@@ -34,6 +39,7 @@ export function SecurityList({ securities }: SecurityListProps) {
                   <th className="px-3 py-2 font-medium">Currency</th>
                   <th className="px-3 py-2 text-right font-medium">Transactions</th>
                   <th className="px-3 py-2 font-medium">First seen</th>
+                  <th className="px-3 py-2 font-medium">Latest price</th>
                 </tr>
               </thead>
               <tbody>
@@ -48,6 +54,12 @@ export function SecurityList({ securities }: SecurityListProps) {
                     </td>
                     <td className="px-3 py-3 text-right">{security.transaction_count}</td>
                     <td className="px-3 py-3">{formatDate(security.first_trade_date)}</td>
+                    <td className="px-3 py-3">
+                      <SecurityPriceForm
+                        security={security}
+                        price={pricesBySecurity.get(security.security_key)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -58,4 +70,3 @@ export function SecurityList({ securities }: SecurityListProps) {
     </Card>
   );
 }
-

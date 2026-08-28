@@ -163,6 +163,46 @@ export type Database = {
         };
         Relationships: [];
       };
+      manual_security_prices: {
+        Row: {
+          id: string;
+          user_id: string;
+          portfolio_id: string;
+          security_key: string;
+          security_name: string;
+          isin: string | null;
+          ticker: string | null;
+          price: number;
+          currency: string;
+          price_date: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          portfolio_id: string;
+          security_key: string;
+          security_name: string;
+          isin?: string | null;
+          ticker?: string | null;
+          price: number;
+          currency: string;
+          price_date: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          security_name?: string;
+          isin?: string | null;
+          ticker?: string | null;
+          price?: number;
+          currency?: string;
+          price_date?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       securities: {
         Row: {
           id: string;
