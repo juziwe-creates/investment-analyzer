@@ -66,6 +66,7 @@ Primary screens:
 - transaction list
 - lot-level purchase analytics
 - dividend analytics
+- securities discovered from transaction history
 - import history and source traceability
 
 The UI should request derived values from domain services rather than implementing calculations directly in components.
@@ -85,6 +86,7 @@ Responsibilities:
 
 - validate user-owned data access
 - normalize transaction inputs
+- capture security identity from transactions
 - derive holdings from transactions
 - calculate realized and unrealized gains
 - calculate dividend analytics
@@ -173,7 +175,7 @@ Canonical transaction types:
 
 Holdings must be calculated from transactions, not stored as master data.
 
-For each security:
+For each security identity:
 
 1. Sort buy and sell transactions by trade date.
 2. Build purchase lots from buy transactions.
@@ -218,7 +220,8 @@ Supabase Row Level Security should enforce user isolation for all user-owned tab
 Principles:
 
 - users can only read and write their own portfolios, transactions, imports, and documents
-- shared market reference data may be globally readable
+- securities derived from transactions are user-private
+- future shared market reference data may be globally readable only when it contains no user financial data
 - mutation APIs should validate ownership even when RLS is enabled
 - source documents should be stored in user-scoped storage paths
 

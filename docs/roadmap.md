@@ -60,7 +60,7 @@ Success criteria:
 - user can access a protected dashboard
 - user has a default portfolio
 
-## Phase 2: Core Data Model
+## Phase 2: Transaction-First Data Model
 
 Goal: implement the transaction-first data foundation.
 
@@ -69,17 +69,18 @@ Scope:
 - database migrations for MVP tables
 - Supabase RLS policies
 - typed data access layer
-- securities management
-- transaction creation and listing
+- manual transaction creation and listing
+- security identity captured on transactions
+- securities derived as a read-only view from transaction history
 - transaction component support for fees and taxes
 - source document and import run records
 
 Success criteria:
 
-- user can store securities
 - user can store buy transactions
 - user can store sell transactions
 - user can store dividend transactions
+- user can see securities discovered from transactions
 - all user data is isolated by RLS
 - transaction records can be traced to manual entry or import metadata
 
@@ -270,8 +271,8 @@ Core domain concepts:
 
 - User: authenticated investor.
 - Portfolio: collection of investment transactions owned by a user.
-- Security: investable asset such as stock or ETF.
 - Transaction: source-of-truth investment event.
+- Security Identity: name, ISIN, WKN, ticker, exchange, currency, and asset type captured on a transaction.
 - Transaction Component: fee, tax, or other monetary detail attached to a transaction.
 - Source Document: uploaded or external artifact that supports imported data.
 - Import Run: processing record for an import attempt.

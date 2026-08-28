@@ -16,11 +16,10 @@ The schema should make it possible to:
 
 # Entity Overview
 
-Primary entities:
+Primary MVP entities:
 
 - `profiles`
 - `portfolios`
-- `securities`
 - `transactions`
 - `transaction_components`
 - `prices`
@@ -31,6 +30,7 @@ Primary entities:
 
 Supporting entities that may be added after MVP:
 
+- `securities`
 - `brokers`
 - `broker_accounts`
 - `fx_rates`
@@ -44,9 +44,7 @@ Supporting entities that may be added after MVP:
 erDiagram
   profiles ||--o{ portfolios : owns
   portfolios ||--o{ transactions : contains
-  securities ||--o{ transactions : references
   transactions ||--o{ transaction_components : has
-  securities ||--o{ prices : priced_as
   import_runs ||--o{ import_rows : contains
   import_runs ||--o{ transactions : creates
   source_documents ||--o{ import_runs : used_by
@@ -91,33 +89,6 @@ Constraints:
 - unique portfolio name per user, if desired
 - row ownership by `user_id`
 
-## securities
-
-Stores normalized security reference data.
-
-Suggested columns:
-
-- `id uuid primary key`
-- `name text not null`
-- `isin text`
-- `wkn text`
-- `ticker text`
-- `exchange text`
-- `currency text`
-- `asset_type text`
-- `created_at timestamptz not null`
-- `updated_at timestamptz not null`
-
-Constraints:
-
-- unique `isin` when present
-- optional unique combination of `ticker`, `exchange`, and `currency`
-
-Notes:
-
-- Securities can be global reference data.
-- User-specific aliases from broker imports can be added later if needed.
-
 ## transactions
 
 Stores canonical investment events. This is the central source-of-truth table.
@@ -127,7 +98,14 @@ Suggested columns:
 - `id uuid primary key`
 - `user_id uuid not null references profiles(id)`
 - `portfolio_id uuid not null references portfolios(id)`
-- `security_id uuid references securities(id)`
+- `security_id uuid references securities(id)` optional and deferrable
+- `security_name text not null`
+- `isin text`
+- `wkn text`
+- `ticker text`
+- `exchange text`
+- `security_currency text`
+- `asset_type text`
 - `type text not null`
 - `trade_date date not null`
 - `settlement_date date`
@@ -158,6 +136,12 @@ Recommended sign conventions:
 - transaction type determines whether quantity increases or decreases holdings
 - cash amounts should use an explicit convention and remain consistent across all services
 - fees and taxes can be captured as components or standalone transactions depending on source data
+
+Notes:
+
+- In the MVP, security identity is captured directly on each transaction.
+- The Securities page should be derived from transaction history rather than managed manually.
+- A normalized `securities` table may still be introduced later for market-data enrichment, deduplication, and canonical metadata.
 
 ## transaction_components
 
@@ -209,6 +193,7 @@ Notes:
 
 - Current value is derived from latest price times current quantity.
 - Historical portfolio development uses dated prices.
+- For the transaction-first MVP, price lookup may initially use transaction security identifiers such as ISIN or ticker before a canonical security table becomes necessary.
 
 ## source_documents
 
@@ -332,7 +317,9 @@ Derived from transactions.
 Fields:
 
 - `portfolio_id`
-- `security_id`
+- `security_name`
+- `isin`
+- `ticker`
 - `quantity`
 - `cost_basis`
 - `average_cost`
@@ -348,7 +335,9 @@ Derived primarily from buy transactions and adjusted by sell transactions.
 Fields:
 
 - `buy_transaction_id`
-- `security_id`
+- `security_name`
+- `isin`
+- `ticker`
 - `buy_date`
 - `original_quantity`
 - `remaining_quantity`
@@ -390,12 +379,12 @@ Tables with user-owned data should include `user_id` and enforce RLS policies:
 
 Shared or reference-like tables:
 
-- `securities`
 - `prices`
 
 Security principles:
 
 - users can only access their own financial records
+- securities derived from user transactions can only be seen by that user
 - source documents must be scoped by user
 - import rows should inherit access through `import_runs`
 - writes should validate portfolio ownership
@@ -405,6 +394,8 @@ Security principles:
 Recommended indexes:
 
 - `transactions(user_id, portfolio_id, trade_date)`
+- `transactions(user_id, isin)`
+- `transactions(user_id, ticker)`
 - `transactions(portfolio_id, security_id, trade_date)`
 - `transactions(import_run_id)`
 - `transactions(source_document_id)`
@@ -444,7 +435,6 @@ Required for MVP:
 
 - `profiles`
 - `portfolios`
-- `securities`
 - `transactions`
 - `transaction_components`
 - `prices`
@@ -458,6 +448,7 @@ Optional but recommended for MVP charts:
 
 Deferrable until after MVP:
 
+- `securities`
 - `broker_accounts`
 - `fx_rates`
 - `corporate_actions`
