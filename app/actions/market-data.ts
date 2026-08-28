@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 type UserSecurity = Database["public"]["Views"]["user_securities"]["Row"];
+type MarketDataStatus = "completed" | "completed_with_errors" | "failed";
 
 function requiredText(formData: FormData, key: string, label: string) {
   const value = formData.get(key)?.toString().trim();
@@ -28,13 +29,31 @@ function chunk<T>(items: T[], size: number) {
   return chunks;
 }
 
+function requestDelayMs() {
+  const configuredDelay = Number(process.env.MARKET_DATA_REQUEST_DELAY_MS);
+
+  if (Number.isFinite(configuredDelay) && configuredDelay >= 1000) {
+    return configuredDelay;
+  }
+
+  return 1200;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function providerErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Market data sync failed";
+}
+
 async function updateSyncRun(
   runId: string,
   values: {
-    status: "completed" | "completed_with_errors" | "failed";
+    status: MarketDataStatus;
     prices_imported?: number;
     dividends_imported?: number;
-    error_message?: string;
+    error_message?: string | null;
   }
 ) {
   const supabase = await createClient();
@@ -45,6 +64,39 @@ async function updateSyncRun(
       finished_at: new Date().toISOString()
     })
     .eq("id", runId);
+}
+
+async function upsertMarketPrices(
+  rows: Database["public"]["Tables"]["market_prices"]["Insert"][]
+) {
+  const supabase = await createClient();
+
+  for (const priceChunk of chunk(rows, 500)) {
+    const { error } = await supabase.from("market_prices").upsert(priceChunk, {
+      onConflict: "user_id,portfolio_id,security_key,provider,price_date"
+    });
+
+    if (error) {
+      throw error;
+    }
+  }
+}
+
+async function upsertMarketDividends(
+  rows: Database["public"]["Tables"]["market_dividends"]["Insert"][]
+) {
+  const supabase = await createClient();
+
+  for (const dividendChunk of chunk(rows, 500)) {
+    const { error } = await supabase.from("market_dividends").upsert(dividendChunk, {
+      onConflict:
+        "user_id,portfolio_id,security_key,provider,ex_dividend_date,amount_per_share"
+    });
+
+    if (error) {
+      throw error;
+    }
+  }
 }
 
 export async function syncSecurityMarketData(formData: FormData) {
@@ -114,11 +166,7 @@ export async function syncSecurityMarketData(formData: FormData) {
   let successMessage = "";
 
   try {
-    const [prices, dividends] = await Promise.all([
-      provider.fetchDailyPrices({ symbol: providerSymbol }),
-      provider.fetchDividends({ symbol: providerSymbol })
-    ]);
-
+    const prices = await provider.fetchDailyPrices({ symbol: providerSymbol });
     const priceRows = prices.map((price) => ({
       user_id: user.id,
       portfolio_id: typedSecurity.portfolio_id,
@@ -138,53 +186,49 @@ export async function syncSecurityMarketData(formData: FormData) {
       currency
     }));
 
-    const dividendRows = dividends.map((dividend) => ({
-      user_id: user.id,
-      portfolio_id: typedSecurity.portfolio_id,
-      security_key: typedSecurity.security_key,
-      security_name: typedSecurity.security_name,
-      isin: typedSecurity.isin,
-      ticker: typedSecurity.ticker,
-      provider: provider.id,
-      provider_symbol: providerSymbol,
-      ex_dividend_date: dividend.exDividendDate,
-      declaration_date: dividend.declarationDate,
-      record_date: dividend.recordDate,
-      payment_date: dividend.paymentDate,
-      amount_per_share: dividend.amountPerShare,
-      currency
-    }));
+    await upsertMarketPrices(priceRows);
 
-    for (const priceChunk of chunk(priceRows, 500)) {
-      const { error } = await supabase.from("market_prices").upsert(priceChunk, {
-        onConflict: "user_id,portfolio_id,security_key,provider,price_date"
-      });
+    let dividendRows: Database["public"]["Tables"]["market_dividends"]["Insert"][] = [];
+    let warningMessage: string | null = null;
 
-      if (error) {
-        throw error;
-      }
-    }
+    await sleep(requestDelayMs());
 
-    for (const dividendChunk of chunk(dividendRows, 500)) {
-      const { error } = await supabase.from("market_dividends").upsert(dividendChunk, {
-        onConflict:
-          "user_id,portfolio_id,security_key,provider,ex_dividend_date,amount_per_share"
-      });
+    try {
+      const dividends = await provider.fetchDividends({ symbol: providerSymbol });
+      dividendRows = dividends.map((dividend) => ({
+        user_id: user.id,
+        portfolio_id: typedSecurity.portfolio_id,
+        security_key: typedSecurity.security_key,
+        security_name: typedSecurity.security_name,
+        isin: typedSecurity.isin,
+        ticker: typedSecurity.ticker,
+        provider: provider.id,
+        provider_symbol: providerSymbol,
+        ex_dividend_date: dividend.exDividendDate,
+        declaration_date: dividend.declarationDate,
+        record_date: dividend.recordDate,
+        payment_date: dividend.paymentDate,
+        amount_per_share: dividend.amountPerShare,
+        currency
+      }));
 
-      if (error) {
-        throw error;
-      }
+      await upsertMarketDividends(dividendRows);
+    } catch (error) {
+      warningMessage = `Prices were synced, but dividend sync failed: ${providerErrorMessage(error)}`;
     }
 
     await updateSyncRun(syncRun.id, {
-      status: "completed",
+      status: warningMessage ? "completed_with_errors" : "completed",
       prices_imported: priceRows.length,
-      dividends_imported: dividendRows.length
+      dividends_imported: dividendRows.length,
+      error_message: warningMessage
     });
 
-    successMessage = `Synced ${priceRows.length} prices and ${dividendRows.length} dividends for ${typedSecurity.security_name}`;
+    successMessage =
+      `Synced ${priceRows.length} prices and ${dividendRows.length} dividends for ${typedSecurity.security_name}` +
+      (warningMessage ? `. ${warningMessage}` : "");
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Market data sync failed";
+    const message = providerErrorMessage(error);
 
     await updateSyncRun(syncRun.id, {
       status: "failed",
