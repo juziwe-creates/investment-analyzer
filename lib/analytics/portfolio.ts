@@ -55,6 +55,13 @@ export type PortfolioDevelopmentPoint = {
   currency: string;
 };
 
+export type CapitalDeploymentPoint = {
+  date: string;
+  capitalDeployed: number;
+  dividendsCollected: number;
+  currency: string;
+};
+
 function cashAmount(transaction: Transaction) {
   if (transaction.net_amount !== null) {
     return Math.abs(transaction.net_amount);
@@ -295,4 +302,59 @@ export function calculatePortfolioDevelopment(
   }
 
   return [...intervalPoints.values()];
+}
+
+export function calculateCapitalDeployment(
+  transactions: Transaction[],
+  interval: ChartInterval
+): CapitalDeploymentPoint[] {
+  const relevantTransactions = transactions
+    .filter((transaction) =>
+      ["buy", "sell", "dividend"].includes(transaction.type)
+    )
+    .sort((a, b) => {
+      const dateComparison = dateTimestamp(a.trade_date) - dateTimestamp(b.trade_date);
+
+      if (dateComparison !== 0) {
+        return dateComparison;
+      }
+
+      return a.created_at.localeCompare(b.created_at);
+    });
+  const points: CapitalDeploymentPoint[] = [];
+  let capitalDeployed = 0;
+  let dividendsCollected = 0;
+
+  for (const transaction of relevantTransactions) {
+    const amount = cashAmount(transaction);
+
+    if (transaction.type === "buy") {
+      capitalDeployed += amount;
+    }
+
+    if (transaction.type === "sell") {
+      capitalDeployed -= amount;
+    }
+
+    if (transaction.type === "dividend") {
+      dividendsCollected += amount;
+    }
+
+    points.push({
+      date: transaction.trade_date,
+      capitalDeployed,
+      dividendsCollected,
+      currency: transaction.currency
+    });
+  }
+
+  const intervalPoints = new Map<string, CapitalDeploymentPoint>();
+
+  for (const point of points) {
+    intervalPoints.set(intervalKey(point.date, interval), point);
+  }
+
+  return [...intervalPoints.values()].filter(
+    (point) => point.capitalDeployed !== 0 || point.dividendsCollected !== 0
+  );
 }

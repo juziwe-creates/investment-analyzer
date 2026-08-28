@@ -1,7 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CapitalDeploymentChart } from "@/components/capital-deployment-chart";
 import { PortfolioDevelopmentChart } from "@/components/portfolio-development-chart";
 import {
   buildCurrentAnalytics,
+  calculateCapitalDeployment,
   calculatePortfolioDevelopment,
   parseChartInterval,
   type ChartInterval
@@ -55,6 +57,7 @@ export default async function DashboardPage({
     marketPrices ?? [],
     interval
   );
+  const capitalDeploymentPoints = calculateCapitalDeployment(transactions ?? [], interval);
   const earliestBuyDate =
     transactions
       ?.filter((transaction) => transaction.type === "buy")
@@ -187,6 +190,15 @@ export default async function DashboardPage({
                 : "Sync market prices to see portfolio development."
             }
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Capital Deployment</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CapitalDeploymentChart points={capitalDeploymentPoints} interval={interval} />
         </CardContent>
       </Card>
     </div>
