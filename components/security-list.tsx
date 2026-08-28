@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SecurityMarketDataForm } from "@/components/security-market-data-form";
 import { SecurityPriceForm } from "@/components/security-price-form";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatDate, formatNumber } from "@/lib/formatters";
+import type { PortfolioHolding } from "@/lib/analytics/portfolio";
 import type { Database } from "@/types/database";
 
 type UserSecurity = Database["public"]["Views"]["user_securities"]["Row"];
@@ -10,11 +11,20 @@ type LatestMarketPrice = Database["public"]["Views"]["latest_market_prices"]["Ro
 
 type SecurityListProps = {
   securities: UserSecurity[];
+  holdings: PortfolioHolding[];
   prices: ManualSecurityPrice[];
   marketPrices: LatestMarketPrice[];
 };
 
-export function SecurityList({ securities, prices, marketPrices }: SecurityListProps) {
+export function SecurityList({
+  securities,
+  holdings,
+  prices,
+  marketPrices
+}: SecurityListProps) {
+  const holdingsBySecurity = new Map(
+    holdings.map((holding) => [holding.securityKey, holding])
+  );
   const pricesBySecurity = new Map(prices.map((price) => [price.security_key, price]));
   const marketPricesBySecurity = new Map(
     marketPrices.map((price) => [price.security_key, price])
@@ -39,6 +49,7 @@ export function SecurityList({ securities, prices, marketPrices }: SecurityListP
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 text-right font-medium">Owned quantity</th>
                   <th className="px-3 py-2 font-medium">ISIN</th>
                   <th className="px-3 py-2 font-medium">Ticker</th>
                   <th className="px-3 py-2 font-medium">Exchange</th>
@@ -52,6 +63,8 @@ export function SecurityList({ securities, prices, marketPrices }: SecurityListP
               </thead>
               <tbody>
                 {securities.map((security) => {
+                  const holding = holdingsBySecurity.get(security.security_key);
+                  const ownedQuantity = holding?.quantity ?? 0;
                   const marketPrice = marketPricesBySecurity.get(security.security_key);
                   const marketPriceValue = marketPrice
                     ? marketPrice.adjusted_close_price ?? marketPrice.close_price
@@ -60,6 +73,11 @@ export function SecurityList({ securities, prices, marketPrices }: SecurityListP
                   return (
                     <tr key={security.security_key} className="border-b last:border-0">
                       <td className="px-3 py-3 font-medium">{security.security_name}</td>
+                      <td className="px-3 py-3 text-right">
+                        <span className={ownedQuantity === 0 ? "text-muted-foreground" : ""}>
+                          {formatNumber(ownedQuantity)}
+                        </span>
+                      </td>
                       <td className="px-3 py-3 text-muted-foreground">{security.isin ?? "-"}</td>
                       <td className="px-3 py-3 text-muted-foreground">{security.ticker ?? "-"}</td>
                       <td className="px-3 py-3 text-muted-foreground">
