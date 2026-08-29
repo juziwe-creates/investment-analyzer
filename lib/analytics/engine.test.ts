@@ -75,6 +75,8 @@ function lotProfitabilityFromAnalytics(
     priceSource: "market",
     priceDate: lot.currentPriceDate,
     currentValue: lot.currentRemainingValue,
+    closingSalePricePerShare: lot.closingSalePricePerShare,
+    closingSaleDate: lot.closingSaleDate,
     unrealizedGainLoss: lot.unrealizedGain,
     accumulatedDividends: lot.attributedDividends,
     currentDividendProfitabilityPercent: lot.currentDividendProfitabilityPercent,
@@ -424,6 +426,33 @@ test("marks transaction ownership using LIFO sell allocation", () => {
   assertClose(newBuy?.accumulatedDividendsTaxFree ?? null, 0);
   assertClose(oldBuy?.currentValue ?? null, 1200);
   assertClose(newBuy?.currentValue ?? null, 0);
+  assertClose(newBuy?.referencePrice ?? null, 120);
+  assert.equal(newBuy?.referenceDate, "2020-03-01");
+  assertClose(newBuy?.referenceValue ?? null, 600);
+});
+
+test("uses latest prices as reference for still-owned transaction lots", () => {
+  const lots = calculatePurchaseLots(
+    [
+      transaction({
+        id: "buy-1",
+        type: "buy",
+        trade_date: "2020-01-01",
+        quantity: 10,
+        gross_amount: 1000
+      })
+    ],
+    [price({ price: 140, price_date: "2021-01-01" })],
+    undefined,
+    { lotMatchingMethod: "lifo" }
+  ).map(lotProfitabilityFromAnalytics);
+  const [row] = calculateTransactionAnalytics(lots);
+
+  assert.equal(row.ownershipStatus, "owned");
+  assert.equal(row.referenceKind, "latest_market_price");
+  assertClose(row.referencePrice, 140);
+  assert.equal(row.referenceDate, "2021-01-01");
+  assertClose(row.referenceValue, 1400);
 });
 
 test("aggregates stock analytics from transaction analytics lots", () => {

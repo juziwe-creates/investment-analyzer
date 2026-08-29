@@ -16,6 +16,10 @@ export type TransactionAnalyticsRow = {
   latestPrice: number | null;
   priceDate: string | null;
   currentValue: number | null;
+  referencePrice: number | null;
+  referenceDate: string | null;
+  referenceValue: number | null;
+  referenceKind: "latest_market_price" | "sale_price";
   currentDividendYieldPercent: number | null;
   latestDividendDate: string | null;
   accumulatedDividendsTaxFree: number;
@@ -98,10 +102,18 @@ function ownershipStatus(lot: LotProfitability): TransactionAnalyticsRow["owners
   return "owned";
 }
 
+function referenceKind(lot: LotProfitability): TransactionAnalyticsRow["referenceKind"] {
+  return lot.remainingQuantity <= 0 ? "sale_price" : "latest_market_price";
+}
+
 export function calculateTransactionAnalytics(
   lots: LotProfitability[]
 ): TransactionAnalyticsRow[] {
   return lots.map((lot) => {
+    const isSold = lot.remainingQuantity <= 0;
+    const referencePrice = isSold ? lot.closingSalePricePerShare : lot.latestPrice;
+    const referenceDate = isSold ? lot.closingSaleDate : lot.priceDate;
+    const referenceValue = isSold ? lot.attributedSaleProceeds : lot.currentValue;
     const accumulatedDividendsAfterTax =
       lot.accumulatedDividends * DIVIDEND_AFTER_TAX_FACTOR;
     const totalEconomicValue =
@@ -125,6 +137,10 @@ export function calculateTransactionAnalytics(
       latestPrice: lot.latestPrice,
       priceDate: lot.priceDate,
       currentValue: lot.currentValue,
+      referencePrice,
+      referenceDate,
+      referenceValue,
+      referenceKind: referenceKind(lot),
       currentDividendYieldPercent: currentDividendYieldPercent(
         lot.latestDividendPerShare,
         lot.buyPrice

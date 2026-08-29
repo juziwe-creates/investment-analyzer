@@ -67,6 +67,8 @@ export type PurchaseLotAnalytics = {
   currentMarketPrice: number | null;
   currentPriceDate: string | null;
   currentRemainingValue: number | null;
+  closingSalePricePerShare: number | null;
+  closingSaleDate: string | null;
   attributedSaleProceeds: number;
   attributedDividends: number;
   unrealizedGain: number | null;
@@ -128,6 +130,12 @@ type WorkingLot = {
     transactionId: string;
   }[];
   saleTransactionIds: string[];
+  saleAllocations: {
+    date: string;
+    quantity: number;
+    proceeds: number;
+    transactionId: string;
+  }[];
   dividendTransactionIds: string[];
   currency: string;
   cashFlows: LotCashFlow[];
@@ -410,6 +418,7 @@ function applyTransactionToLots(
       attributedDividends: 0,
       dividendAllocations: [],
       saleTransactionIds: [],
+      saleAllocations: [],
       dividendTransactionIds: [],
       currency: transaction.currency,
       cashFlows: [
@@ -447,6 +456,12 @@ function applyTransactionToLots(
       lot.attributedSaleProceeds += allocatedSaleProceeds;
       lot.attributedSaleCostBasis += consumedCostBasis;
       lot.saleTransactionIds.push(transaction.id);
+      lot.saleAllocations.push({
+        date: transaction.trade_date,
+        quantity: consumedQuantity,
+        proceeds: allocatedSaleProceeds,
+        transactionId: transaction.id
+      });
       lot.cashFlows.push({
         date: transaction.trade_date,
         amount: allocatedSaleProceeds,
@@ -504,6 +519,15 @@ function buildPurchaseLotAnalytics(
 ) {
   return lots.map((lot) => {
     const price = priceMap.get(lot.securityKey);
+    const soldQuantity = lot.saleAllocations.reduce(
+      (sum, allocation) => sum + allocation.quantity,
+      0
+    );
+    const closingSaleAllocation = lot.saleAllocations.at(-1) ?? null;
+    const closingSalePricePerShare =
+      lot.remainingQuantity <= 0 && soldQuantity > 0
+        ? lot.attributedSaleProceeds / soldQuantity
+        : null;
     const currentRemainingValue =
       lot.remainingQuantity <= 0 ? 0 : price ? lot.remainingQuantity * price.price : null;
     const unrealizedGain =
@@ -574,6 +598,9 @@ function buildPurchaseLotAnalytics(
       currentMarketPrice: price?.price ?? null,
       currentPriceDate: price?.price_date ?? null,
       currentRemainingValue,
+      closingSalePricePerShare,
+      closingSaleDate:
+        lot.remainingQuantity <= 0 ? closingSaleAllocation?.date ?? null : null,
       attributedSaleProceeds: lot.attributedSaleProceeds,
       attributedDividends: lot.attributedDividends,
       unrealizedGain,

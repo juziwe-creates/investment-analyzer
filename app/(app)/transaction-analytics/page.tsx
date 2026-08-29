@@ -97,7 +97,9 @@ export default async function TransactionAnalyticsPage() {
         LIFO rule: sells consume the newest open buy lots first. Current dividend yield =
         latest dividend per share allocated to this lot divided by cost basis per share.
         Dividends tax free = dividends allocated pro-rata by shares owned on each dividend
-        date. Dividend tax assumption for after-tax figures: 71.575% retained.
+        date. Fully sold lots use the sale date and allocated sale price as their reference;
+        still-owned lots use the latest available price. Dividend tax assumption for after-tax
+        figures: 71.575% retained.
       </div>
 
       <TransactionAnalyticsTable rows={rows} />

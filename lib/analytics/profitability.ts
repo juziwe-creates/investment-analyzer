@@ -31,6 +31,8 @@ export type LotProfitability = {
   priceSource: "market" | "manual" | null;
   priceDate: string | null;
   currentValue: number | null;
+  closingSalePricePerShare: number | null;
+  closingSaleDate: string | null;
   unrealizedGainLoss: number | null;
   accumulatedDividends: number;
   currentDividendProfitabilityPercent: number | null;
@@ -94,6 +96,8 @@ export function calculateLotProfitability(
       priceSource: priceSource(prices.find((price) => price.security_key === lot.securityKey)?.source),
       priceDate: lot.currentPriceDate,
       currentValue: lot.currentRemainingValue,
+      closingSalePricePerShare: lot.closingSalePricePerShare,
+      closingSaleDate: lot.closingSaleDate,
       unrealizedGainLoss: lot.unrealizedGain,
       accumulatedDividends: lot.attributedDividends,
       currentDividendProfitabilityPercent: lot.currentDividendProfitabilityPercent,

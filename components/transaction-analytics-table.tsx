@@ -14,7 +14,7 @@ type SortKey =
   | "ownershipStatus"
   | "costBasisPerShare"
   | "costBasis"
-  | "currentValue"
+  | "referenceValue"
   | "currentDividendYieldPercent"
   | "accumulatedDividendsTaxFree"
   | "accumulatedDividendsAfterTax"
@@ -194,8 +194,8 @@ export function TransactionAnalyticsTable({ rows }: TransactionAnalyticsTablePro
                       {sortableHeader("Ownership", "ownershipStatus", "left")}
                       {sortableHeader("Cost/share", "costBasisPerShare")}
                       {sortableHeader("Cost basis", "costBasis")}
-                      <th className="px-3 py-2 text-right font-medium">Latest price</th>
-                      {sortableHeader("Latest value", "currentValue")}
+                      <th className="px-3 py-2 text-right font-medium">Reference price</th>
+                      {sortableHeader("Reference value", "referenceValue")}
                       {sortableHeader("Current div. yield", "currentDividendYieldPercent")}
                       {sortableHeader("Dividends tax free", "accumulatedDividendsTaxFree")}
                       {sortableHeader("Dividends after tax", "accumulatedDividendsAfterTax")}
@@ -221,10 +221,10 @@ export function TransactionAnalyticsTable({ rows }: TransactionAnalyticsTablePro
                           {formatCurrency(row.costBasis, row.currency)}
                         </td>
                         <td className="px-3 py-3 text-right">
-                          {formatCurrency(row.latestPrice, row.currency)}
+                          {formatCurrency(row.referencePrice, row.currency)}
                         </td>
                         <td className="px-3 py-3 text-right">
-                          {formatCurrency(row.currentValue, row.currency)}
+                          {formatCurrency(row.referenceValue, row.currency)}
                         </td>
                         <td className="px-3 py-3 text-right">
                           {formatPercent(row.currentDividendYieldPercent)}
@@ -245,7 +245,8 @@ export function TransactionAnalyticsTable({ rows }: TransactionAnalyticsTablePro
                           {formatPercent(row.totalRawProfitabilityAnnualizedPercent)}
                         </td>
                         <td className="px-3 py-3 text-muted-foreground">
-                          Price: {row.priceDate ? formatDate(row.priceDate) : "missing"}
+                          {row.referenceKind === "sale_price" ? "Sold" : "Price"}:{" "}
+                          {row.referenceDate ? formatDate(row.referenceDate) : "missing"}
                           <br />
                           Dividend:{" "}
                           {row.latestDividendDate
