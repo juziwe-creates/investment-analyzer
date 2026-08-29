@@ -8,6 +8,7 @@ import {
   calculatePortfolioDevelopment,
   findSecuritiesWithoutBuyHistory,
   parseChartInterval,
+  transactionSecurityKey,
   type ChartInterval
 } from "@/lib/analytics/portfolio";
 import { formatCurrency } from "@/lib/formatters";
@@ -42,7 +43,20 @@ function filterPointsByDate<T extends { date: string }>(
   });
 }
 
-function dashboardHref(interval: ChartInterval, fromDate: string, toDate: string) {
+function searchParamValues(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  return value ? [value] : [];
+}
+
+function dashboardHref(
+  interval: ChartInterval,
+  fromDate: string,
+  toDate: string,
+  selectedSecurityKeys: string[]
+) {
   const params = new URLSearchParams({ interval });
 
   if (fromDate) {
@@ -53,15 +67,54 @@ function dashboardHref(interval: ChartInterval, fromDate: string, toDate: string
     params.set("to", toDate);
   }
 
+  for (const securityKey of selectedSecurityKeys) {
+    params.append("security", securityKey);
+  }
+
   return `/dashboard?${params.toString()}`;
+}
+
+function buildSecurityOptions(
+  transactions: Array<Parameters<typeof transactionSecurityKey>[0]>
+) {
+  const optionsByKey = new Map<string, { key: string; label: string; count: number }>();
+
+  for (const transaction of transactions) {
+    const key = transactionSecurityKey(transaction);
+    const existing = optionsByKey.get(key);
+
+    if (!existing) {
+      optionsByKey.set(key, {
+        key,
+        label: transaction.security_name,
+        count: 1
+      });
+      continue;
+    }
+
+    existing.count += 1;
+    existing.label = transaction.security_name || existing.label;
+  }
+
+  return [...optionsByKey.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export default async function DashboardPage({
   searchParams
 }: {
-  searchParams: Promise<{ interval?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    interval?: string;
+    from?: string;
+    to?: string;
+    security?: string | string[];
+  }>;
 }) {
-  const { interval: rawInterval, from: rawFromDate, to: rawToDate } = await searchParams;
+  const {
+    interval: rawInterval,
+    from: rawFromDate,
+    to: rawToDate,
+    security: rawSecurity
+  } = await searchParams;
   const interval = parseChartInterval(rawInterval);
   const fromDate = isDate(rawFromDate) ? rawFromDate ?? "" : "";
   const toDate = isDate(rawToDate) ? rawToDate ?? "" : "";
@@ -98,17 +151,46 @@ export default async function DashboardPage({
     manualPricesError,
     marketPricesError
   ].filter(Boolean);
+  const allTransactions = transactions ?? [];
+  const allLatestMarketPrices = latestMarketPrices ?? [];
+  const allManualPrices = manualPrices ?? [];
+  const allMarketPrices = marketPrices ?? [];
+  const securityOptions = buildSecurityOptions(allTransactions);
+  const availableSecurityKeys = new Set(securityOptions.map((option) => option.key));
+  const selectedSecurityKeys = [
+    ...new Set(
+      searchParamValues(rawSecurity).filter((securityKey) =>
+        availableSecurityKeys.has(securityKey)
+      )
+    )
+  ];
+  const selectedSecurityKeySet = new Set(selectedSecurityKeys);
+  const hasSecurityFilter = selectedSecurityKeys.length > 0;
+  const filteredTransactions = hasSecurityFilter
+    ? allTransactions.filter((transaction) =>
+        selectedSecurityKeySet.has(transactionSecurityKey(transaction))
+      )
+    : allTransactions;
+  const filteredLatestMarketPrices = hasSecurityFilter
+    ? allLatestMarketPrices.filter((price) => selectedSecurityKeySet.has(price.security_key))
+    : allLatestMarketPrices;
+  const filteredManualPrices = hasSecurityFilter
+    ? allManualPrices.filter((price) => selectedSecurityKeySet.has(price.security_key))
+    : allManualPrices;
+  const filteredMarketPrices = hasSecurityFilter
+    ? allMarketPrices.filter((price) => selectedSecurityKeySet.has(price.security_key))
+    : allMarketPrices;
   const { holdings, summary } = buildCurrentAnalytics(
-    transactions ?? [],
-    latestMarketPrices ?? [],
-    manualPrices ?? []
+    filteredTransactions,
+    filteredLatestMarketPrices,
+    filteredManualPrices
   );
   const allDevelopmentPoints = calculatePortfolioDevelopment(
-    transactions ?? [],
-    marketPrices ?? [],
+    filteredTransactions,
+    filteredMarketPrices,
     interval
   );
-  const allCapitalDeploymentPoints = calculateCapitalDeployment(transactions ?? [], interval);
+  const allCapitalDeploymentPoints = calculateCapitalDeployment(filteredTransactions, interval);
   const developmentPoints = filterPointsByDate(allDevelopmentPoints, fromDate, toDate);
   const capitalDeploymentPoints = filterPointsByDate(
     allCapitalDeploymentPoints,
@@ -116,8 +198,8 @@ export default async function DashboardPage({
     toDate
   );
   const earliestBuyDate =
-    transactions
-      ?.filter((transaction) => transaction.type === "buy")
+    filteredTransactions
+      .filter((transaction) => transaction.type === "buy")
       .map((transaction) => transaction.trade_date)
       .sort()[0] ?? null;
   const firstDevelopmentPointDate = developmentPoints[0]?.date ?? null;
@@ -129,7 +211,7 @@ export default async function DashboardPage({
   const hasIncompleteDevelopmentPoints = developmentPoints.some(
     (point) => !point.hasCompletePricing
   );
-  const missingBuyHistory = findSecuritiesWithoutBuyHistory(transactions ?? []);
+  const missingBuyHistory = findSecuritiesWithoutBuyHistory(filteredTransactions);
   const missingBuyHistoryNames = missingBuyHistory
     .slice(0, 3)
     .map((security) => security.securityName)
@@ -143,6 +225,10 @@ export default async function DashboardPage({
     .map((holding) => holding.securityName)
     .join(", ");
   const hasMoreUnpricedHoldings = unpricedHoldings.length > 3;
+  const selectedSecurityNames = securityOptions
+    .filter((option) => selectedSecurityKeySet.has(option.key))
+    .map((option) => option.label)
+    .join(", ");
   const metrics = [
     {
       label: summary.hasCompletePricing ? "Portfolio value" : "Priced value",
@@ -173,7 +259,9 @@ export default async function DashboardPage({
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Dashboard</h2>
         <p className="text-muted-foreground">
-          Portfolio analytics calculated from your transactions and synced market prices.
+          {hasSecurityFilter
+            ? `Subset analytics for ${selectedSecurityNames}.`
+            : "Portfolio analytics calculated from your transactions and synced market prices."}
         </p>
       </div>
 
@@ -236,7 +324,7 @@ export default async function DashboardPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Chart filters</CardTitle>
+          <CardTitle>Dashboard filters</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -244,7 +332,7 @@ export default async function DashboardPage({
               {intervals.map((option) => (
                 <a
                   key={option.value}
-                  href={dashboardHref(option.value, fromDate, toDate)}
+                  href={dashboardHref(option.value, fromDate, toDate, selectedSecurityKeys)}
                   className={cn(
                     "rounded px-3 py-1 text-sm text-muted-foreground",
                     option.value === interval && "bg-primary text-primary-foreground"
@@ -254,32 +342,64 @@ export default async function DashboardPage({
                 </a>
               ))}
             </div>
-            <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+            <form className="space-y-4">
               <input type="hidden" name="interval" value={interval} />
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">From</span>
-                <input
-                  type="date"
-                  name="from"
-                  defaultValue={fromDate}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">To</span>
-                <input
-                  type="date"
-                  name="to"
-                  defaultValue={toDate}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-              </label>
-              <Button type="submit">Apply</Button>
-              <Button asChild type="button" variant="outline">
-                <a href={`/dashboard?interval=${interval}`}>Clear</a>
-              </Button>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+                <label className="space-y-1 text-sm">
+                  <span className="text-muted-foreground">From</span>
+                  <input
+                    type="date"
+                    name="from"
+                    defaultValue={fromDate}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="text-muted-foreground">To</span>
+                  <input
+                    type="date"
+                    name="to"
+                    defaultValue={toDate}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                </label>
+                <Button type="submit">Apply</Button>
+                <Button asChild type="button" variant="outline">
+                  <a href={`/dashboard?interval=${interval}`}>Clear</a>
+                </Button>
+              </div>
+              {securityOptions.length > 0 ? (
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium">Stocks</legend>
+                  <div className="grid gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {securityOptions.map((option) => (
+                      <label
+                        key={option.key}
+                        className="flex items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-background"
+                      >
+                        <input
+                          type="checkbox"
+                          name="security"
+                          value={option.key}
+                          defaultChecked={selectedSecurityKeySet.has(option.key)}
+                          className="mt-1"
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{option.label}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {option.key} · {option.count} transactions
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
             </form>
             <p className="text-xs text-muted-foreground">
+              {hasSecurityFilter
+                ? `Selected ${selectedSecurityKeys.length} of ${securityOptions.length} stocks. `
+                : `Showing all ${securityOptions.length} stocks. `}
               Showing {developmentPoints.length} portfolio points and{" "}
               {capitalDeploymentPoints.length} capital deployment points.
             </p>
@@ -297,7 +417,7 @@ export default async function DashboardPage({
             interval={interval}
             earliestBuyDate={earliestBuyDate}
             emptyMessage={
-              marketPrices && marketPrices.length > 0
+              filteredMarketPrices.length > 0
                 ? "Historical prices are needed before portfolio development can be shown."
                 : "Sync market prices to see portfolio development."
             }

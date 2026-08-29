@@ -177,7 +177,7 @@ function dateTimestamp(date: string) {
   return parseDate(date).getTime();
 }
 
-function transactionSecurityKey(
+export function transactionSecurityKey(
   transaction: Pick<Transaction, "isin" | "ticker" | "security_name">
 ) {
   return transaction.isin ?? transaction.ticker ?? transaction.security_name;
