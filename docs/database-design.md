@@ -442,6 +442,8 @@ Fields:
 
 The MVP can start by allocating dividends proportionally to held quantity on the dividend date. The exact allocation rule must be documented because dividend analytics depend on it.
 
+The current implemented formulas are documented in `docs/analytics-rules.md`.
+
 MVP dividend profitability definitions:
 
 - Current dividend profitability is trailing-12-month allocated dividend per currently open share divided by the buy-lot price.

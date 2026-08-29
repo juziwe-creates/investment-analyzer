@@ -38,6 +38,7 @@ Deliverables:
 - `docs/architecture.md`
 - `docs/database-design.md`
 - `docs/roadmap.md`
+- `docs/analytics-rules.md`
 
 ## Phase 1: Project Foundation
 
@@ -335,7 +336,9 @@ Core domain concepts:
 
 # Analytics Rules To Decide Early
 
-The following rules should be documented before implementation because they affect user-facing numbers:
+The current implemented rules are documented in `docs/analytics-rules.md`.
+
+The following rules should remain explicit because they affect user-facing numbers:
 
 - lot matching policy for sells
 - dividend allocation method

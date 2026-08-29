@@ -186,6 +186,8 @@ For each security identity:
 
 The MVP should define one lot policy and keep it explicit. FIFO is a practical default because it is simple, reproducible, and common for tax and accounting workflows. The design should leave room for additional policies later.
 
+Implemented analytics formulas and current product decisions are documented in `docs/analytics-rules.md`. This includes the current distinction between the FIFO engine default and the LIFO rule used by Transaction Analytics and Stock Analytics.
+
 # Portfolio Development Strategy
 
 Portfolio development over time should be derived from transaction history and historical prices.
