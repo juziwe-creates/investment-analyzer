@@ -34,6 +34,8 @@ export type LotProfitability = {
   accumulatedDividends: number;
   currentDividendProfitabilityPercent: number | null;
   averageDividendProfitabilityPercent: number | null;
+  latestDividendPerShare: number | null;
+  latestDividendDate: string | null;
   attributedSaleProceeds: number;
   totalEconomicValue: number | null;
   totalProfitability: number | null;
@@ -94,6 +96,8 @@ export function calculateLotProfitability(
       accumulatedDividends: lot.attributedDividends,
       currentDividendProfitabilityPercent: lot.currentDividendProfitabilityPercent,
       averageDividendProfitabilityPercent: lot.averageDividendProfitabilityPercent,
+      latestDividendPerShare: lot.latestDividendPerShare,
+      latestDividendDate: lot.latestDividendDate,
       attributedSaleProceeds: lot.attributedSaleProceeds,
       totalEconomicValue: lot.totalEconomicValue,
       totalProfitability: lot.totalGain,

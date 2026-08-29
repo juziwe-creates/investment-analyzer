@@ -212,6 +212,35 @@ Success criteria:
 - chart distinguishes invested capital, market value, gains, and dividends
 - chart values are reproducible from transactions and prices
 
+## Phase 7A: Convincing Analytics Views
+
+Goal: make the three core analytics views correct, useful, and polished enough to guide real decisions.
+
+Scope:
+
+- portfolio development and capital deployment view
+- transaction analytics view for every purchase lot
+- stock analytics view aggregating purchase lots by security
+- stock and date filters for analytics tables
+- sortable key figures for decision comparison
+- after-tax dividend profitability using an explicit tax assumption
+- clear handling of missing prices
+
+Success criteria:
+
+- transaction analytics reconciles to purchase lots
+- stock analytics reconciles to transaction analytics
+- users can rank decisions by raw profit, raw return, dividend yield, and annualized return
+- missing historical prices are visible instead of silently distorting results
+- the pages remain responsive enough for the current MVP dataset
+
+Backlog:
+
+- add richer graphics for transaction and stock analytics after table metrics are validated
+- profile and optimize the three analytics views for larger datasets
+- move expensive repeated analytics into cached server-side calculations or snapshots if needed
+- complete historical price coverage for the full portfolio
+
 ## Phase 8: Comdirect Import
 
 Goal: add the first broker-specific integration while preserving broker independence.

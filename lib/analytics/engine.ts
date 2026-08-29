@@ -73,6 +73,8 @@ export type PurchaseLotAnalytics = {
   annualizedReturnStatus: XirrStatus;
   currentDividendProfitabilityPercent: number | null;
   averageDividendProfitabilityPercent: number | null;
+  latestDividendPerShare: number | null;
+  latestDividendDate: string | null;
   status: LotStatus;
   currency: string;
   cashFlows: LotCashFlow[];
@@ -114,7 +116,12 @@ type WorkingLot = {
   attributedSaleProceeds: number;
   attributedSaleCostBasis: number;
   attributedDividends: number;
-  dividendAllocations: { date: string; amount: number; transactionId: string }[];
+  dividendAllocations: {
+    date: string;
+    amount: number;
+    quantity: number;
+    transactionId: string;
+  }[];
   saleTransactionIds: string[];
   dividendTransactionIds: string[];
   currency: string;
@@ -458,15 +465,17 @@ function applyTransactionToLots(transaction: AnalyticsTransaction, lots: Working
       return;
     }
 
-    for (const lot of eligibleLots) {
-      const allocatedDividend =
-        totalDividendAmount * (lot.remainingQuantity / eligibleQuantity);
-      lot.attributedDividends += allocatedDividend;
-      lot.dividendAllocations.push({
-        date: transaction.trade_date,
-        amount: allocatedDividend,
-        transactionId: transaction.id
-      });
+      for (const lot of eligibleLots) {
+        const allocationQuantity = lot.remainingQuantity;
+        const allocatedDividend =
+          totalDividendAmount * (allocationQuantity / eligibleQuantity);
+        lot.attributedDividends += allocatedDividend;
+        lot.dividendAllocations.push({
+          date: transaction.trade_date,
+          amount: allocatedDividend,
+          quantity: allocationQuantity,
+          transactionId: transaction.id
+        });
       lot.dividendTransactionIds.push(transaction.id);
       lot.cashFlows.push({
         date: transaction.trade_date,
@@ -534,6 +543,11 @@ function buildPurchaseLotAnalytics(
       yearsHeld > 0 && lot.originalQuantity > 0
         ? lot.attributedDividends / yearsHeld / lot.originalQuantity
         : null;
+    const latestDividendAllocation = lot.dividendAllocations.at(-1) ?? null;
+    const latestDividendPerShare =
+      latestDividendAllocation && latestDividendAllocation.quantity > 0
+        ? latestDividendAllocation.amount / latestDividendAllocation.quantity
+        : null;
 
     return {
       buyTransactionId: lot.buyTransactionId,
@@ -567,6 +581,8 @@ function buildPurchaseLotAnalytics(
         averageDividendPerShare === null
           ? null
           : dividendYieldPercent(averageDividendPerShare, lot.acquisitionCostPerShare),
+      latestDividendPerShare,
+      latestDividendDate: latestDividendAllocation?.date ?? null,
       status: statusForLot(lot),
       currency: price?.currency ?? lot.currency,
       cashFlows,

@@ -10,6 +10,12 @@ import {
   type AnalyticsPrice,
   type AnalyticsTransaction
 } from "./engine";
+import {
+  calculateStockAnalytics,
+  calculateTransactionAnalytics,
+  DIVIDEND_AFTER_TAX_FACTOR
+} from "./transaction-analytics";
+import type { LotProfitability } from "./profitability";
 
 const baseTransaction: Omit<AnalyticsTransaction, "id" | "type" | "trade_date"> = {
   security_name: "Example AG",
@@ -49,6 +55,41 @@ function price(overrides: Partial<AnalyticsPrice> = {}): AnalyticsPrice {
 function assertClose(actual: number | null, expected: number, message?: string) {
   assert.notEqual(actual, null, message);
   assert.ok(Math.abs((actual ?? 0) - expected) < 0.000001, message);
+}
+
+function lotProfitabilityFromAnalytics(
+  lot: ReturnType<typeof calculatePurchaseLots>[number]
+): LotProfitability {
+  return {
+    id: lot.buyTransactionId,
+    tradeDate: lot.buyDate,
+    securityKey: lot.securityKey,
+    securityName: lot.securityName,
+    type: "buy",
+    quantity: lot.originalQuantity,
+    remainingQuantity: lot.remainingQuantity,
+    buyPrice: lot.acquisitionCostPerShare || null,
+    costBasis: lot.originalAcquisitionCost,
+    remainingCostBasis: lot.remainingAcquisitionCost,
+    latestPrice: lot.currentMarketPrice,
+    priceSource: "market",
+    priceDate: lot.currentPriceDate,
+    currentValue: lot.currentRemainingValue,
+    unrealizedGainLoss: lot.unrealizedGain,
+    accumulatedDividends: lot.attributedDividends,
+    currentDividendProfitabilityPercent: lot.currentDividendProfitabilityPercent,
+    averageDividendProfitabilityPercent: lot.averageDividendProfitabilityPercent,
+    latestDividendPerShare: lot.latestDividendPerShare,
+    latestDividendDate: lot.latestDividendDate,
+    attributedSaleProceeds: lot.attributedSaleProceeds,
+    totalEconomicValue: lot.totalEconomicValue,
+    totalProfitability: lot.totalGain,
+    totalReturnPercent: lot.totalReturnPercent,
+    annualizedReturnPercent: lot.annualizedReturnPercent,
+    annualizedReturnStatus: lot.annualizedReturnStatus,
+    currency: lot.currency,
+    cashFlows: lot.cashFlows
+  };
 }
 
 test("calculates open-lot value, dividends, and total return", () => {
@@ -307,4 +348,69 @@ test("calculates XIRR from cashflows even when callers provide them out of order
 
   assert.equal(unordered.status, "valid");
   assertClose(unordered.value, ordered.value ?? 0);
+});
+
+test("calculates after-tax transaction analytics from lot cashflows", () => {
+  const lots = calculatePurchaseLots(
+    [
+      transaction({
+        id: "buy-1",
+        type: "buy",
+        trade_date: "2020-01-01",
+        quantity: 10,
+        gross_amount: 1000
+      }),
+      transaction({
+        id: "dividend-1",
+        type: "dividend",
+        trade_date: "2021-01-01",
+        gross_amount: 100
+      })
+    ],
+    [price({ price: 120, price_date: "2022-01-01" })]
+  ).map(lotProfitabilityFromAnalytics);
+  const [row] = calculateTransactionAnalytics(lots);
+
+  assert.equal(row.latestDividendDate, "2021-01-01");
+  assertClose(row.currentDividendYieldPercent, 10);
+  assertClose(row.accumulatedDividendsTaxFree, 100);
+  assertClose(row.accumulatedDividendsAfterTax, 100 * DIVIDEND_AFTER_TAX_FACTOR);
+  assertClose(row.totalRawProfitability, 1200 + 100 * DIVIDEND_AFTER_TAX_FACTOR - 1000);
+  assertClose(row.totalRawProfitabilityPercent, 27.1575);
+});
+
+test("aggregates stock analytics from transaction analytics lots", () => {
+  const lots = calculatePurchaseLots(
+    [
+      transaction({
+        id: "buy-1",
+        type: "buy",
+        trade_date: "2020-01-01",
+        quantity: 10,
+        gross_amount: 1000
+      }),
+      transaction({
+        id: "buy-2",
+        type: "buy",
+        trade_date: "2020-06-01",
+        quantity: 5,
+        gross_amount: 400
+      }),
+      transaction({
+        id: "dividend-1",
+        type: "dividend",
+        trade_date: "2021-01-01",
+        gross_amount: 150
+      })
+    ],
+    [price({ price: 120, price_date: "2022-01-01" })]
+  ).map(lotProfitabilityFromAnalytics);
+  const [row] = calculateStockAnalytics(lots);
+
+  assert.equal(row.transactionCount, 2);
+  assertClose(row.quantityBought, 15);
+  assertClose(row.costBasis, 1400);
+  assertClose(row.currentValue, 1800);
+  assertClose(row.accumulatedDividendsAfterTax, 150 * DIVIDEND_AFTER_TAX_FACTOR);
+  assertClose(row.totalRawProfitability, 1800 + 150 * DIVIDEND_AFTER_TAX_FACTOR - 1400);
 });

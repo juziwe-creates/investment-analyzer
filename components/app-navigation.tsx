@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   CircleDollarSign,
   Download,
+  LineChart,
   Home,
   Landmark,
   ReceiptText,
@@ -17,6 +18,8 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/portfolio", label: "Portfolio", icon: WalletCards },
   { href: "/transactions", label: "Transactions", icon: ReceiptText },
+  { href: "/transaction-analytics", label: "Transaction Analytics", icon: LineChart },
+  { href: "/stock-analytics", label: "Stock Analytics", icon: Landmark },
   { href: "/dividends", label: "Dividends", icon: CircleDollarSign },
   { href: "/securities", label: "Securities", icon: Landmark },
   { href: "/imports", label: "Imports", icon: Download },

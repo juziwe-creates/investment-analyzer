@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/engine.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/analytics/engine.test.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
