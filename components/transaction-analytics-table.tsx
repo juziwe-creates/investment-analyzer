@@ -10,7 +10,11 @@ type SortKey =
   | "purchaseDate"
   | "securityName"
   | "quantityBought"
+  | "openQuantity"
+  | "ownershipStatus"
+  | "costBasisPerShare"
   | "costBasis"
+  | "currentValue"
   | "currentDividendYieldPercent"
   | "accumulatedDividendsTaxFree"
   | "accumulatedDividendsAfterTax"
@@ -107,6 +111,18 @@ export function TransactionAnalyticsTable({ rows }: TransactionAnalyticsTablePro
     );
   }
 
+  function ownershipLabel(row: TransactionAnalyticsRow) {
+    if (row.ownershipStatus === "owned") {
+      return `Owned (${formatNumber(row.openQuantity)})`;
+    }
+
+    if (row.ownershipStatus === "partially_sold") {
+      return `Partial (${formatNumber(row.openQuantity)})`;
+    }
+
+    return "Sold";
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -169,14 +185,17 @@ export function TransactionAnalyticsTable({ rows }: TransactionAnalyticsTablePro
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1500px] text-sm">
+                <table className="w-full min-w-[1740px] text-sm">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       {sortableHeader("Stock", "securityName", "left")}
                       {sortableHeader("Bought", "quantityBought")}
                       {sortableHeader("Purchase date", "purchaseDate", "left")}
+                      {sortableHeader("Ownership", "ownershipStatus", "left")}
+                      {sortableHeader("Cost/share", "costBasisPerShare")}
                       {sortableHeader("Cost basis", "costBasis")}
                       <th className="px-3 py-2 text-right font-medium">Latest price</th>
+                      {sortableHeader("Latest value", "currentValue")}
                       {sortableHeader("Current div. yield", "currentDividendYieldPercent")}
                       {sortableHeader("Dividends tax free", "accumulatedDividendsTaxFree")}
                       {sortableHeader("Dividends after tax", "accumulatedDividendsAfterTax")}
@@ -194,11 +213,18 @@ export function TransactionAnalyticsTable({ rows }: TransactionAnalyticsTablePro
                           {formatNumber(row.quantityBought)}
                         </td>
                         <td className="px-3 py-3">{formatDate(row.purchaseDate)}</td>
+                        <td className="px-3 py-3">{ownershipLabel(row)}</td>
+                        <td className="px-3 py-3 text-right">
+                          {formatCurrency(row.costBasisPerShare, row.currency)}
+                        </td>
                         <td className="px-3 py-3 text-right">
                           {formatCurrency(row.costBasis, row.currency)}
                         </td>
                         <td className="px-3 py-3 text-right">
                           {formatCurrency(row.latestPrice, row.currency)}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {formatCurrency(row.currentValue, row.currency)}
                         </td>
                         <td className="px-3 py-3 text-right">
                           {formatPercent(row.currentDividendYieldPercent)}

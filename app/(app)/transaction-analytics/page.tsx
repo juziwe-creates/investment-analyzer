@@ -27,7 +27,8 @@ export default async function TransactionAnalyticsPage() {
   const { lots } = buildCurrentAnalytics(
     transactions ?? [],
     latestMarketPrices ?? [],
-    manualPrices ?? []
+    manualPrices ?? [],
+    { lotMatchingMethod: "lifo" }
   );
   const rows = calculateTransactionAnalytics(lots);
   const currency = rows[0]?.currency ?? "EUR";
@@ -93,8 +94,10 @@ export default async function TransactionAnalyticsPage() {
       </div>
 
       <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
-        Raw profitability uses current value plus sale proceeds plus after-tax dividends,
-        minus original acquisition cost. Dividend tax assumption: 71.575% retained.
+        LIFO rule: sells consume the newest open buy lots first. Current dividend yield =
+        latest dividend per share allocated to this lot divided by cost basis per share.
+        Dividends tax free = dividends allocated pro-rata by shares owned on each dividend
+        date. Dividend tax assumption for after-tax figures: 71.575% retained.
       </div>
 
       <TransactionAnalyticsTable rows={rows} />

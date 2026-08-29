@@ -379,6 +379,53 @@ test("calculates after-tax transaction analytics from lot cashflows", () => {
   assertClose(row.totalRawProfitabilityPercent, 27.1575);
 });
 
+test("marks transaction ownership using LIFO sell allocation", () => {
+  const lots = calculatePurchaseLots(
+    [
+      transaction({
+        id: "buy-old",
+        type: "buy",
+        trade_date: "2020-01-01",
+        quantity: 10,
+        gross_amount: 1000
+      }),
+      transaction({
+        id: "buy-new",
+        type: "buy",
+        trade_date: "2020-02-01",
+        quantity: 5,
+        gross_amount: 500
+      }),
+      transaction({
+        id: "sell-1",
+        type: "sell",
+        trade_date: "2020-03-01",
+        quantity: 5,
+        gross_amount: 600
+      }),
+      transaction({
+        id: "dividend-1",
+        type: "dividend",
+        trade_date: "2020-04-01",
+        gross_amount: 100
+      })
+    ],
+    [price({ price: 120, price_date: "2021-01-01" })],
+    undefined,
+    { lotMatchingMethod: "lifo" }
+  ).map(lotProfitabilityFromAnalytics);
+  const rows = calculateTransactionAnalytics(lots);
+  const oldBuy = rows.find((row) => row.id === "buy-old");
+  const newBuy = rows.find((row) => row.id === "buy-new");
+
+  assert.equal(oldBuy?.ownershipStatus, "owned");
+  assert.equal(newBuy?.ownershipStatus, "sold");
+  assertClose(oldBuy?.accumulatedDividendsTaxFree ?? null, 100);
+  assertClose(newBuy?.accumulatedDividendsTaxFree ?? null, 0);
+  assertClose(oldBuy?.currentValue ?? null, 1200);
+  assertClose(newBuy?.currentValue ?? null, 0);
+});
+
 test("aggregates stock analytics from transaction analytics lots", () => {
   const lots = calculatePurchaseLots(
     [

@@ -10,6 +10,7 @@ export type TransactionAnalyticsRow = {
   purchaseDate: string;
   quantityBought: number;
   openQuantity: number;
+  ownershipStatus: "owned" | "partially_sold" | "sold";
   costBasis: number;
   costBasisPerShare: number | null;
   latestPrice: number | null;
@@ -85,6 +86,18 @@ function annualizedAfterTaxReturn(lot: LotProfitability) {
   return calculateXirr(afterTaxCashFlows(lot.cashFlows));
 }
 
+function ownershipStatus(lot: LotProfitability): TransactionAnalyticsRow["ownershipStatus"] {
+  if (lot.remainingQuantity <= 0) {
+    return "sold";
+  }
+
+  if (lot.remainingQuantity < lot.quantity) {
+    return "partially_sold";
+  }
+
+  return "owned";
+}
+
 export function calculateTransactionAnalytics(
   lots: LotProfitability[]
 ): TransactionAnalyticsRow[] {
@@ -106,6 +119,7 @@ export function calculateTransactionAnalytics(
       purchaseDate: lot.tradeDate,
       quantityBought: lot.quantity,
       openQuantity: lot.remainingQuantity,
+      ownershipStatus: ownershipStatus(lot),
       costBasis: lot.costBasis,
       costBasisPerShare: lot.buyPrice,
       latestPrice: lot.latestPrice,

@@ -33,6 +33,11 @@ export type AnalyticsPrice = {
 };
 
 export type LotStatus = "open" | "partial" | "closed";
+export type LotMatchingMethod = "fifo" | "lifo";
+
+export type LotCalculationOptions = {
+  lotMatchingMethod?: LotMatchingMethod;
+};
 
 export type XirrStatus =
   | "valid"
@@ -374,8 +379,13 @@ function priceMapForValuation(prices: AnalyticsPrice[], valuationDate?: string) 
     : new Map(prices.map((price) => [price.security_key, price]));
 }
 
-function applyTransactionToLots(transaction: AnalyticsTransaction, lots: WorkingLot[]) {
+function applyTransactionToLots(
+  transaction: AnalyticsTransaction,
+  lots: WorkingLot[],
+  options: LotCalculationOptions = {}
+) {
   const key = securityKey(transaction);
+  const lotMatchingMethod = options.lotMatchingMethod ?? "fifo";
 
   if (transaction.type === "buy") {
     const originalQuantity = numeric(transaction.quantity);
@@ -418,9 +428,9 @@ function applyTransactionToLots(transaction: AnalyticsTransaction, lots: Working
     let quantityToSell = numeric(transaction.quantity);
     const totalSellQuantity = quantityToSell;
     const totalSaleProceeds = saleProceeds(transaction);
-    const matchingLots = lots.filter(
-      (lot) => lot.securityKey === key && lot.remainingQuantity > 0
-    );
+    const matchingLots = (
+      lotMatchingMethod === "lifo" ? [...lots].reverse() : lots
+    ).filter((lot) => lot.securityKey === key && lot.remainingQuantity > 0);
 
     for (const lot of matchingLots) {
       if (quantityToSell <= 0) {
@@ -465,17 +475,17 @@ function applyTransactionToLots(transaction: AnalyticsTransaction, lots: Working
       return;
     }
 
-      for (const lot of eligibleLots) {
-        const allocationQuantity = lot.remainingQuantity;
-        const allocatedDividend =
-          totalDividendAmount * (allocationQuantity / eligibleQuantity);
-        lot.attributedDividends += allocatedDividend;
-        lot.dividendAllocations.push({
-          date: transaction.trade_date,
-          amount: allocatedDividend,
-          quantity: allocationQuantity,
-          transactionId: transaction.id
-        });
+    for (const lot of eligibleLots) {
+      const allocationQuantity = lot.remainingQuantity;
+      const allocatedDividend =
+        totalDividendAmount * (allocationQuantity / eligibleQuantity);
+      lot.attributedDividends += allocatedDividend;
+      lot.dividendAllocations.push({
+        date: transaction.trade_date,
+        amount: allocatedDividend,
+        quantity: allocationQuantity,
+        transactionId: transaction.id
+      });
       lot.dividendTransactionIds.push(transaction.id);
       lot.cashFlows.push({
         date: transaction.trade_date,
@@ -599,12 +609,13 @@ function buildPurchaseLotAnalytics(
 export function calculatePurchaseLots(
   transactions: AnalyticsTransaction[],
   prices: AnalyticsPrice[] = [],
-  valuationDate?: string
+  valuationDate?: string,
+  options: LotCalculationOptions = {}
 ): PurchaseLotAnalytics[] {
   const lots: WorkingLot[] = [];
 
   for (const transaction of sortTransactionsChronologically(transactions)) {
-    applyTransactionToLots(transaction, lots);
+    applyTransactionToLots(transaction, lots, options);
   }
 
   return buildPurchaseLotAnalytics(lots, priceMapForValuation(prices, valuationDate), valuationDate);
@@ -618,7 +629,8 @@ export function calculateLifetimeDeployedCapital(transactions: AnalyticsTransact
 
 export function buildPortfolioTimeline(
   transactions: AnalyticsTransaction[],
-  prices: AnalyticsPrice[]
+  prices: AnalyticsPrice[],
+  options: LotCalculationOptions = {}
 ): PortfolioTimelinePoint[] {
   const chronologicalTransactions = sortTransactionsChronologically(transactions);
   const chronologicalPrices = [...prices].sort(
@@ -656,7 +668,7 @@ export function buildPortfolioTimeline(
         dividendsCollected += dividendAmount(transaction);
       }
 
-      applyTransactionToLots(transaction, lots);
+      applyTransactionToLots(transaction, lots, options);
       transactionIndex += 1;
     }
 

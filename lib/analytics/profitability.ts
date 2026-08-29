@@ -2,6 +2,7 @@ import {
   calculatePurchaseLots,
   type AnalyticsPrice,
   type AnalyticsTransaction,
+  type LotCalculationOptions,
   type LotCashFlow,
   type XirrStatus
 } from "@/lib/analytics/engine";
@@ -74,9 +75,10 @@ function priceSource(source: string | undefined): "market" | "manual" | null {
 
 export function calculateLotProfitability(
   transactions: Transaction[],
-  prices: ValuationPrice[]
+  prices: ValuationPrice[],
+  options: LotCalculationOptions = {}
 ) {
-  return calculatePurchaseLots(transactions.map(toAnalyticsTransaction), prices)
+  return calculatePurchaseLots(transactions.map(toAnalyticsTransaction), prices, undefined, options)
     .map((lot): LotProfitability => ({
       id: lot.buyTransactionId,
       tradeDate: lot.buyDate,

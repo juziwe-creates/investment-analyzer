@@ -11,6 +11,7 @@ import {
   saleProceeds,
   type AnalyticsPrice,
   type AnalyticsTransaction,
+  type LotCalculationOptions,
   type LotCashFlow
 } from "@/lib/analytics/engine";
 import type { Database } from "@/types/database";
@@ -378,10 +379,11 @@ export function calculateSecurityInventory(
 export function buildCurrentAnalytics(
   transactions: Transaction[],
   latestMarketPrices: LatestMarketPrice[],
-  manualPrices: ManualSecurityPrice[]
+  manualPrices: ManualSecurityPrice[],
+  options: LotCalculationOptions = {}
 ) {
   const valuationPrices = buildValuationPrices(latestMarketPrices, manualPrices);
-  const lots = calculateLotProfitability(transactions, valuationPrices);
+  const lots = calculateLotProfitability(transactions, valuationPrices, options);
 
   return {
     lots,
@@ -393,11 +395,13 @@ export function buildCurrentAnalytics(
 export function calculatePortfolioDevelopment(
   transactions: Transaction[],
   marketPrices: MarketPrice[],
-  interval: ChartInterval
+  interval: ChartInterval,
+  options: LotCalculationOptions = {}
 ): PortfolioDevelopmentPoint[] {
   const dailyPoints = buildPortfolioTimeline(
     transactions.map(toAnalyticsTransaction),
-    toAnalyticsPrices(marketPrices)
+    toAnalyticsPrices(marketPrices),
+    options
   )
     .map((point): PortfolioDevelopmentPoint => ({
       date: point.date,

@@ -27,7 +27,8 @@ export default async function StockAnalyticsPage() {
   const { lots } = buildCurrentAnalytics(
     transactions ?? [],
     latestMarketPrices ?? [],
-    manualPrices ?? []
+    manualPrices ?? [],
+    { lotMatchingMethod: "lifo" }
   );
   const rows = calculateStockAnalytics(lots);
   const currency = rows[0]?.currency ?? "EUR";
