@@ -117,9 +117,10 @@ export async function syncSecurityMarketData(formData: FormData) {
     .select(
       "user_id,portfolio_id,security_key,security_name,isin,wkn,ticker,exchange,security_currency,asset_type,transaction_count,first_trade_date,last_trade_date"
     )
+    .eq("user_id", user.id)
     .eq("portfolio_id", portfolioId)
     .eq("security_key", securityKey)
-    .limit(2);
+    .limit(1);
 
   if (securityError) {
     redirect(`/securities?message=${encodeURIComponent(securityError.message)}`);
@@ -127,12 +128,6 @@ export async function syncSecurityMarketData(formData: FormData) {
 
   if (!securities || securities.length === 0) {
     redirect("/securities?message=Security was not found");
-  }
-
-  if (securities.length > 1) {
-    redirect(
-      "/securities?message=More than one security matched this ticker. Please check the transaction-derived security identity."
-    );
   }
 
   const typedSecurity = securities[0] as UserSecurity;
