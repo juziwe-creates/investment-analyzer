@@ -112,24 +112,30 @@ export async function syncSecurityMarketData(formData: FormData) {
   const portfolioId = requiredText(formData, "portfolio_id", "Portfolio");
   const securityKey = requiredText(formData, "security_key", "Security key");
 
-  const { data: security, error: securityError } = await supabase
+  const { data: securities, error: securityError } = await supabase
     .from("user_securities")
     .select(
       "user_id,portfolio_id,security_key,security_name,isin,wkn,ticker,exchange,security_currency,asset_type,transaction_count,first_trade_date,last_trade_date"
     )
     .eq("portfolio_id", portfolioId)
     .eq("security_key", securityKey)
-    .maybeSingle();
+    .limit(2);
 
   if (securityError) {
     redirect(`/securities?message=${encodeURIComponent(securityError.message)}`);
   }
 
-  if (!security) {
+  if (!securities || securities.length === 0) {
     redirect("/securities?message=Security was not found");
   }
 
-  const typedSecurity = security as UserSecurity;
+  if (securities.length > 1) {
+    redirect(
+      "/securities?message=More than one security matched this ticker. Please check the transaction-derived security identity."
+    );
+  }
+
+  const typedSecurity = securities[0] as UserSecurity;
   const providerSymbol = typedSecurity.ticker;
 
   if (!providerSymbol) {
@@ -145,18 +151,18 @@ export async function syncSecurityMarketData(formData: FormData) {
     redirect(`/securities?message=${encodeURIComponent(message)}`);
   }
 
-  const { data: syncRun, error: syncRunError } = await supabase
+  const syncRunId = crypto.randomUUID();
+  const { error: syncRunError } = await supabase
     .from("market_data_sync_runs")
     .insert({
+      id: syncRunId,
       user_id: user.id,
       portfolio_id: typedSecurity.portfolio_id,
       security_key: typedSecurity.security_key,
       provider: provider.id,
       provider_symbol: providerSymbol,
       status: "processing"
-    })
-    .select("id")
-    .single();
+    });
 
   if (syncRunError) {
     redirect(`/securities?message=${encodeURIComponent(syncRunError.message)}`);
@@ -217,7 +223,7 @@ export async function syncSecurityMarketData(formData: FormData) {
       warningMessage = `Prices were synced, but dividend sync failed: ${providerErrorMessage(error)}`;
     }
 
-    await updateSyncRun(syncRun.id, {
+    await updateSyncRun(syncRunId, {
       status: warningMessage ? "completed_with_errors" : "completed",
       prices_imported: priceRows.length,
       dividends_imported: dividendRows.length,
@@ -230,7 +236,7 @@ export async function syncSecurityMarketData(formData: FormData) {
   } catch (error) {
     const message = providerErrorMessage(error);
 
-    await updateSyncRun(syncRun.id, {
+    await updateSyncRun(syncRunId, {
       status: "failed",
       error_message: message
     });
