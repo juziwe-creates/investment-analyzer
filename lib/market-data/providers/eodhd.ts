@@ -127,19 +127,32 @@ function encodeTicker(symbol: string) {
   return encodeURIComponent(symbol.trim());
 }
 
+function providerErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown EODHD error";
+}
+
 export function createEodhdProvider(apiToken: string): MarketDataProvider {
   return {
     id: "eodhd",
 
     async fetchDailyPrices(input: FetchMarketDataInput): Promise<DailyMarketPrice[]> {
-      const payload = await fetchEodhd<unknown>(
-        apiToken,
-        `/eod/${encodeTicker(input.symbol)}`,
-        {
-          period: "d",
-          order: "a"
-        }
-      );
+      let payload: unknown;
+
+      try {
+        payload = await fetchEodhd<unknown>(
+          apiToken,
+          `/eod/${encodeTicker(input.symbol)}`,
+          {
+            period: "d",
+            order: "a"
+          }
+        );
+      } catch (error) {
+        throw new Error(
+          `EODHD price request failed for ${input.symbol}: ${providerErrorMessage(error)}`
+        );
+      }
+
       const prices = assertEodhdArray<EodhdPrice>(payload, "daily price data");
 
       return prices
@@ -156,13 +169,22 @@ export function createEodhdProvider(apiToken: string): MarketDataProvider {
     },
 
     async fetchDividends(input: FetchMarketDataInput): Promise<MarketDividend[]> {
-      const payload = await fetchEodhd<unknown>(
-        apiToken,
-        `/div/${encodeTicker(input.symbol)}`,
-        {
-          order: "a"
-        }
-      );
+      let payload: unknown;
+
+      try {
+        payload = await fetchEodhd<unknown>(
+          apiToken,
+          `/div/${encodeTicker(input.symbol)}`,
+          {
+            order: "a"
+          }
+        );
+      } catch (error) {
+        throw new Error(
+          `EODHD dividend request failed for ${input.symbol}: ${providerErrorMessage(error)}`
+        );
+      }
+
       const dividends = assertEodhdArray<EodhdDividend>(
         payload,
         "dividend data"

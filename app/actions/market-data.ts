@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createMarketDataProvider } from "@/lib/market-data";
+import {
+  marketDataProviderSymbol,
+  validateMarketDataProviderSymbol
+} from "@/lib/market-data/symbols";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
@@ -131,9 +135,8 @@ export async function syncSecurityMarketData(formData: FormData) {
   }
 
   const typedSecurity = securities[0] as UserSecurity;
-  const providerSymbol = typedSecurity.ticker;
 
-  if (!providerSymbol) {
+  if (!typedSecurity.ticker) {
     redirect("/securities?message=Add a ticker before syncing market data");
   }
 
@@ -144,6 +147,20 @@ export async function syncSecurityMarketData(formData: FormData) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Market data provider is not configured";
     redirect(`/securities?message=${encodeURIComponent(message)}`);
+  }
+
+  const providerSymbol = marketDataProviderSymbol({
+    providerId: provider.id,
+    ticker: typedSecurity.ticker,
+    exchange: typedSecurity.exchange
+  });
+  const providerSymbolError = validateMarketDataProviderSymbol({
+    providerId: provider.id,
+    providerSymbol
+  });
+
+  if (providerSymbolError) {
+    redirect(`/securities?message=${encodeURIComponent(providerSymbolError)}`);
   }
 
   const syncRunId = crypto.randomUUID();
