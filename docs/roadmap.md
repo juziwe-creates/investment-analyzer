@@ -184,6 +184,7 @@ Scope:
 - sync run tracking for provider errors and rate limits
 - latest market price lookup for profitability calculations
 - manual price fallback when market data is missing
+- EODHD provider support for historical end-of-day prices and reference dividends
 
 Success criteria:
 
@@ -192,6 +193,7 @@ Success criteria:
 - reference dividends are persisted in `market_dividends`
 - sync attempts are visible in `market_data_sync_runs`
 - profitability uses latest fetched market price before manual fallback
+- provider setup is controlled through server-side environment variables and never exposed to the browser
 
 ## Phase 7: Portfolio Development
 

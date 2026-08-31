@@ -261,3 +261,7 @@ Responsibilities:
 - expose provider errors without leaking API keys to the browser
 
 The first implementation syncs one discovered security at a time using its ticker. This keeps provider limits under control and allows ISIN-to-symbol enrichment to be added later without changing profitability calculations.
+
+The provider adapter currently supports Alpha Vantage and EODHD. EODHD should be the preferred provider for the next testing phase because it offers historical end-of-day prices and dividend endpoints through the same server-side API-token pattern. The app stores provider data in user-scoped `market_prices` and `market_dividends` rows; actual received dividends remain transaction records.
+
+Provider symbols are still taken from the transaction-derived ticker field. For EODHD this means symbols must use the provider's `{symbol}.{exchange}` format, such as `AAPL.US`. A future enrichment step should add provider-symbol validation or a separate provider symbol mapping so analytics do not depend on manually perfect tickers.
