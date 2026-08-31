@@ -1,5 +1,6 @@
 const eodhdExchangeAliases = new Map<string, string>([
   ["DE", "XETRA"],
+  ["DEX", "XETRA"],
   ["ETR", "XETRA"],
   ["XETRA", "XETRA"],
   ["FWB", "F"],

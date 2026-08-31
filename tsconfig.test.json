@@ -11,5 +11,10 @@
     "jsx": "react-jsx",
     "incremental": false
   },
-  "include": ["lib/analytics/engine.ts", "lib/analytics/engine.test.ts"]
+  "include": [
+    "lib/analytics/engine.ts",
+    "lib/analytics/engine.test.ts",
+    "lib/market-data/symbols.ts",
+    "lib/market-data/symbols.test.ts"
+  ]
 }
