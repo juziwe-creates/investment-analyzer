@@ -185,6 +185,7 @@ Scope:
 - latest market price lookup for profitability calculations
 - manual price fallback when market data is missing
 - EODHD provider support for historical end-of-day prices and reference dividends
+- provider-symbol mappings so sync does not require editing transaction facts
 
 Success criteria:
 
@@ -194,6 +195,7 @@ Success criteria:
 - sync attempts are visible in `market_data_sync_runs`
 - profitability uses latest fetched market price before manual fallback
 - provider setup is controlled through server-side environment variables and never exposed to the browser
+- user can inspect and override provider symbols one security at a time before spending API calls
 
 ## Phase 7: Portfolio Development
 

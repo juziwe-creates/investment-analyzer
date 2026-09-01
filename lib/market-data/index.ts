@@ -32,6 +32,10 @@ function configuredProvider() {
   return "alpha_vantage";
 }
 
+export function configuredMarketDataProviderId() {
+  return configuredProvider();
+}
+
 export function createMarketDataProvider(): MarketDataProvider {
   const provider = configuredProvider();
   const apiKey = providerApiKey(provider);

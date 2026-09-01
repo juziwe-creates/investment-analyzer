@@ -211,6 +211,36 @@ Notes:
 - Weekly, monthly, or yearly chart values should be derived from daily prices rather than fetched separately.
 - For the transaction-first MVP, price lookup uses transaction-derived identifiers such as ticker and `security_key` before a canonical security table becomes necessary.
 
+## security_provider_symbols
+
+Stores user-scoped mappings between transaction-derived securities and provider-specific market-data symbols.
+
+Suggested columns:
+
+- `id uuid primary key`
+- `user_id uuid not null references profiles(id)`
+- `portfolio_id uuid not null references portfolios(id)`
+- `security_key text not null`
+- `provider text not null`
+- `provider_symbol text not null`
+- `source text not null`
+- `notes text`
+- `resolved_at timestamptz`
+- `created_at timestamptz not null`
+- `updated_at timestamptz not null`
+
+Constraints:
+
+- unique `user_id`, `portfolio_id`, `security_key`, and `provider`
+
+Notes:
+
+- This keeps provider-specific identifiers out of transaction facts.
+- ISIN remains the preferred canonical instrument identity where available.
+- Provider symbols are enrichment data and can be changed without rewriting buy, sell, or dividend records.
+- Market-data sync should prefer a stored provider symbol, then fall back to deriving a symbol from transaction ticker and exchange.
+- For EODHD, examples include `MUV2.XETRA`, `MSF.XETRA`, and `AAPL.US`.
+
 ## market_dividends
 
 Stores user-scoped reference dividend events fetched from an external market data provider.

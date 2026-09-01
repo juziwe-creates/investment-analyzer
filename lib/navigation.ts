@@ -6,6 +6,7 @@ export const protectedRoutes = [
   "/stock-analytics",
   "/dividends",
   "/securities",
+  "/market-data",
   "/imports",
   "/settings"
 ];

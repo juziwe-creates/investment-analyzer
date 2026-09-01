@@ -246,6 +246,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      security_provider_symbols: {
+        Row: {
+          id: string;
+          user_id: string;
+          portfolio_id: string;
+          security_key: string;
+          provider: string;
+          provider_symbol: string;
+          source: "manual" | "derived" | "api_search" | "import" | "system";
+          notes: string | null;
+          resolved_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          portfolio_id: string;
+          security_key: string;
+          provider: string;
+          provider_symbol: string;
+          source?: "manual" | "derived" | "api_search" | "import" | "system";
+          notes?: string | null;
+          resolved_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          provider_symbol?: string;
+          source?: "manual" | "derived" | "api_search" | "import" | "system";
+          notes?: string | null;
+          resolved_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       market_prices: {
         Row: {
           id: string;

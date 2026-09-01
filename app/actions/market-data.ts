@@ -2,22 +2,45 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createMarketDataProvider } from "@/lib/market-data";
+import {
+  configuredMarketDataProviderId,
+  createMarketDataProvider
+} from "@/lib/market-data";
 import {
   marketDataProviderSymbol,
   validateMarketDataProviderSymbol
 } from "@/lib/market-data/symbols";
+import type { MarketDataProvider } from "@/lib/market-data/types";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 type UserSecurity = Database["public"]["Views"]["user_securities"]["Row"];
+type SecurityProviderSymbol =
+  Database["public"]["Tables"]["security_provider_symbols"]["Row"];
 type MarketDataStatus = "completed" | "completed_with_errors" | "failed";
+const defaultReturnPath = "/securities";
+const allowedReturnPaths = new Set(["/securities", "/market-data"]);
 
-function requiredText(formData: FormData, key: string, label: string) {
+function safeReturnPath(formData: FormData) {
+  const returnTo = formData.get("return_to")?.toString().trim();
+
+  return returnTo && allowedReturnPaths.has(returnTo) ? returnTo : defaultReturnPath;
+}
+
+function redirectWithMessage(path: string, message: string): never {
+  redirect(`${path}?message=${encodeURIComponent(message)}`);
+}
+
+function requiredText(
+  formData: FormData,
+  key: string,
+  label: string,
+  returnTo = defaultReturnPath
+) {
   const value = formData.get(key)?.toString().trim();
 
   if (!value) {
-    redirect(`/securities?message=${encodeURIComponent(`${label} is required`)}`);
+    redirectWithMessage(returnTo, `${label} is required`);
   }
 
   return value;
@@ -104,6 +127,7 @@ async function upsertMarketDividends(
 }
 
 export async function syncSecurityMarketData(formData: FormData) {
+  const returnTo = safeReturnPath(formData);
   const supabase = await createClient();
   const {
     data: { user }
@@ -113,8 +137,8 @@ export async function syncSecurityMarketData(formData: FormData) {
     redirect("/login");
   }
 
-  const portfolioId = requiredText(formData, "portfolio_id", "Portfolio");
-  const securityKey = requiredText(formData, "security_key", "Security key");
+  const portfolioId = requiredText(formData, "portfolio_id", "Portfolio", returnTo);
+  const securityKey = requiredText(formData, "security_key", "Security key", returnTo);
 
   const { data: securities, error: securityError } = await supabase
     .from("user_securities")
@@ -127,40 +151,68 @@ export async function syncSecurityMarketData(formData: FormData) {
     .limit(1);
 
   if (securityError) {
-    redirect(`/securities?message=${encodeURIComponent(securityError.message)}`);
+    redirectWithMessage(returnTo, securityError.message);
   }
 
   if (!securities || securities.length === 0) {
-    redirect("/securities?message=Security was not found");
+    redirectWithMessage(returnTo, "Security was not found");
   }
 
-  const typedSecurity = securities[0] as UserSecurity;
+  const typedSecurity = securities.at(0) as UserSecurity | undefined;
 
-  if (!typedSecurity.ticker) {
-    redirect("/securities?message=Add a ticker before syncing market data");
+  if (!typedSecurity) {
+    redirectWithMessage(returnTo, "Security was not found");
   }
 
-  let provider;
+  let provider: MarketDataProvider;
 
   try {
     provider = createMarketDataProvider();
   } catch (error) {
     const message = error instanceof Error ? error.message : "Market data provider is not configured";
-    redirect(`/securities?message=${encodeURIComponent(message)}`);
+    redirectWithMessage(returnTo, message);
   }
 
-  const providerSymbol = marketDataProviderSymbol({
-    providerId: provider.id,
-    ticker: typedSecurity.ticker,
-    exchange: typedSecurity.exchange
-  });
+  const { data: storedSymbols, error: storedSymbolError } = await supabase
+    .from("security_provider_symbols")
+    .select(
+      "id,user_id,portfolio_id,security_key,provider,provider_symbol,source,notes,resolved_at,created_at,updated_at"
+    )
+    .eq("user_id", user.id)
+    .eq("portfolio_id", typedSecurity.portfolio_id)
+    .eq("security_key", typedSecurity.security_key)
+    .eq("provider", provider.id)
+    .limit(1);
+
+  if (storedSymbolError) {
+    redirectWithMessage(returnTo, storedSymbolError.message);
+  }
+
+  const storedProviderSymbol =
+    (storedSymbols?.[0] as SecurityProviderSymbol | undefined)?.provider_symbol.trim() ??
+    null;
+
+  if (!storedProviderSymbol && !typedSecurity.ticker) {
+    redirectWithMessage(
+      returnTo,
+      "Add a provider symbol or transaction ticker before syncing market data"
+    );
+  }
+
+  const providerSymbol =
+    storedProviderSymbol ??
+    marketDataProviderSymbol({
+      providerId: provider.id,
+      ticker: typedSecurity.ticker ?? "",
+      exchange: typedSecurity.exchange
+    });
   const providerSymbolError = validateMarketDataProviderSymbol({
     providerId: provider.id,
     providerSymbol
   });
 
   if (providerSymbolError) {
-    redirect(`/securities?message=${encodeURIComponent(providerSymbolError)}`);
+    redirectWithMessage(returnTo, providerSymbolError);
   }
 
   const syncRunId = crypto.randomUUID();
@@ -177,7 +229,7 @@ export async function syncSecurityMarketData(formData: FormData) {
     });
 
   if (syncRunError) {
-    redirect(`/securities?message=${encodeURIComponent(syncRunError.message)}`);
+    redirectWithMessage(returnTo, syncRunError.message);
   }
 
   const currency = typedSecurity.security_currency ?? "EUR";
@@ -243,7 +295,7 @@ export async function syncSecurityMarketData(formData: FormData) {
     });
 
     successMessage =
-      `Synced ${priceRows.length} prices and ${dividendRows.length} dividends for ${typedSecurity.security_name}` +
+      `Synced ${priceRows.length} prices and ${dividendRows.length} dividends for ${typedSecurity.security_name} via ${providerSymbol}` +
       (warningMessage ? `. ${warningMessage}` : "");
   } catch (error) {
     const message = providerErrorMessage(error);
@@ -253,10 +305,69 @@ export async function syncSecurityMarketData(formData: FormData) {
       error_message: message
     });
 
-    redirect(`/securities?message=${encodeURIComponent(message)}`);
+    redirectWithMessage(returnTo, message);
   }
 
+  revalidatePath("/market-data");
   revalidatePath("/securities");
   revalidatePath("/transactions");
-  redirect(`/securities?message=${encodeURIComponent(successMessage)}`);
+  redirectWithMessage(returnTo, successMessage);
+}
+
+export async function saveSecurityProviderSymbol(formData: FormData) {
+  const returnTo = safeReturnPath(formData);
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const portfolioId = requiredText(formData, "portfolio_id", "Portfolio", returnTo);
+  const securityKey = requiredText(formData, "security_key", "Security key", returnTo);
+  const provider = (
+    formData.get("provider")?.toString().trim().toLowerCase().replace("-", "_") ??
+    configuredMarketDataProviderId()
+  );
+  const providerSymbol = requiredText(
+    formData,
+    "provider_symbol",
+    "Provider symbol",
+    returnTo
+  ).toUpperCase();
+  const notes = formData.get("notes")?.toString().trim() || null;
+  const providerSymbolError = validateMarketDataProviderSymbol({
+    providerId: provider,
+    providerSymbol
+  });
+
+  if (providerSymbolError) {
+    redirectWithMessage(returnTo, providerSymbolError);
+  }
+
+  const { error } = await supabase.from("security_provider_symbols").upsert(
+    {
+      user_id: user.id,
+      portfolio_id: portfolioId,
+      security_key: securityKey,
+      provider,
+      provider_symbol: providerSymbol,
+      source: "manual",
+      notes,
+      resolved_at: new Date().toISOString()
+    },
+    {
+      onConflict: "user_id,portfolio_id,security_key,provider"
+    }
+  );
+
+  if (error) {
+    redirectWithMessage(returnTo, error.message);
+  }
+
+  revalidatePath("/market-data");
+  revalidatePath("/securities");
+  redirectWithMessage(returnTo, `Saved ${provider} symbol ${providerSymbol}`);
 }

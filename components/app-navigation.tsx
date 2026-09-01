@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   CircleDollarSign,
   Download,
+  DatabaseZap,
   LineChart,
   Home,
   Landmark,
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/stock-analytics", label: "Stock Analytics", icon: Landmark },
   { href: "/dividends", label: "Dividends", icon: CircleDollarSign },
   { href: "/securities", label: "Securities", icon: Landmark },
+  { href: "/market-data", label: "Market Data", icon: DatabaseZap },
   { href: "/imports", label: "Imports", icon: Download },
   { href: "/settings", label: "Settings", icon: Settings }
 ];
