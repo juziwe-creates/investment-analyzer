@@ -101,6 +101,19 @@ function formatCoverageDateRange(startDate: string | null, endDate: string | nul
   return "-";
 }
 
+function formatTimestamp(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
+}
+
 export function MarketDataSyncTable({
   filter,
   providerId,
@@ -424,7 +437,7 @@ export function MarketDataSyncTable({
                           <div>
                             <div className="font-medium">{syncRun.status}</div>
                             <div className="text-xs text-muted-foreground">
-                              {formatDate(syncRun.finished_at ?? syncRun.started_at)}
+                              {formatTimestamp(syncRun.finished_at ?? syncRun.started_at)}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {syncRun.prices_imported} prices - {syncRun.dividends_imported} dividends
