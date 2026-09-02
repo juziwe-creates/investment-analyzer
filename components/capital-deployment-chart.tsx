@@ -134,8 +134,7 @@ export function CapitalDeploymentChart({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto">
-        <svg
+      <svg
           role="img"
           aria-label={`Capital deployment chart with ${interval} interval`}
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
@@ -248,8 +247,7 @@ export function CapitalDeploymentChart({
           >
             {formatDate(lastPoint.date)}
           </text>
-        </svg>
-      </div>
+      </svg>
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <span>Blue area/line: cumulative buys minus sells</span>
         <span>Green line: cumulative dividends collected</span>

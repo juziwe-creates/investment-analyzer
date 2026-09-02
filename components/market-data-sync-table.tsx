@@ -306,8 +306,7 @@ export function MarketDataSyncTable({
               </div>
             </form>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1500px] text-sm">
+            <table className="w-full min-w-[1500px] text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Security</th>
@@ -476,7 +475,6 @@ export function MarketDataSyncTable({
                 })}
               </tbody>
             </table>
-            </div>
             {rows.length === 0 ? (
               <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
                 No securities match the current filters.

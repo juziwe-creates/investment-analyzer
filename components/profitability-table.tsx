@@ -21,8 +21,7 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
             Add buy transactions to see decision-level profitability.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1450px] text-sm">
+          <table className="w-full min-w-[1450px] text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Buy date</th>
@@ -87,8 +86,7 @@ export function ProfitabilityTable({ lots }: ProfitabilityTableProps) {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+          </table>
         )}
       </CardContent>
     </Card>

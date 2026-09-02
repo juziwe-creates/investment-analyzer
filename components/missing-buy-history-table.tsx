@@ -21,8 +21,7 @@ export function MissingBuyHistoryTable({ securities }: MissingBuyHistoryTablePro
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="px-3 py-2 font-medium">Security</th>
@@ -51,8 +50,7 @@ export function MissingBuyHistoryTable({ securities }: MissingBuyHistoryTablePro
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+        </table>
       </CardContent>
     </Card>
   );

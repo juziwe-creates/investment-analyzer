@@ -184,8 +184,7 @@ export function TransactionAnalyticsTable({ rows }: TransactionAnalyticsTablePro
                 No purchase lots match the current filters.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1740px] text-sm">
+              <table className="w-full min-w-[1740px] text-sm">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       {sortableHeader("Stock", "securityName", "left")}
@@ -256,8 +255,7 @@ export function TransactionAnalyticsTable({ rows }: TransactionAnalyticsTablePro
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+              </table>
             )}
           </div>
         )}

@@ -36,8 +36,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
             No transactions yet. Add your first buy, sell, or dividend above.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Date</th>
@@ -72,11 +71,9 @@ export function TransactionList({ transactions }: TransactionListProps) {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+          </table>
         )}
       </CardContent>
     </Card>
   );
 }
-

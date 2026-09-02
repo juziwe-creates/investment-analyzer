@@ -169,8 +169,7 @@ export function StockAnalyticsTable({ rows }: StockAnalyticsTableProps) {
                 No stocks match the current filters.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1540px] text-sm">
+              <table className="w-full min-w-[1540px] text-sm">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       {sortableHeader("Stock", "securityName", "left")}
@@ -238,8 +237,7 @@ export function StockAnalyticsTable({ rows }: StockAnalyticsTableProps) {
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+              </table>
             )}
           </div>
         )}

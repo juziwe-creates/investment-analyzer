@@ -146,8 +146,7 @@ export function PortfolioDevelopmentChart({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto">
-        <svg
+      <svg
           role="img"
           aria-label={`Portfolio development chart with ${interval} interval`}
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
@@ -291,8 +290,7 @@ export function PortfolioDevelopmentChart({
           >
             {formatDate(lastPoint.date)}
           </text>
-        </svg>
-      </div>
+      </svg>
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <span>
           Filled base: {hasIncompletePoints ? "priced invested capital" : "invested capital"}
