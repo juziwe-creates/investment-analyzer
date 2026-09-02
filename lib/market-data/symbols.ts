@@ -31,6 +31,17 @@ const commonEodhdExchangeCodes = new Set([
   "XETRA"
 ]);
 
+const knownGermanEodhdSymbolsByIsin = new Map<string, string>([
+  ["LU2611732475", "C005.XETRA"],
+  ["US0091581068", "AP3.XETRA"],
+  ["US0231351067", "AMZ.XETRA"],
+  ["US5949181045", "MSF.XETRA"]
+]);
+
+type EodhdSymbolOptions = {
+  preferredExchange?: string | null;
+};
+
 function normalizedExchange(exchange: string | null | undefined) {
   if (!exchange) {
     return null;
@@ -46,10 +57,12 @@ function normalizeTickerBase(ticker: string) {
 
 export function eodhdProviderSymbol(
   ticker: string,
-  exchange: string | null | undefined
+  exchange: string | null | undefined,
+  options: EodhdSymbolOptions = {}
 ) {
   const normalizedTicker = ticker.trim().toUpperCase();
-  const exchangeCode = normalizedExchange(exchange);
+  const preferredExchangeCode = normalizedExchange(options.preferredExchange);
+  const exchangeCode = preferredExchangeCode ?? normalizedExchange(exchange);
   const parts = normalizedTicker.split(".");
 
   if (parts.length === 1) {
@@ -59,6 +72,14 @@ export function eodhdProviderSymbol(
   const suffix = parts.at(-1) ?? "";
   const tickerWithoutSuffix = parts.slice(0, -1).join(".");
   const suffixExchange = eodhdExchangeAliases.get(suffix) ?? suffix;
+  const suffixIsExchange =
+    eodhdExchangeAliases.has(suffix) || commonEodhdExchangeCodes.has(suffixExchange);
+
+  if (preferredExchangeCode) {
+    const tickerBase = suffixIsExchange ? tickerWithoutSuffix : normalizedTicker;
+
+    return `${normalizeTickerBase(tickerBase)}.${preferredExchangeCode}`;
+  }
 
   if (exchangeCode && !commonEodhdExchangeCodes.has(suffixExchange)) {
     return `${normalizeTickerBase(normalizedTicker)}.${exchangeCode}`;
@@ -69,11 +90,23 @@ export function eodhdProviderSymbol(
 
 export function marketDataProviderSymbol(input: {
   providerId: string;
+  isin?: string | null;
   ticker: string;
   exchange: string | null | undefined;
+  preferGermanExchange?: boolean;
 }) {
   if (input.providerId === "eodhd") {
-    return eodhdProviderSymbol(input.ticker, input.exchange);
+    const knownGermanSymbol = input.isin
+      ? knownGermanEodhdSymbolsByIsin.get(input.isin.toUpperCase())
+      : null;
+
+    if (knownGermanSymbol) {
+      return knownGermanSymbol;
+    }
+
+    return eodhdProviderSymbol(input.ticker, input.exchange, {
+      preferredExchange: input.preferGermanExchange ? "XETRA" : null
+    });
   }
 
   return input.ticker.trim();

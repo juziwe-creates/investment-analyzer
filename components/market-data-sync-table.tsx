@@ -85,6 +85,36 @@ function isRecentlySynced(syncRun: MarketDataSyncRun | undefined) {
   return Date.now() - timestamp < recentSyncWindowMs;
 }
 
+function isBlockedByRecentSync(
+  syncRun: MarketDataSyncRun | undefined,
+  storedSymbol: SecurityProviderSymbol | undefined
+) {
+  if (!isRecentlySynced(syncRun)) {
+    return false;
+  }
+
+  if (storedSymbol?.provider_symbol && syncRun?.provider_symbol) {
+    if (storedSymbol.provider_symbol !== syncRun.provider_symbol) {
+      return false;
+    }
+  }
+
+  const symbolUpdatedAt = Date.parse(
+    storedSymbol?.updated_at ?? storedSymbol?.resolved_at ?? ""
+  );
+  const syncFinishedAt = Date.parse(syncRun?.finished_at ?? syncRun?.started_at ?? "");
+
+  if (
+    Number.isFinite(symbolUpdatedAt) &&
+    Number.isFinite(syncFinishedAt) &&
+    symbolUpdatedAt > syncFinishedAt
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 function formatCoverageDateRange(startDate: string | null, endDate: string | null) {
   if (startDate && endDate) {
     return `${formatDate(startDate)} to ${formatDate(endDate)}`;
@@ -145,8 +175,10 @@ export function MarketDataSyncTable({
       const suggestedSymbol = security.ticker
         ? marketDataProviderSymbol({
             providerId,
+            isin: security.isin,
             ticker: security.ticker,
-            exchange: security.exchange
+            exchange: security.exchange,
+            preferGermanExchange: security.security_currency === "EUR"
           })
         : "";
       const providerSymbol = storedSymbol?.provider_symbol ?? suggestedSymbol;
@@ -164,7 +196,7 @@ export function MarketDataSyncTable({
       const missingPrices = !priceCoverageRow || priceCoverageRow.price_count === 0;
       const missingDividends =
         !dividendCoverageRow || dividendCoverageRow.dividend_count === 0;
-      const recentlySynced = isRecentlySynced(syncRun);
+      const recentlySynced = isBlockedByRecentSync(syncRun, storedSymbol);
 
       return {
         security,

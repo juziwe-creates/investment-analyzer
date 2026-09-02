@@ -203,8 +203,10 @@ export async function syncSecurityMarketData(formData: FormData) {
     storedProviderSymbol ??
     marketDataProviderSymbol({
       providerId: provider.id,
+      isin: typedSecurity.isin,
       ticker: typedSecurity.ticker ?? "",
-      exchange: typedSecurity.exchange
+      exchange: typedSecurity.exchange,
+      preferGermanExchange: typedSecurity.security_currency === "EUR"
     });
   const providerSymbolError = validateMarketDataProviderSymbol({
     providerId: provider.id,

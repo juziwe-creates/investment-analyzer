@@ -14,6 +14,9 @@ export default async function MarketDataPage({
   const { filter, message, q } = await searchParams;
   const providerId = configuredMarketDataProviderId();
   const supabase = await createClient();
+  // This operational counter should reflect the current request time.
+  // eslint-disable-next-line react-hooks/purity
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const manualPricesQuery = supabase
     .from("manual_security_prices")
     .select(
@@ -51,6 +54,12 @@ export default async function MarketDataPage({
     .eq("provider", providerId)
     .order("created_at", { ascending: false })
     .limit(100);
+  const recentSyncRunsQuery = supabase
+    .from("market_data_sync_runs")
+    .select("status,created_at")
+    .eq("provider", providerId)
+    .gte("created_at", oneHourAgo)
+    .limit(1000);
   const transactionsQuery = supabase
     .from("transactions")
     .select("*")
@@ -63,6 +72,7 @@ export default async function MarketDataPage({
     { data: dividendCoverage, error: dividendCoverageError },
     { data: providerSymbols, error: providerSymbolsError },
     { data: syncRuns, error: syncRunsError },
+    { data: recentSyncRuns, error: recentSyncRunsError },
     { data: transactions, error: transactionsError }
   ] = await Promise.all([
     manualPricesQuery,
@@ -71,6 +81,7 @@ export default async function MarketDataPage({
     dividendCoverageQuery,
     providerSymbolsQuery,
     syncRunsQuery,
+    recentSyncRunsQuery,
     transactionsQuery
   ]);
   const { holdings } = buildCurrentAnalytics(
@@ -86,7 +97,14 @@ export default async function MarketDataPage({
     dividendCoverageError ??
     providerSymbolsError ??
     syncRunsError ??
+    recentSyncRunsError ??
     transactionsError;
+  const estimatedApiCallsLastHour = (recentSyncRuns ?? []).reduce(
+    (total, run) =>
+      total +
+      (run.status === "completed" || run.status === "completed_with_errors" ? 2 : 1),
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -97,7 +115,7 @@ export default async function MarketDataPage({
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-md border bg-background p-4">
           <p className="text-sm text-muted-foreground">Active provider</p>
           <p className="mt-1 text-xl font-semibold">{providerId}</p>
@@ -109,6 +127,10 @@ export default async function MarketDataPage({
         <div className="rounded-md border bg-background p-4">
           <p className="text-sm text-muted-foreground">Estimated calls</p>
           <p className="mt-1 text-xl font-semibold">2 per sync</p>
+        </div>
+        <div className="rounded-md border bg-background p-4">
+          <p className="text-sm text-muted-foreground">Est. calls last hour</p>
+          <p className="mt-1 text-xl font-semibold">{estimatedApiCallsLastHour}</p>
         </div>
       </div>
 
