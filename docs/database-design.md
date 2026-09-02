@@ -300,6 +300,52 @@ Notes:
 - Sync runs make provider failures and rate-limit issues visible.
 - The MVP syncs per security first to avoid accidentally exceeding provider limits.
 
+# Market Data Views
+
+## latest_provider_market_prices
+
+Returns one latest price row per user, portfolio, security, and provider.
+
+Purpose:
+
+- power current-value analytics with provider-aware latest prices
+- avoid mixing the newest Alpha Vantage price with the newest EODHD price for the same security
+- keep dashboard and Market Data UI queries simple
+
+## market_price_coverage
+
+Aggregates persisted price history by user, portfolio, security, and provider.
+
+Fields:
+
+- `price_count`
+- `first_price_date`
+- `latest_price_date`
+- `latest_updated_at`
+
+Purpose:
+
+- show whether a security has enough price history before analytics are trusted
+- identify securities that still need a market-data sync
+- support low-risk provider-call planning
+
+## market_dividend_coverage
+
+Aggregates persisted reference dividend events by user, portfolio, security, and provider.
+
+Fields:
+
+- `dividend_count`
+- `first_ex_dividend_date`
+- `latest_ex_dividend_date`
+- `latest_updated_at`
+
+Purpose:
+
+- show whether reference dividend data exists for a security
+- distinguish missing dividend coverage from actual zero-dividend securities
+- make provider limitations visible during MVP testing
+
 ## source_documents
 
 Stores metadata for imported files, broker documents, and other source artifacts.

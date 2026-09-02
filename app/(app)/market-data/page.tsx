@@ -9,9 +9,9 @@ import { createClient } from "@/lib/supabase/server";
 export default async function MarketDataPage({
   searchParams
 }: {
-  searchParams: Promise<{ message?: string }>;
+  searchParams: Promise<{ filter?: string; message?: string; q?: string }>;
 }) {
-  const { message } = await searchParams;
+  const { filter, message, q } = await searchParams;
   const providerId = configuredMarketDataProviderId();
   const supabase = await createClient();
   const manualPricesQuery = supabase
@@ -20,10 +20,23 @@ export default async function MarketDataPage({
       "id,user_id,portfolio_id,security_key,security_name,isin,ticker,price,currency,price_date,created_at,updated_at"
     );
   const marketPricesQuery = supabase
-    .from("latest_market_prices")
+    .from("latest_provider_market_prices")
     .select(
       "id,user_id,portfolio_id,security_key,security_name,isin,ticker,provider,provider_symbol,price_date,close_price,adjusted_close_price,currency,created_at,updated_at"
-    );
+    )
+    .eq("provider", providerId);
+  const priceCoverageQuery = supabase
+    .from("market_price_coverage")
+    .select(
+      "user_id,portfolio_id,security_key,provider,price_count,first_price_date,latest_price_date,latest_updated_at"
+    )
+    .eq("provider", providerId);
+  const dividendCoverageQuery = supabase
+    .from("market_dividend_coverage")
+    .select(
+      "user_id,portfolio_id,security_key,provider,dividend_count,first_ex_dividend_date,latest_ex_dividend_date,latest_updated_at"
+    )
+    .eq("provider", providerId);
   const providerSymbolsQuery = supabase
     .from("security_provider_symbols")
     .select(
@@ -46,12 +59,16 @@ export default async function MarketDataPage({
   const [
     { data: manualPrices, error: manualPricesError },
     { data: marketPrices, error: marketPricesError },
+    { data: priceCoverage, error: priceCoverageError },
+    { data: dividendCoverage, error: dividendCoverageError },
     { data: providerSymbols, error: providerSymbolsError },
     { data: syncRuns, error: syncRunsError },
     { data: transactions, error: transactionsError }
   ] = await Promise.all([
     manualPricesQuery,
     marketPricesQuery,
+    priceCoverageQuery,
+    dividendCoverageQuery,
     providerSymbolsQuery,
     syncRunsQuery,
     transactionsQuery
@@ -65,6 +82,8 @@ export default async function MarketDataPage({
   const firstError =
     manualPricesError ??
     marketPricesError ??
+    priceCoverageError ??
+    dividendCoverageError ??
     providerSymbolsError ??
     syncRunsError ??
     transactionsError;
@@ -105,10 +124,14 @@ export default async function MarketDataPage({
         </div>
       ) : (
         <MarketDataSyncTable
+          filter={filter}
           providerId={providerId}
+          query={q}
           securities={securities}
           providerSymbols={providerSymbols ?? []}
           marketPrices={marketPrices ?? []}
+          priceCoverage={priceCoverage ?? []}
+          dividendCoverage={dividendCoverage ?? []}
           syncRuns={syncRuns ?? []}
         />
       )}

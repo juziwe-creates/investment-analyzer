@@ -186,6 +186,8 @@ Scope:
 - manual price fallback when market data is missing
 - EODHD provider support for historical end-of-day prices and reference dividends
 - provider-symbol mappings so sync does not require editing transaction facts
+- market-data coverage diagnostics for prices, dividends, recent failures, and securities needing attention
+- UI safeguards that keep syncs deliberate while testing with limited provider plans
 
 Success criteria:
 
@@ -196,6 +198,7 @@ Success criteria:
 - profitability uses latest fetched market price before manual fallback
 - provider setup is controlled through server-side environment variables and never exposed to the browser
 - user can inspect and override provider symbols one security at a time before spending API calls
+- user can see price and dividend coverage before trusting analytics for a security
 
 ## Phase 7: Portfolio Development
 

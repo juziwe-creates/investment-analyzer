@@ -453,7 +453,53 @@ export type Database = {
         };
         Relationships: [];
       };
+      market_price_coverage: {
+        Row: {
+          user_id: string;
+          portfolio_id: string;
+          security_key: string;
+          provider: string;
+          price_count: number;
+          first_price_date: string | null;
+          latest_price_date: string | null;
+          latest_updated_at: string | null;
+        };
+        Relationships: [];
+      };
+      market_dividend_coverage: {
+        Row: {
+          user_id: string;
+          portfolio_id: string;
+          security_key: string;
+          provider: string;
+          dividend_count: number;
+          first_ex_dividend_date: string | null;
+          latest_ex_dividend_date: string | null;
+          latest_updated_at: string | null;
+        };
+        Relationships: [];
+      };
       latest_market_prices: {
+        Row: {
+          id: string;
+          user_id: string;
+          portfolio_id: string;
+          security_key: string;
+          security_name: string;
+          isin: string | null;
+          ticker: string | null;
+          provider: string;
+          provider_symbol: string;
+          price_date: string;
+          close_price: number;
+          adjusted_close_price: number | null;
+          currency: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Relationships: [];
+      };
+      latest_provider_market_prices: {
         Row: {
           id: string;
           user_id: string;
