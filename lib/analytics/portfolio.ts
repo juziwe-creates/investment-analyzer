@@ -14,6 +14,7 @@ import {
   type LotCalculationOptions,
   type LotCashFlow
 } from "@/lib/analytics/engine";
+import { marketDataCurrency } from "@/lib/market-data/currency";
 import type { Database } from "@/types/database";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
@@ -145,7 +146,11 @@ function toAnalyticsPrices(marketPrices: MarketPrice[]): AnalyticsPrice[] {
     security_key: price.security_key,
     price: price.adjusted_close_price ?? price.close_price,
     price_date: price.price_date,
-    currency: price.currency,
+    currency: marketDataCurrency({
+      fallbackCurrency: price.currency,
+      providerId: price.provider,
+      providerSymbol: price.provider_symbol
+    }),
     source: "market",
     id: price.id
   }));

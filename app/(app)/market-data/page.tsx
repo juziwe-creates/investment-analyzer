@@ -1,3 +1,4 @@
+import { refreshSyncedMarketData } from "@/app/actions/market-data";
 import { MarketDataSyncTable } from "@/components/market-data-sync-table";
 import {
   buildCurrentAnalytics,
@@ -5,6 +6,12 @@ import {
 } from "@/lib/analytics/portfolio";
 import { configuredMarketDataProviderId } from "@/lib/market-data";
 import { createClient } from "@/lib/supabase/server";
+
+function isBulkRefreshAsset(assetType: string | null) {
+  const normalized = assetType?.trim().toLowerCase();
+
+  return normalized === "stock" || normalized === "etf" || normalized === "fund";
+}
 
 export default async function MarketDataPage({
   searchParams
@@ -56,7 +63,7 @@ export default async function MarketDataPage({
     .limit(100);
   const recentSyncRunsQuery = supabase
     .from("market_data_sync_runs")
-    .select("status,created_at")
+    .select("status,prices_imported,dividends_imported,created_at")
     .eq("provider", providerId)
     .gte("created_at", oneHourAgo)
     .limit(1000);
@@ -102,9 +109,17 @@ export default async function MarketDataPage({
   const estimatedApiCallsLastHour = (recentSyncRuns ?? []).reduce(
     (total, run) =>
       total +
-      (run.status === "completed" || run.status === "completed_with_errors" ? 2 : 1),
+      (run.dividends_imported > 0 || run.status === "completed_with_errors" ? 2 : 1),
     0
   );
+  const latestPricesBySecurity = new Set(
+    (marketPrices ?? []).map((price) => price.security_key)
+  );
+  const bulkRefreshCandidateCount = securities.filter(
+    (security) =>
+      isBulkRefreshAsset(security.asset_type) &&
+      latestPricesBySecurity.has(security.security_key)
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -131,6 +146,28 @@ export default async function MarketDataPage({
         <div className="rounded-md border bg-background p-4">
           <p className="text-sm text-muted-foreground">Est. calls last hour</p>
           <p className="mt-1 text-xl font-semibold">{estimatedApiCallsLastHour}</p>
+        </div>
+      </div>
+
+      <div className="rounded-md border bg-background p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-medium">Refresh synced stocks and ETFs</p>
+            <p className="text-sm text-muted-foreground">
+              Incrementally fetches prices from the latest stored price date. Estimated calls:{" "}
+              {bulkRefreshCandidateCount}.
+            </p>
+          </div>
+          <form action={refreshSyncedMarketData}>
+            <input type="hidden" name="return_to" value="/market-data" />
+            <button
+              type="submit"
+              disabled={bulkRefreshCandidateCount === 0}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+            >
+              Refresh synced securities
+            </button>
+          </form>
         </div>
       </div>
 

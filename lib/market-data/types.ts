@@ -18,6 +18,8 @@ export type MarketDividend = {
 
 export type FetchMarketDataInput = {
   symbol: string;
+  fromDate?: string;
+  toDate?: string;
 };
 
 export type MarketDataProvider = {

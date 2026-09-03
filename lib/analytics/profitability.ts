@@ -6,6 +6,7 @@ import {
   type LotCashFlow,
   type XirrStatus
 } from "@/lib/analytics/engine";
+import { marketDataCurrency } from "@/lib/market-data/currency";
 import type { Database } from "@/types/database";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
@@ -138,7 +139,11 @@ export function buildValuationPrices(
       security_key: marketPrice.security_key,
       price: marketPrice.adjusted_close_price ?? marketPrice.close_price,
       price_date: marketPrice.price_date,
-      currency: marketPrice.currency,
+      currency: marketDataCurrency({
+        fallbackCurrency: marketPrice.currency,
+        providerId: marketPrice.provider,
+        providerSymbol: marketPrice.provider_symbol
+      }),
       source: "market",
       id: marketPrice.id
     });

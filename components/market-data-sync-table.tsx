@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/formatters";
+import {
+  hasCorrectedMarketDataCurrency,
+  marketDataCurrency
+} from "@/lib/market-data/currency";
 import { marketDataProviderSymbol } from "@/lib/market-data/symbols";
 import type { SecurityInventoryItem } from "@/lib/analytics/portfolio";
 import type { Database } from "@/types/database";
@@ -368,6 +372,20 @@ export function MarketDataSyncTable({
                   const marketPriceValue = marketPrice
                     ? marketPrice.adjusted_close_price ?? marketPrice.close_price
                     : null;
+                  const displayCurrency = marketPrice
+                    ? marketDataCurrency({
+                        fallbackCurrency: marketPrice.currency,
+                        providerId: marketPrice.provider,
+                        providerSymbol: marketPrice.provider_symbol
+                      })
+                    : security.security_currency ?? "EUR";
+                  const correctedCurrency = marketPrice
+                    ? hasCorrectedMarketDataCurrency({
+                        fallbackCurrency: marketPrice.currency,
+                        providerId: marketPrice.provider,
+                        providerSymbol: marketPrice.provider_symbol
+                      })
+                    : false;
 
                   return (
                     <tr key={security.security_key} className="border-b align-top last:border-0">
@@ -438,7 +456,8 @@ export function MarketDataSyncTable({
                             </div>
                             {marketPrice ? (
                               <div className="text-xs text-muted-foreground">
-                                Latest: {formatCurrency(marketPriceValue, marketPrice.currency)}
+                                Latest: {formatCurrency(marketPriceValue, displayCurrency)}
+                                {correctedCurrency ? ` (stored as ${marketPrice.currency})` : ""}
                               </div>
                             ) : null}
                           </div>

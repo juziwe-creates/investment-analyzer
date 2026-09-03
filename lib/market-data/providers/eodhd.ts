@@ -127,6 +127,20 @@ function encodeTicker(symbol: string) {
   return encodeURIComponent(symbol.trim());
 }
 
+function optionalDateParams(input: FetchMarketDataInput) {
+  const params: Record<string, string> = {};
+
+  if (input.fromDate) {
+    params.from = input.fromDate;
+  }
+
+  if (input.toDate) {
+    params.to = input.toDate;
+  }
+
+  return params;
+}
+
 function providerErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown EODHD error";
 }
@@ -143,6 +157,7 @@ export function createEodhdProvider(apiToken: string): MarketDataProvider {
           apiToken,
           `/eod/${encodeTicker(input.symbol)}`,
           {
+            ...optionalDateParams(input),
             period: "d",
             order: "a"
           }
@@ -176,6 +191,7 @@ export function createEodhdProvider(apiToken: string): MarketDataProvider {
           apiToken,
           `/div/${encodeTicker(input.symbol)}`,
           {
+            ...optionalDateParams(input),
             order: "a"
           }
         );

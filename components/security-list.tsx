@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SecurityMarketDataForm } from "@/components/security-market-data-form";
 import { SecurityPriceForm } from "@/components/security-price-form";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/formatters";
+import { marketDataCurrency } from "@/lib/market-data/currency";
 import type { SecurityInventoryItem } from "@/lib/analytics/portfolio";
 import type { Database } from "@/types/database";
 
@@ -60,6 +61,13 @@ export function SecurityList({
                   const marketPriceValue = marketPrice
                     ? marketPrice.adjusted_close_price ?? marketPrice.close_price
                     : null;
+                  const displayCurrency = marketPrice
+                    ? marketDataCurrency({
+                        fallbackCurrency: marketPrice.currency,
+                        providerId: marketPrice.provider,
+                        providerSymbol: marketPrice.provider_symbol
+                      })
+                    : security.security_currency ?? "EUR";
 
                   return (
                     <tr key={security.security_key} className="border-b last:border-0">
@@ -83,7 +91,7 @@ export function SecurityList({
                         {marketPrice ? (
                           <div>
                             <div className="font-medium">
-                              {formatCurrency(marketPriceValue, marketPrice.currency)}
+                              {formatCurrency(marketPriceValue, displayCurrency)}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {formatDate(marketPrice.price_date)} via {marketPrice.provider}
