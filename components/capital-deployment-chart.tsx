@@ -147,22 +147,22 @@ export function CapitalDeploymentChart({
             y1={yForValue(0)}
             x2={chartWidth - padding.right}
             y2={yForValue(0)}
-            stroke="hsl(var(--border))"
+            stroke="hsl(var(--border-subtle))"
           />
           <path
             d={areaPath(points, xForPoint, yForValue)}
-            fill="hsl(var(--primary) / 0.18)"
+            fill="hsl(var(--chart-deployed) / 0.08)"
           />
           <path
             d={linePath(points, xForPoint, yForValue, (point) => point.capitalDeployed)}
             fill="none"
-            stroke="hsl(var(--primary))"
+            stroke="hsl(var(--chart-deployed))"
             strokeWidth="2"
           />
           <path
             d={linePath(points, xForPoint, yForValue, (point) => point.dividendsCollected)}
             fill="none"
-            stroke="hsl(142 70% 38%)"
+            stroke="hsl(var(--chart-dividend))"
             strokeWidth="2"
           />
           {hoverPoint ? (
@@ -179,21 +179,21 @@ export function CapitalDeploymentChart({
                 cx={hoverPoint.x}
                 cy={yForValue(hoverPoint.point.capitalDeployed)}
                 r="4"
-                fill="hsl(var(--primary))"
+                fill="hsl(var(--chart-deployed))"
               />
               <circle
                 cx={hoverPoint.x}
                 cy={yForValue(hoverPoint.point.dividendsCollected)}
                 r="4"
-                fill="hsl(142 70% 38%)"
+                fill="hsl(var(--chart-dividend))"
               />
               <g transform={`translate(${tooltipX} ${padding.top + 8})`}>
                 <rect
                   width={tooltipWidth}
                   height="78"
                   rx="8"
-                  fill="hsl(var(--background))"
-                  stroke="hsl(var(--border))"
+                  fill="hsl(var(--card))"
+                  stroke="hsl(var(--border-subtle))"
                 />
                 <text x="12" y="22" className="fill-foreground text-xs font-semibold">
                   {formatDate(hoverPoint.point.date)}
@@ -217,7 +217,7 @@ export function CapitalDeploymentChart({
                   y1={yForValue(value)}
                   x2={chartWidth - padding.right}
                   y2={yForValue(value)}
-                  stroke="hsl(var(--border))"
+                  stroke="hsl(var(--border-subtle))"
                   strokeDasharray="3 6"
                 />
                 <text

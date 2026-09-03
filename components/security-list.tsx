@@ -39,7 +39,7 @@ export function SecurityList({
             Securities will appear here after you add transactions.
           </div>
         ) : (
-          <table className="w-full min-w-[1100px] text-sm">
+          <table className="alpha-table min-w-[1100px]">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Name</th>

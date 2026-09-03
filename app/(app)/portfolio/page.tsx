@@ -37,13 +37,14 @@ export default async function PortfolioPage() {
   const missingBuyHistory = findSecuritiesWithoutBuyHistory(transactions ?? []);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Portfolio</h2>
-        <p className="text-muted-foreground">
+    <div className="space-y-8">
+      <header className="border-b border-border/70 pb-6">
+        <p className="alpha-kpi-label">Investment inventory</p>
+        <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em]">Investments</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
           Current holdings calculated from transactions and latest available prices.
         </p>
-      </div>
+      </header>
 
       {errors.length > 0 ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

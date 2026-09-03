@@ -159,11 +159,11 @@ export function PortfolioDevelopmentChart({
             y1={yForValue(0)}
             x2={chartWidth - padding.right}
             y2={yForValue(0)}
-            stroke="hsl(var(--border))"
+            stroke="hsl(var(--border-subtle))"
           />
           <path
             d={areaPath(points, xForPoint, yForValue, (point) => point.investedCapital, () => 0)}
-            fill="hsl(var(--primary) / 0.22)"
+            fill="hsl(var(--chart-deployed) / 0.08)"
           />
           {hasPositiveGain ? (
             <path
@@ -174,7 +174,7 @@ export function PortfolioDevelopmentChart({
                 (point) => point.portfolioValue,
                 (point) => point.investedCapital
               )}
-              fill="hsl(142 70% 45% / 0.28)"
+              fill="hsl(var(--positive-subtle) / 0.8)"
             />
           ) : null}
           {hasNegativeGain ? (
@@ -186,19 +186,19 @@ export function PortfolioDevelopmentChart({
                 (point) => point.investedCapital,
                 (point) => point.portfolioValue
               )}
-              fill="hsl(var(--destructive) / 0.24)"
+              fill="hsl(var(--negative-subtle) / 0.9)"
             />
           ) : null}
           <path
             d={linePath(points, xForPoint, yForValue, (point) => point.portfolioValue)}
             fill="none"
-            stroke="hsl(var(--foreground))"
+            stroke="hsl(var(--chart-portfolio))"
             strokeWidth="2"
           />
           <path
             d={linePath(points, xForPoint, yForValue, (point) => point.investedCapital)}
             fill="none"
-            stroke="hsl(var(--primary))"
+            stroke="hsl(var(--chart-deployed))"
             strokeWidth="2"
             strokeDasharray="5 5"
           />
@@ -216,21 +216,21 @@ export function PortfolioDevelopmentChart({
                 cx={hoverPoint.x}
                 cy={yForValue(hoverPoint.point.portfolioValue)}
                 r="4"
-                fill="hsl(var(--foreground))"
+                fill="hsl(var(--chart-portfolio))"
               />
               <circle
                 cx={hoverPoint.x}
                 cy={yForValue(hoverPoint.point.investedCapital)}
                 r="4"
-                fill="hsl(var(--primary))"
+                fill="hsl(var(--chart-deployed))"
               />
               <g transform={`translate(${tooltipX} ${padding.top + 8})`}>
                 <rect
                   width={tooltipWidth}
                   height="116"
                   rx="8"
-                  fill="hsl(var(--background))"
-                  stroke="hsl(var(--border))"
+                  fill="hsl(var(--card))"
+                  stroke="hsl(var(--border-subtle))"
                 />
                 <text x="12" y="22" className="fill-foreground text-xs font-semibold">
                   {formatDate(hoverPoint.point.date)}
@@ -260,7 +260,7 @@ export function PortfolioDevelopmentChart({
                   y1={yForValue(value)}
                   x2={chartWidth - padding.right}
                   y2={yForValue(value)}
-                  stroke="hsl(var(--border))"
+                  stroke="hsl(var(--border-subtle))"
                   strokeDasharray="3 6"
                 />
                 <text

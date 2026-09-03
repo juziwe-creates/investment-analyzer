@@ -17,13 +17,14 @@ export default async function TransactionsPage({
     .limit(50);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Transactions</h2>
-        <p className="text-muted-foreground">
+    <div className="space-y-8">
+      <header className="border-b border-border/70 pb-6">
+        <p className="alpha-kpi-label">Source of truth</p>
+        <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em]">Transactions</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
           Your private event log. Portfolio, dividends, securities, and analytics derive from this.
         </p>
-      </div>
+      </header>
 
       {message ? (
         <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">

@@ -21,7 +21,7 @@ export function MissingBuyHistoryTable({ securities }: MissingBuyHistoryTablePro
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="alpha-table min-w-[760px]">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="px-3 py-2 font-medium">Security</th>

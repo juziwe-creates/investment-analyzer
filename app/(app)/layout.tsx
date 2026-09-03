@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/actions/auth";
-import { AppNavigation } from "@/components/app-navigation";
+import { AppSidebar, MobileBottomNavigation } from "@/components/app-navigation";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,22 +19,18 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-muted/40">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1800px]">
-        <aside className="hidden w-64 border-r bg-background px-4 py-6 md:block">
-          <div className="mb-8">
-            <p className="text-sm font-medium text-muted-foreground">Investment</p>
-            <h1 className="text-xl font-semibold">Analyzer</h1>
-          </div>
-          <AppNavigation />
-        </aside>
+    <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen w-full">
+        <AppSidebar />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b bg-background/90 px-4 py-3 backdrop-blur md:px-8">
+        <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
+          <header className="sticky top-0 z-20 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur md:px-8">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Signed in as</p>
-                <p className="truncate text-sm font-medium">{user.email}</p>
+                <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                  All Accounts
+                </p>
+                <p className="truncate text-sm font-medium text-foreground">{user.email}</p>
               </div>
               <form action={signOut}>
                 <Button type="submit" variant="outline">
@@ -42,14 +38,12 @@ export default async function AppLayout({
                 </Button>
               </form>
             </div>
-            <div className="mt-3 md:hidden">
-              <AppNavigation />
-            </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
+          <main className="flex-1 px-4 py-6 md:px-8 xl:px-10">{children}</main>
         </div>
       </div>
+      <MobileBottomNavigation />
     </div>
   );
 }

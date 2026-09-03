@@ -169,7 +169,7 @@ export function StockAnalyticsTable({ rows }: StockAnalyticsTableProps) {
                 No stocks match the current filters.
               </div>
             ) : (
-              <table className="w-full min-w-[1540px] text-sm">
+              <table className="alpha-table min-w-[1540px]">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       {sortableHeader("Stock", "securityName", "left")}

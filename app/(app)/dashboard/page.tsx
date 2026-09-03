@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CapitalDeploymentChart } from "@/components/capital-deployment-chart";
 import { PortfolioDevelopmentChart } from "@/components/portfolio-development-chart";
@@ -11,7 +10,7 @@ import {
   transactionSecurityKey,
   type ChartInterval
 } from "@/lib/analytics/portfolio";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatPercent } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,6 +18,17 @@ const intervals: { label: string; value: ChartInterval }[] = [
   { label: "Daily", value: "daily" },
   { label: "Weekly", value: "weekly" },
   { label: "Monthly", value: "monthly" }
+];
+
+const periodPresets = [
+  { label: "1M", months: 1 },
+  { label: "3M", months: 3 },
+  { label: "YTD", ytd: true },
+  { label: "1Y", months: 12 },
+  { label: "3Y", months: 36 },
+  { label: "5Y", months: 60 },
+  { label: "10Y", months: 120 },
+  { label: "MAX" }
 ];
 
 function isDate(value: string | undefined) {
@@ -72,6 +82,45 @@ function dashboardHref(
   }
 
   return `/dashboard?${params.toString()}`;
+}
+
+function subtractMonths(date: string, months: number) {
+  const parsedDate = new Date(`${date}T00:00:00Z`);
+  parsedDate.setUTCMonth(parsedDate.getUTCMonth() - months);
+
+  return parsedDate.toISOString().slice(0, 10);
+}
+
+function startOfYear(date: string) {
+  return `${date.slice(0, 4)}-01-01`;
+}
+
+function periodHref(
+  label: string,
+  interval: ChartInterval,
+  lastDate: string | null,
+  selectedSecurityKeys: string[]
+) {
+  if (!lastDate || label === "MAX") {
+    return dashboardHref(interval, "", "", selectedSecurityKeys);
+  }
+
+  const preset = periodPresets.find((period) => period.label === label);
+  const fromDate = preset?.ytd
+    ? startOfYear(lastDate)
+    : preset?.months
+      ? subtractMonths(lastDate, preset.months)
+      : "";
+
+  return dashboardHref(interval, fromDate, lastDate, selectedSecurityKeys);
+}
+
+function toneClass(value: number | null) {
+  if (value === null || value === 0) {
+    return "text-foreground";
+  }
+
+  return value > 0 ? "text-[hsl(var(--positive))]" : "text-[hsl(var(--negative))]";
 }
 
 function buildSecurityOptions(
@@ -229,41 +278,83 @@ export default async function DashboardPage({
     .filter((option) => selectedSecurityKeySet.has(option.key))
     .map((option) => option.label)
     .join(", ");
+  const displayedPortfolioValue = summary.hasCompletePricing
+    ? summary.portfolioValue
+    : summary.pricedPortfolioValue;
+  const displayedInvestmentGain = summary.hasCompletePricing
+    ? summary.investmentGain
+    : summary.pricedInvestmentGain;
+  const totalReturnPercent =
+    summary.totalProfitability !== null && summary.investedCapital > 0
+      ? (summary.totalProfitability / summary.investedCapital) * 100
+      : null;
+  const currentPeriodLabel =
+    fromDate || toDate
+      ? `${fromDate || "Start"} to ${toDate || "latest"}`
+      : "MAX";
+  const latestChartDate =
+    developmentPoints.at(-1)?.date ?? capitalDeploymentPoints.at(-1)?.date ?? null;
   const metrics = [
     {
-      label: summary.hasCompletePricing ? "Portfolio value" : "Priced value",
-      value: formatCurrency(
-        summary.hasCompletePricing ? summary.portfolioValue : summary.pricedPortfolioValue,
-        summary.currency
-      )
-    },
-    {
-      label: "Invested capital",
+      label: "Current deployed",
       value: formatCurrency(summary.investedCapital, summary.currency)
     },
     {
-      label: summary.hasCompletePricing ? "Investment gain/loss" : "Priced gain/loss",
-      value: formatCurrency(
-        summary.hasCompletePricing ? summary.investmentGain : summary.pricedInvestmentGain,
-        summary.currency
-      )
+      label: summary.hasCompletePricing ? "Unrealized gain" : "Priced gain",
+      value: formatCurrency(displayedInvestmentGain, summary.currency)
     },
     {
-      label: "Dividends received",
+      label: "Dividends",
       value: formatCurrency(summary.dividendsReceived, summary.currency)
+    },
+    {
+      label: "Period",
+      value: currentPeriodLabel
     }
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">
-          {hasSecurityFilter
-            ? `Subset analytics for ${selectedSecurityNames}.`
-            : "Portfolio analytics calculated from your transactions and synced market prices."}
-        </p>
-      </div>
+    <div className="space-y-8">
+      <section className="flex flex-col gap-6 border-b border-border/70 pb-7 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="alpha-kpi-label">Portfolio value</p>
+          <h1 className="mt-3 text-5xl font-medium tracking-[-0.04em] text-foreground">
+            {formatCurrency(displayedPortfolioValue, summary.currency)}
+          </h1>
+          <p className={cn("mt-3 text-lg font-medium", toneClass(summary.totalProfitability))}>
+            {formatCurrency(summary.totalProfitability, summary.currency)} ·{" "}
+            {formatPercent(totalReturnPercent)} total return
+          </p>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+            {hasSecurityFilter
+              ? `Subset analytics for ${selectedSecurityNames}.`
+              : "Portfolio analytics calculated from your transactions and synced market prices."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {periodPresets.map((period) => {
+            const active =
+              period.label === "MAX"
+                ? !fromDate && !toDate
+                : latestChartDate !== null &&
+                  periodHref(period.label, interval, latestChartDate, selectedSecurityKeys) ===
+                    dashboardHref(interval, fromDate, toDate, selectedSecurityKeys);
+
+            return (
+              <a
+                key={period.label}
+                href={periodHref(period.label, interval, latestChartDate, selectedSecurityKeys)}
+                className={cn(
+                  "rounded-md border border-transparent px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:border-border hover:bg-card hover:text-foreground",
+                  active && "border-border bg-card text-foreground"
+                )}
+              >
+                {period.label}
+              </a>
+            );
+          })}
+        </div>
+      </section>
 
       {errors.length > 0 ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -307,132 +398,131 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-6 border-b border-border/70 pb-7 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
-          <Card key={metric.label}>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {metric.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{metric.value}</p>
-            </CardContent>
-          </Card>
+          <div key={metric.label}>
+            <p className="alpha-kpi-label">{metric.label}</p>
+            <p className="mt-2 text-2xl font-medium tracking-[-0.02em]">{metric.value}</p>
+          </div>
         ))}
-      </div>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Dashboard filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex w-fit rounded-md border p-1">
-              {intervals.map((option) => (
-                <a
-                  key={option.value}
-                  href={dashboardHref(option.value, fromDate, toDate, selectedSecurityKeys)}
-                  className={cn(
-                    "rounded px-3 py-1 text-sm text-muted-foreground",
-                    option.value === interval && "bg-primary text-primary-foreground"
-                  )}
-                >
-                  {option.label}
-                </a>
-              ))}
-            </div>
-            <form className="space-y-4">
-              <input type="hidden" name="interval" value={interval} />
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
-                <label className="space-y-1 text-sm">
-                  <span className="text-muted-foreground">From</span>
-                  <input
-                    type="date"
-                    name="from"
-                    defaultValue={fromDate}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  />
-                </label>
-                <label className="space-y-1 text-sm">
-                  <span className="text-muted-foreground">To</span>
-                  <input
-                    type="date"
-                    name="to"
-                    defaultValue={toDate}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  />
-                </label>
-                <Button type="submit">Apply</Button>
-                <Button asChild type="button" variant="outline">
-                  <a href={`/dashboard?interval=${interval}`}>Clear</a>
-                </Button>
-              </div>
-              {securityOptions.length > 0 ? (
-                <fieldset className="space-y-2">
-                  <legend className="text-sm font-medium">Stocks</legend>
-                  <div className="grid gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {securityOptions.map((option) => (
-                      <label
-                        key={option.key}
-                        className="flex items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-background"
-                      >
-                        <input
-                          type="checkbox"
-                          name="security"
-                          value={option.key}
-                          defaultChecked={selectedSecurityKeySet.has(option.key)}
-                          className="mt-1"
-                        />
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{option.label}</span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {option.key} · {option.count} transactions
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              ) : null}
-            </form>
-            <p className="text-xs text-muted-foreground">
-              {hasSecurityFilter
-                ? `Selected ${selectedSecurityKeys.length} of ${securityOptions.length} stocks. `
-                : `Showing all ${securityOptions.length} stocks. `}
-              Showing {developmentPoints.length} portfolio points and{" "}
-              {capitalDeploymentPoints.length} capital deployment points.
+      <section className="alpha-surface p-5">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="alpha-section-title">Analytical context</h2>
+            <p className="text-sm text-muted-foreground">
+              Filter the portfolio view by date range and selected investments.
             </p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex w-fit rounded-md border border-border/80 bg-background p-1">
+            {intervals.map((option) => (
+              <a
+                key={option.value}
+                href={dashboardHref(option.value, fromDate, toDate, selectedSecurityKeys)}
+                className={cn(
+                  "rounded px-3 py-1 text-sm text-muted-foreground transition hover:text-foreground",
+                  option.value === interval && "bg-card text-foreground"
+                )}
+              >
+                {option.label}
+              </a>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-4">
+          <form className="space-y-4">
+            <input type="hidden" name="interval" value={interval} />
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">From</span>
+                <input
+                  type="date"
+                  name="from"
+                  defaultValue={fromDate}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">To</span>
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={toDate}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <Button type="submit">Apply</Button>
+              <Button asChild type="button" variant="outline">
+                <a href={`/dashboard?interval=${interval}`}>Clear</a>
+              </Button>
+            </div>
+            {securityOptions.length > 0 ? (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">Stocks</legend>
+                <div className="grid gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {securityOptions.map((option) => (
+                    <label
+                      key={option.key}
+                      className="flex items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-background"
+                    >
+                      <input
+                        type="checkbox"
+                        name="security"
+                        value={option.key}
+                        defaultChecked={selectedSecurityKeySet.has(option.key)}
+                        className="mt-1"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{option.label}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {option.key} · {option.count} transactions
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+          </form>
+          <p className="text-xs text-muted-foreground">
+            {hasSecurityFilter
+              ? `Selected ${selectedSecurityKeys.length} of ${securityOptions.length} stocks. `
+              : `Showing all ${securityOptions.length} stocks. `}
+            Showing {developmentPoints.length} portfolio points and{" "}
+            {capitalDeploymentPoints.length} capital deployment points.
+          </p>
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Portfolio development</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PortfolioDevelopmentChart
-            points={developmentPoints}
-            interval={interval}
-            earliestBuyDate={earliestBuyDate}
-            emptyMessage={
-              filteredMarketPrices.length > 0
-                ? "Historical prices are needed before portfolio development can be shown."
-                : "Sync market prices to see portfolio development."
-            }
-          />
-        </CardContent>
-      </Card>
+      <section className="alpha-surface p-5">
+        <div className="mb-5 flex flex-col gap-1">
+          <h2 className="alpha-section-title">Portfolio development</h2>
+          <p className="text-sm text-muted-foreground">
+            Portfolio value and deployed capital over the selected period.
+          </p>
+        </div>
+        <PortfolioDevelopmentChart
+          points={developmentPoints}
+          interval={interval}
+          earliestBuyDate={earliestBuyDate}
+          emptyMessage={
+            filteredMarketPrices.length > 0
+              ? "Historical prices are needed before portfolio development can be shown."
+              : "Sync market prices to see portfolio development."
+          }
+        />
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Capital Deployment</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CapitalDeploymentChart points={capitalDeploymentPoints} interval={interval} />
-        </CardContent>
-      </Card>
+      <section className="alpha-surface p-5">
+        <div className="mb-5 flex flex-col gap-1">
+          <h2 className="alpha-section-title">Capital deployment</h2>
+          <p className="text-sm text-muted-foreground">
+            Cumulative buys minus sells, with dividends collected as a separate line.
+          </p>
+        </div>
+        <CapitalDeploymentChart points={capitalDeploymentPoints} interval={interval} />
+      </section>
     </div>
   );
 }

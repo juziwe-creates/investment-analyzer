@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Investment Analyzer",
+  title: "α Alpha",
   description: "Analyze every investment. Measure every decision."
 };
 
@@ -17,4 +17,3 @@ export default function RootLayout({
     </html>
   );
 }
-

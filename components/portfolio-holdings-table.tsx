@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatDate, formatNumber, formatPercent } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import type { PortfolioHolding } from "@/lib/analytics/portfolio";
 
 type PortfolioHoldingsTableProps = {
@@ -42,6 +43,14 @@ function isAtMost(value: number | null, filter: string) {
   return value !== null && value <= parsed;
 }
 
+function toneClass(value: number | null) {
+  if (value === null || value === 0) {
+    return "text-foreground";
+  }
+
+  return value > 0 ? "text-[hsl(var(--positive))]" : "text-[hsl(var(--negative))]";
+}
+
 export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps) {
   const [search, setSearch] = useState("");
   const [minTotalGain, setMinTotalGain] = useState("");
@@ -51,30 +60,36 @@ export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps
   const [minAnnualizedReturn, setMinAnnualizedReturn] = useState("");
   const [maxAnnualizedReturn, setMaxAnnualizedReturn] = useState("");
   const [priceStatus, setPriceStatus] = useState("all");
+  const totalMarketValue = useMemo(
+    () => holdings.reduce((sum, holding) => sum + (holding.marketValue ?? 0), 0),
+    [holdings]
+  );
   const filteredHoldings = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
-    return holdings.filter((holding) => {
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        holding.securityName.toLowerCase().includes(normalizedSearch) ||
-        holding.securityKey.toLowerCase().includes(normalizedSearch);
-      const matchesPriceStatus =
-        priceStatus === "all" ||
-        (priceStatus === "priced" && holding.marketValue !== null) ||
-        (priceStatus === "unpriced" && holding.marketValue === null);
+    return holdings
+      .filter((holding) => {
+        const matchesSearch =
+          normalizedSearch.length === 0 ||
+          holding.securityName.toLowerCase().includes(normalizedSearch) ||
+          holding.securityKey.toLowerCase().includes(normalizedSearch);
+        const matchesPriceStatus =
+          priceStatus === "all" ||
+          (priceStatus === "priced" && holding.marketValue !== null) ||
+          (priceStatus === "unpriced" && holding.marketValue === null);
 
-      return (
-        matchesSearch &&
-        matchesPriceStatus &&
-        isAtLeast(holding.totalProfitability, minTotalGain) &&
-        isAtMost(holding.totalProfitability, maxTotalGain) &&
-        isAtLeast(holding.totalReturnPercent, minTotalReturn) &&
-        isAtMost(holding.totalReturnPercent, maxTotalReturn) &&
-        isAtLeast(holding.annualizedReturnPercent, minAnnualizedReturn) &&
-        isAtMost(holding.annualizedReturnPercent, maxAnnualizedReturn)
-      );
-    });
+        return (
+          matchesSearch &&
+          matchesPriceStatus &&
+          isAtLeast(holding.totalProfitability, minTotalGain) &&
+          isAtMost(holding.totalProfitability, maxTotalGain) &&
+          isAtLeast(holding.totalReturnPercent, minTotalReturn) &&
+          isAtMost(holding.totalReturnPercent, maxTotalReturn) &&
+          isAtLeast(holding.annualizedReturnPercent, minAnnualizedReturn) &&
+          isAtMost(holding.annualizedReturnPercent, maxAnnualizedReturn)
+        );
+      })
+      .sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0));
   }, [
     holdings,
     maxAnnualizedReturn,
@@ -110,9 +125,9 @@ export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Current holdings</CardTitle>
+        <CardTitle>Holdings</CardTitle>
         <CardDescription>
-          Open positions derived from buy and sell transactions.
+          Current positions derived from buy and sell transactions.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -136,7 +151,7 @@ export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps
                 <select
                   value={priceStatus}
                   onChange={(event) => setPriceStatus(event.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value="all">All</option>
                   <option value="priced">Priced only</option>
@@ -218,58 +233,62 @@ export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps
                 No holdings match the current filters.
               </div>
             ) : (
-              <table className="w-full min-w-[1240px] text-sm">
+              <table className="alpha-table min-w-[1240px]">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
-                      <th className="px-3 py-2 font-medium">Security</th>
-                      <th className="px-3 py-2 text-right font-medium">Quantity</th>
-                      <th className="px-3 py-2 text-right font-medium">Invested capital</th>
-                      <th className="px-3 py-2 text-right font-medium">Latest price</th>
-                      <th className="px-3 py-2 text-right font-medium">Market value</th>
-                      <th className="px-3 py-2 text-right font-medium">Gain/loss</th>
-                      <th className="px-3 py-2 text-right font-medium">Dividends</th>
-                      <th className="px-3 py-2 text-right font-medium">
-                        Total gain incl. dividends
-                      </th>
-                      <th className="px-3 py-2 text-right font-medium">Total return</th>
-                      <th className="px-3 py-2 text-right font-medium">Annualized return</th>
-                      <th className="px-3 py-2 font-medium">Price date</th>
+                      <th>Investment</th>
+                      <th className="text-right">Value</th>
+                      <th className="text-right">Deployed</th>
+                      <th className="text-right">Return</th>
+                      <th className="text-right">Ann. Return</th>
+                      <th className="text-right">Yield on Cost</th>
+                      <th className="text-right">Ptf Weight</th>
+                      <th>Price date</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredHoldings.map((holding) => (
-                      <tr key={holding.securityKey} className="border-b last:border-0">
-                        <td className="px-3 py-3 font-medium">{holding.securityName}</td>
-                        <td className="px-3 py-3 text-right">{formatNumber(holding.quantity)}</td>
-                        <td className="px-3 py-3 text-right">
-                          {formatCurrency(holding.investedCapital, holding.currency)}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {formatCurrency(holding.latestPrice, holding.currency)}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {formatCurrency(holding.marketValue, holding.currency)}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {formatCurrency(holding.investmentGain, holding.currency)}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {formatCurrency(holding.dividendsReceived, holding.currency)}
-                        </td>
-                        <td className="px-3 py-3 text-right font-medium">
-                          {formatCurrency(holding.totalProfitability, holding.currency)}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {formatPercent(holding.totalReturnPercent)}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {formatPercent(holding.annualizedReturnPercent)}
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {holding.priceDate ? formatDate(holding.priceDate) : "Add price"}
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredHoldings.map((holding) => {
+                      const portfolioWeight =
+                        totalMarketValue > 0 && holding.marketValue !== null
+                          ? (holding.marketValue / totalMarketValue) * 100
+                          : null;
+                      const yieldOnCost =
+                        holding.investedCapital > 0
+                          ? (holding.dividendsReceived / holding.investedCapital) * 100
+                          : null;
+
+                      return (
+                        <tr key={holding.securityKey} className="border-b last:border-0">
+                          <td className="font-medium">
+                            <div>{holding.securityName}</div>
+                            <div className="text-xs font-normal text-muted-foreground">
+                              {formatNumber(holding.quantity)} shares · latest{" "}
+                              {formatCurrency(holding.latestPrice, holding.currency)}
+                            </div>
+                          </td>
+                          <td className="text-right">
+                            {formatCurrency(holding.marketValue, holding.currency)}
+                          </td>
+                          <td className="text-right">
+                            {formatCurrency(holding.investedCapital, holding.currency)}
+                          </td>
+                          <td className={cn("text-right font-medium", toneClass(holding.totalProfitability))}>
+                            <div>{formatCurrency(holding.totalProfitability, holding.currency)}</div>
+                            <div className="text-xs font-normal">
+                              {formatPercent(holding.totalReturnPercent)}
+                            </div>
+                          </td>
+                          <td className={cn("text-right", toneClass(holding.annualizedReturnPercent))}>
+                            {formatPercent(holding.annualizedReturnPercent)}
+                          </td>
+                          <td className="text-right">{formatPercent(yieldOnCost)}</td>
+                          <td className="text-right">{formatPercent(portfolioWeight)}</td>
+                          <td className="text-muted-foreground">
+                            {holding.priceDate ? formatDate(holding.priceDate) : "Add price"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
               </table>
             )}

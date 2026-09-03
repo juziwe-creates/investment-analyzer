@@ -122,34 +122,37 @@ export default async function MarketDataPage({
   ).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Market Data</h2>
-        <p className="text-muted-foreground">
+        <p className="alpha-kpi-label">Data reliability</p>
+        <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em] text-foreground">
+          Market Data
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Manage provider symbols and sync historical prices without wasting API calls.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-md border bg-background p-4">
-          <p className="text-sm text-muted-foreground">Active provider</p>
-          <p className="mt-1 text-xl font-semibold">{providerId}</p>
+      <section className="grid border-y border-border/80 md:grid-cols-4">
+        <div className="border-b border-border/80 py-5 md:border-b-0 md:border-r">
+          <p className="alpha-kpi-label">Active provider</p>
+          <p className="mt-2 text-xl font-medium">{providerId}</p>
         </div>
-        <div className="rounded-md border bg-background p-4">
-          <p className="text-sm text-muted-foreground">Sync mode</p>
-          <p className="mt-1 text-xl font-semibold">One security</p>
+        <div className="border-b border-border/80 py-5 md:border-b-0 md:border-r md:px-5">
+          <p className="alpha-kpi-label">Sync mode</p>
+          <p className="mt-2 text-xl font-medium">One security</p>
         </div>
-        <div className="rounded-md border bg-background p-4">
-          <p className="text-sm text-muted-foreground">Estimated calls</p>
-          <p className="mt-1 text-xl font-semibold">2 per sync</p>
+        <div className="border-b border-border/80 py-5 md:border-b-0 md:border-r md:px-5">
+          <p className="alpha-kpi-label">Estimated calls</p>
+          <p className="mt-2 text-xl font-medium">2 per sync</p>
         </div>
-        <div className="rounded-md border bg-background p-4">
-          <p className="text-sm text-muted-foreground">Est. calls last hour</p>
-          <p className="mt-1 text-xl font-semibold">{estimatedApiCallsLastHour}</p>
+        <div className="py-5 md:pl-5">
+          <p className="alpha-kpi-label">Est. calls last hour</p>
+          <p className="mt-2 text-xl font-medium">{estimatedApiCallsLastHour}</p>
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-md border bg-background p-4">
+      <section className="alpha-surface p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="font-medium">Refresh synced stocks and ETFs</p>
@@ -163,16 +166,16 @@ export default async function MarketDataPage({
             <button
               type="submit"
               disabled={bulkRefreshCandidateCount === 0}
-              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-[hsl(var(--accent-hover))] disabled:pointer-events-none disabled:opacity-50"
             >
               Refresh synced securities
             </button>
           </form>
         </div>
-      </div>
+      </section>
 
       {message ? (
-        <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
+        <div className="alpha-surface px-4 py-3 text-sm text-muted-foreground">
           {message}
         </div>
       ) : null}

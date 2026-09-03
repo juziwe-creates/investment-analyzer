@@ -321,7 +321,7 @@ export function MarketDataSyncTable({
                   id="market-data-filter"
                   name="filter"
                   defaultValue={activeFilter}
-                  className="mt-2 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="mt-2 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value="all">All securities</option>
                   <option value="owned">Owned only</option>
@@ -342,7 +342,7 @@ export function MarketDataSyncTable({
               </div>
             </form>
 
-            <table className="w-full min-w-[1500px] text-sm">
+            <table className="alpha-table min-w-[1500px]">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Security</th>

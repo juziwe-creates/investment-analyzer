@@ -40,16 +40,19 @@ export default async function SecuritiesPage({
   const securities = calculateSecurityInventory(transactions ?? [], holdings);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Securities</h2>
-        <p className="text-muted-foreground">
+        <p className="alpha-kpi-label">Security universe</p>
+        <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em] text-foreground">
+          Securities
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           A read-only lookup derived from your transactions. No manual security catalog needed.
         </p>
       </div>
 
       {message ? (
-        <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
+        <div className="alpha-surface px-4 py-3 text-sm text-muted-foreground">
           {message}
         </div>
       ) : null}

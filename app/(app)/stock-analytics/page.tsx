@@ -1,5 +1,4 @@
 import { StockAnalyticsTable } from "@/components/stock-analytics-table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buildCurrentAnalytics } from "@/lib/analytics/portfolio";
 import { calculateStockAnalytics } from "@/lib/analytics/transaction-analytics";
 import { formatCurrency, formatPercent } from "@/lib/formatters";
@@ -63,14 +62,15 @@ export default async function StockAnalyticsPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Stock Analytics</h2>
-        <p className="text-muted-foreground">
+    <div className="space-y-8">
+      <header className="border-b border-border/70 pb-6">
+        <p className="alpha-kpi-label">Investment analytics</p>
+        <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em]">Stock Analytics</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
           Security-level profitability aggregated from the same buy-lot calculations used
           by transaction analytics.
         </p>
-      </div>
+      </header>
 
       {errors.length > 0 ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -78,22 +78,16 @@ export default async function StockAnalyticsPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-6 border-b border-border/70 pb-7 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
-          <Card key={metric.label}>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {metric.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{metric.value}</p>
-            </CardContent>
-          </Card>
+          <div key={metric.label}>
+            <p className="alpha-kpi-label">{metric.label}</p>
+            <p className="mt-2 text-2xl font-medium tracking-[-0.02em]">{metric.value}</p>
+          </div>
         ))}
-      </div>
+      </section>
 
-      <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
+      <div className="alpha-surface px-4 py-3 text-sm leading-6 text-muted-foreground">
         Stock totals reconcile with the transaction analytics rows. Raw profitability uses
         current value plus sale proceeds plus after-tax dividends, minus acquisition cost.
       </div>

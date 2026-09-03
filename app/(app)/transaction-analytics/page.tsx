@@ -1,5 +1,4 @@
 import { TransactionAnalyticsTable } from "@/components/transaction-analytics-table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buildCurrentAnalytics } from "@/lib/analytics/portfolio";
 import { calculateTransactionAnalytics } from "@/lib/analytics/transaction-analytics";
 import { formatCurrency, formatPercent } from "@/lib/formatters";
@@ -63,14 +62,15 @@ export default async function TransactionAnalyticsPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Transaction Analytics</h2>
-        <p className="text-muted-foreground">
+    <div className="space-y-8">
+      <header className="border-b border-border/70 pb-6">
+        <p className="alpha-kpi-label">Decision analytics</p>
+        <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em]">Lot Analytics</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
           Purchase-level profitability with dividends attributed back to the buy lots that
           earned them.
         </p>
-      </div>
+      </header>
 
       {errors.length > 0 ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -78,22 +78,16 @@ export default async function TransactionAnalyticsPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-6 border-b border-border/70 pb-7 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
-          <Card key={metric.label}>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {metric.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{metric.value}</p>
-            </CardContent>
-          </Card>
+          <div key={metric.label}>
+            <p className="alpha-kpi-label">{metric.label}</p>
+            <p className="mt-2 text-2xl font-medium tracking-[-0.02em]">{metric.value}</p>
+          </div>
         ))}
-      </div>
+      </section>
 
-      <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
+      <div className="alpha-surface px-4 py-3 text-sm leading-6 text-muted-foreground">
         LIFO rule: sells consume the newest open buy lots first. Current dividend yield =
         latest dividend per share allocated to this lot divided by cost basis per share.
         Dividends tax free = dividends allocated pro-rata by shares owned on each dividend
