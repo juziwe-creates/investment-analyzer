@@ -18,7 +18,7 @@ export default async function LoginPage({
       message={message}
       footer={
         <>
-          New to Investment Analyzer?{" "}
+          New to Alpha?{" "}
           <Link className="font-medium underline" href="/signup">
             Create an account
           </Link>
@@ -27,4 +27,3 @@ export default async function LoginPage({
     />
   );
 }
-

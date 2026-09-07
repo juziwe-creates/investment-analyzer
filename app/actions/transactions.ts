@@ -80,6 +80,26 @@ async function getOrCreateDefaultPortfolio(userId: string) {
   return newPortfolio.id;
 }
 
+async function resolvePortfolio(userId: string, requestedPortfolioId: string | null) {
+  if (!requestedPortfolioId) {
+    return getOrCreateDefaultPortfolio(userId);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("portfolios")
+    .select("id")
+    .eq("id", requestedPortfolioId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) {
+    redirect("/transactions?message=Selected portfolio is unavailable");
+  }
+
+  return data.id;
+}
+
 export async function createManualTransaction(formData: FormData) {
   const supabase = await createClient();
   const {
@@ -111,7 +131,8 @@ export async function createManualTransaction(formData: FormData) {
     redirect("/transactions?message=Quantity is required for buy and sell transactions");
   }
 
-  const portfolioId = await getOrCreateDefaultPortfolio(user.id);
+  const requestedPortfolioId = optionalText(formData, "portfolio_id");
+  const portfolioId = await resolvePortfolio(user.id, requestedPortfolioId);
 
   const { data: transaction, error: transactionError } = await supabase
     .from("transactions")
@@ -175,6 +196,8 @@ export async function createManualTransaction(formData: FormData) {
   }
 
   revalidatePath("/transactions");
-  redirect("/transactions?message=Transaction saved");
+  const portfolioQuery = requestedPortfolioId
+    ? `&portfolio=${encodeURIComponent(requestedPortfolioId)}`
+    : "";
+  redirect(`/transactions?message=Transaction saved${portfolioQuery}`);
 }
-

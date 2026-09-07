@@ -3,9 +3,13 @@ export function formatCurrency(value: number | null, currency = "EUR") {
     return "-";
   }
 
+  if (currency !== "EUR") {
+    return "FX unavailable";
+  }
+
   return new Intl.NumberFormat("en", {
     style: "currency",
-    currency
+    currency: "EUR"
   }).format(value);
 }
 

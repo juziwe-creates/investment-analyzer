@@ -1,300 +1,93 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowUpDown, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { formatCurrency, formatDate, formatNumber, formatPercent } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
+import { formatCurrency, formatNumber, formatPercent } from "@/lib/formatters";
 import type { PortfolioHolding } from "@/lib/analytics/portfolio";
 
-type PortfolioHoldingsTableProps = {
-  holdings: PortfolioHolding[];
-};
+type SortKey = "name" | "value" | "deployed" | "annualized" | "weight";
 
-function numericFilterValue(value: string) {
-  const normalizedValue = value.trim().replace(",", ".");
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  const parsed = Number(normalizedValue);
-
-  return Number.isFinite(parsed) ? parsed : null;
+function detailHref(securityKey: string, portfolio: string | null) {
+  const path = `/portfolio/${encodeURIComponent(securityKey)}`;
+  return portfolio ? `${path}?portfolio=${encodeURIComponent(portfolio)}` : path;
 }
 
-function isAtLeast(value: number | null, filter: string) {
-  const parsed = numericFilterValue(filter);
-
-  if (parsed === null) {
-    return true;
-  }
-
-  return value !== null && value >= parsed;
+function SortButton({ label, value, onSort }: { label: string; value: SortKey; onSort: (value: SortKey) => void }) {
+  return <button type="button" className="alpha-focus inline-flex items-center gap-1" onClick={() => onSort(value)}>{label}<ArrowUpDown className="h-3 w-3" aria-hidden="true" /></button>;
 }
 
-function isAtMost(value: number | null, filter: string) {
-  const parsed = numericFilterValue(filter);
-
-  if (parsed === null) {
-    return true;
-  }
-
-  return value !== null && value <= parsed;
-}
-
-function toneClass(value: number | null) {
-  if (value === null || value === 0) {
-    return "text-foreground";
-  }
-
-  return value > 0 ? "text-[hsl(var(--positive))]" : "text-[hsl(var(--negative))]";
-}
-
-export function PortfolioHoldingsTable({ holdings }: PortfolioHoldingsTableProps) {
+export function PortfolioHoldingsTable({ holdings }: { holdings: PortfolioHolding[] }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const portfolio = searchParams.get("portfolio");
   const [search, setSearch] = useState("");
-  const [minTotalGain, setMinTotalGain] = useState("");
-  const [maxTotalGain, setMaxTotalGain] = useState("");
-  const [minTotalReturn, setMinTotalReturn] = useState("");
-  const [maxTotalReturn, setMaxTotalReturn] = useState("");
-  const [minAnnualizedReturn, setMinAnnualizedReturn] = useState("");
-  const [maxAnnualizedReturn, setMaxAnnualizedReturn] = useState("");
-  const [priceStatus, setPriceStatus] = useState("all");
-  const totalMarketValue = useMemo(
+  const [sortKey, setSortKey] = useState<SortKey>("weight");
+  const [ascending, setAscending] = useState(false);
+  const totalValue = useMemo(
     () => holdings.reduce((sum, holding) => sum + (holding.marketValue ?? 0), 0),
     [holdings]
   );
-  const filteredHoldings = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+  const rows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const valueFor = (holding: PortfolioHolding): string | number => {
+      if (sortKey === "name") return holding.securityName.toLowerCase();
+      if (sortKey === "value") return holding.marketValue ?? -Infinity;
+      if (sortKey === "deployed") return holding.investedCapital;
+      if (sortKey === "annualized") return holding.annualizedReturnPercent ?? -Infinity;
+      return totalValue > 0 && holding.marketValue !== null ? holding.marketValue / totalValue : -Infinity;
+    };
 
     return holdings
-      .filter((holding) => {
-        const matchesSearch =
-          normalizedSearch.length === 0 ||
-          holding.securityName.toLowerCase().includes(normalizedSearch) ||
-          holding.securityKey.toLowerCase().includes(normalizedSearch);
-        const matchesPriceStatus =
-          priceStatus === "all" ||
-          (priceStatus === "priced" && holding.marketValue !== null) ||
-          (priceStatus === "unpriced" && holding.marketValue === null);
+      .filter((holding) => !term || holding.securityName.toLowerCase().includes(term) || holding.securityKey.toLowerCase().includes(term))
+      .sort((a, b) => {
+        const left = valueFor(a);
+        const right = valueFor(b);
+        const result = typeof left === "string" && typeof right === "string" ? left.localeCompare(right) : Number(left) - Number(right);
+        return ascending ? result : -result;
+      });
+  }, [ascending, holdings, search, sortKey, totalValue]);
 
-        return (
-          matchesSearch &&
-          matchesPriceStatus &&
-          isAtLeast(holding.totalProfitability, minTotalGain) &&
-          isAtMost(holding.totalProfitability, maxTotalGain) &&
-          isAtLeast(holding.totalReturnPercent, minTotalReturn) &&
-          isAtMost(holding.totalReturnPercent, maxTotalReturn) &&
-          isAtLeast(holding.annualizedReturnPercent, minAnnualizedReturn) &&
-          isAtMost(holding.annualizedReturnPercent, maxAnnualizedReturn)
-        );
-      })
-      .sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0));
-  }, [
-    holdings,
-    maxAnnualizedReturn,
-    maxTotalGain,
-    maxTotalReturn,
-    minAnnualizedReturn,
-    minTotalGain,
-    minTotalReturn,
-    priceStatus,
-    search
-  ]);
-  const hasActiveFilters =
-    search ||
-    minTotalGain ||
-    maxTotalGain ||
-    minTotalReturn ||
-    maxTotalReturn ||
-    minAnnualizedReturn ||
-    maxAnnualizedReturn ||
-    priceStatus !== "all";
+  function changeSort(next: SortKey) {
+    if (next === sortKey) {
+      setAscending((value) => !value);
+      return;
+    }
+    setSortKey(next);
+    setAscending(next === "name");
+  }
 
-  function clearFilters() {
-    setSearch("");
-    setMinTotalGain("");
-    setMaxTotalGain("");
-    setMinTotalReturn("");
-    setMaxTotalReturn("");
-    setMinAnnualizedReturn("");
-    setMaxAnnualizedReturn("");
-    setPriceStatus("all");
+  if (holdings.length === 0) {
+    return <section className="alpha-surface flex min-h-56 items-center justify-center px-6 text-center"><div><h2 className="alpha-section-title">No current holdings</h2><p className="mt-2 text-sm text-muted-foreground">Add or import buy transactions, then sync prices to begin portfolio analysis.</p></div></section>;
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Holdings</CardTitle>
-        <CardDescription>
-          Current positions derived from buy and sell transactions.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {holdings.length === 0 ? (
-          <div className="flex h-48 items-center justify-center rounded-md border border-dashed text-center text-sm text-muted-foreground">
-            Add buy transactions and prices to see current holdings.
+    <section className="space-y-4" aria-labelledby="holdings-heading">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div><h2 id="holdings-heading" className="alpha-section-title">Current holdings</h2><p className="mt-1 text-sm text-muted-foreground">{rows.length} of {holdings.length} investments</p></div>
+        <label className="relative block w-full sm:w-72"><span className="sr-only">Filter holdings</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter investments" className="pl-9" /></label>
+      </div>
+      {rows.length === 0 ? <div className="alpha-surface flex h-40 items-center justify-center text-sm text-muted-foreground">No holdings match this filter.</div> : (
+        <>
+          <div className="hidden overflow-clip rounded-lg border border-border/80 bg-card md:block">
+            <table className="alpha-table"><thead><tr><th><SortButton label="Investment" value="name" onSort={changeSort} /></th><th className="text-right"><SortButton label="Value" value="value" onSort={changeSort} /></th><th className="text-right"><SortButton label="Deployed" value="deployed" onSort={changeSort} /></th><th className="text-right">Return</th><th className="text-right"><SortButton label="Ann. Return" value="annualized" onSort={changeSort} /></th><th className="text-right">Yield on Cost</th><th className="text-right"><SortButton label="Ptf Weight" value="weight" onSort={changeSort} /></th></tr></thead>
+              <tbody>{rows.map((holding) => {
+                const weight = totalValue > 0 && holding.marketValue !== null ? (holding.marketValue / totalValue) * 100 : null;
+                const href = detailHref(holding.securityKey, portfolio);
+                return <tr key={holding.securityKey} role="link" tabIndex={0} className="cursor-pointer" onClick={() => router.push(href)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(href); } }}>
+                  <td><p className="font-medium">{holding.securityName}</p><p className="mt-0.5 text-xs text-muted-foreground">{formatNumber(holding.quantity)} shares</p></td>
+                  <td className="text-right">{formatCurrency(holding.marketValue, holding.currency)}</td><td className="text-right">{formatCurrency(holding.investedCapital, holding.currency)}</td>
+                  <td className="text-right text-muted-foreground" title="Total Return definition is pending approval">Pending</td><td className="text-right">{formatPercent(holding.annualizedReturnPercent)}</td><td className="text-right text-muted-foreground" title="Yield on Cost definition is pending approval">Pending</td><td className="text-right">{formatPercent(weight)}</td>
+                </tr>;
+              })}</tbody></table>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid gap-3 rounded-md border bg-muted/30 p-3 sm:grid-cols-2 xl:grid-cols-4">
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Stock</span>
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Name or ISIN"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Price status</span>
-                <select
-                  value={priceStatus}
-                  onChange={(event) => setPriceStatus(event.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="all">All</option>
-                  <option value="priced">Priced only</option>
-                  <option value="unpriced">Missing price</option>
-                </select>
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Total gain min</span>
-                <Input
-                  value={minTotalGain}
-                  onChange={(event) => setMinTotalGain(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="EUR"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Total gain max</span>
-                <Input
-                  value={maxTotalGain}
-                  onChange={(event) => setMaxTotalGain(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="EUR"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Total return min %</span>
-                <Input
-                  value={minTotalReturn}
-                  onChange={(event) => setMinTotalReturn(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="%"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Total return max %</span>
-                <Input
-                  value={maxTotalReturn}
-                  onChange={(event) => setMaxTotalReturn(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="%"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Annualized min %</span>
-                <Input
-                  value={minAnnualizedReturn}
-                  onChange={(event) => setMinAnnualizedReturn(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="%"
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Annualized max %</span>
-                <Input
-                  value={maxAnnualizedReturn}
-                  onChange={(event) => setMaxAnnualizedReturn(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="%"
-                />
-              </label>
-              <div className="flex items-end justify-between gap-3 text-sm text-muted-foreground xl:col-span-4">
-                <span>
-                  Showing {filteredHoldings.length} of {holdings.length} holdings
-                </span>
-                {hasActiveFilters ? (
-                  <button
-                    type="button"
-                    onClick={clearFilters}
-                    className="rounded-md border px-3 py-1.5 text-sm text-foreground hover:bg-background"
-                  >
-                    Clear filters
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {filteredHoldings.length === 0 ? (
-              <div className="flex h-40 items-center justify-center rounded-md border border-dashed text-center text-sm text-muted-foreground">
-                No holdings match the current filters.
-              </div>
-            ) : (
-              <table className="alpha-table min-w-[1240px]">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th>Investment</th>
-                      <th className="text-right">Value</th>
-                      <th className="text-right">Deployed</th>
-                      <th className="text-right">Return</th>
-                      <th className="text-right">Ann. Return</th>
-                      <th className="text-right">Yield on Cost</th>
-                      <th className="text-right">Ptf Weight</th>
-                      <th>Price date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredHoldings.map((holding) => {
-                      const portfolioWeight =
-                        totalMarketValue > 0 && holding.marketValue !== null
-                          ? (holding.marketValue / totalMarketValue) * 100
-                          : null;
-                      const yieldOnCost =
-                        holding.investedCapital > 0
-                          ? (holding.dividendsReceived / holding.investedCapital) * 100
-                          : null;
-
-                      return (
-                        <tr key={holding.securityKey} className="border-b last:border-0">
-                          <td className="font-medium">
-                            <div>{holding.securityName}</div>
-                            <div className="text-xs font-normal text-muted-foreground">
-                              {formatNumber(holding.quantity)} shares · latest{" "}
-                              {formatCurrency(holding.latestPrice, holding.currency)}
-                            </div>
-                          </td>
-                          <td className="text-right">
-                            {formatCurrency(holding.marketValue, holding.currency)}
-                          </td>
-                          <td className="text-right">
-                            {formatCurrency(holding.investedCapital, holding.currency)}
-                          </td>
-                          <td className={cn("text-right font-medium", toneClass(holding.totalProfitability))}>
-                            <div>{formatCurrency(holding.totalProfitability, holding.currency)}</div>
-                            <div className="text-xs font-normal">
-                              {formatPercent(holding.totalReturnPercent)}
-                            </div>
-                          </td>
-                          <td className={cn("text-right", toneClass(holding.annualizedReturnPercent))}>
-                            {formatPercent(holding.annualizedReturnPercent)}
-                          </td>
-                          <td className="text-right">{formatPercent(yieldOnCost)}</td>
-                          <td className="text-right">{formatPercent(portfolioWeight)}</td>
-                          <td className="text-muted-foreground">
-                            {holding.priceDate ? formatDate(holding.priceDate) : "Add price"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-              </table>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="space-y-2 md:hidden">{rows.map((holding) => {
+            const weight = totalValue > 0 && holding.marketValue !== null ? (holding.marketValue / totalValue) * 100 : null;
+            return <button key={holding.securityKey} type="button" onClick={() => router.push(detailHref(holding.securityKey, portfolio))} className="alpha-focus alpha-surface w-full p-4 text-left"><div className="flex items-start justify-between gap-4"><div><p className="font-medium">{holding.securityName}</p><p className="mt-1 text-lg font-medium">{formatCurrency(holding.marketValue, holding.currency)}</p></div><span className="text-sm font-medium">{formatPercent(weight)}</span></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-border/70 pt-3 text-sm"><div><span className="text-muted-foreground">Deployed</span><p>{formatCurrency(holding.investedCapital, holding.currency)}</p></div><div><span className="text-muted-foreground">Annualized</span><p>{formatPercent(holding.annualizedReturnPercent)}</p></div></div></button>;
+          })}</div>
+        </>
+      )}
+    </section>
   );
 }

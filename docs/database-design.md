@@ -1,8 +1,10 @@
 # Database Design
 
+> Authority note: this document describes the supporting data model. Product and calculation semantics are governed by `docs/product-spec.md` and `docs/analytics-rules.md`. No schema change is implied by the Phase 0 documentation reconciliation.
+
 # Goals
 
-The database design supports Investment Analyzer's core principle: transactions are the source of truth.
+The database design supports Alpha's core principle: transactions are the source of truth.
 
 The schema should make it possible to:
 
@@ -520,12 +522,14 @@ The MVP can start by allocating dividends proportionally to held quantity on the
 
 The current implemented formulas are documented in `docs/analytics-rules.md`.
 
-MVP dividend profitability definitions:
+Historical/current dividend profitability notes:
 
 - Current dividend profitability is trailing-12-month allocated dividend per currently open share divided by the buy-lot price.
 - Average dividend profitability is lifetime allocated dividends divided by years held, divided by original lot quantity, divided by the buy-lot price.
 - Buy-lot price is derived as lot cost basis divided by original quantity.
 - These are yield-on-cost style metrics, not current market dividend yield.
+
+These notes do not establish the final V1 Yield on Cost rule. Current implementation and older proposals use inconsistent time windows, and gross-versus-after-tax dividend treatment is unresolved. The final definitions require an explicit product decision and an update to `docs/analytics-rules.md`.
 
 # Row Level Security
 
@@ -539,9 +543,7 @@ Tables with user-owned data should include `user_id` and enforce RLS policies:
 - `import_rows`
 - `portfolio_snapshots`
 
-Shared or reference-like tables:
-
-- `market_prices`
+User-scoped supporting market-data tables include `market_prices`, `market_dividends`, `market_data_sync_runs`, and `security_provider_symbols`. Any future globally shared market-reference tables must contain no user financial data and require an explicit access-control design.
 
 Security principles:
 
@@ -621,8 +623,9 @@ Deferrable until after MVP:
 
 # Open Database Questions
 
-- Should the MVP support multiple currencies, or assume EUR while keeping currency columns ready?
+- How should EUR valuations and FX rates be sourced, dated, stored or derived, and audited for multi-currency assets?
 - Should dividend transactions reference `security_id` only, or also a broker cash account later?
 - Should taxes and fees be modeled as components first, standalone transactions first, or both?
 - Should market prices be user-imported initially or fetched from a provider?
 - Should snapshots be calculated on demand first and persisted only when performance requires it?
+- Does the existing `portfolios` model map directly to broker accounts, or is a separate broker-account entity required?

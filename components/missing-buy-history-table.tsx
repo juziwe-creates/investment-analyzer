@@ -1,57 +1,7 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import type { SecurityActivityWithoutBuyHistory } from "@/lib/analytics/portfolio";
 
-type MissingBuyHistoryTableProps = {
-  securities: SecurityActivityWithoutBuyHistory[];
-};
-
-export function MissingBuyHistoryTable({ securities }: MissingBuyHistoryTableProps) {
-  if (securities.length === 0) {
-    return null;
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Missing buy history</CardTitle>
-        <CardDescription>
-          These securities have dividend or sell transactions, but no buy transactions yet.
-          They are not counted as current holdings until their buy history is imported.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <table className="alpha-table min-w-[760px]">
-            <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="px-3 py-2 font-medium">Security</th>
-                <th className="px-3 py-2 font-medium">ISIN</th>
-                <th className="px-3 py-2 font-medium">Ticker</th>
-                <th className="px-3 py-2 text-right font-medium">Dividends</th>
-                <th className="px-3 py-2 text-right font-medium">Total dividends</th>
-                <th className="px-3 py-2 font-medium">Latest activity</th>
-              </tr>
-            </thead>
-            <tbody>
-              {securities.map((security) => (
-                <tr key={security.securityKey} className="border-b last:border-0">
-                  <td className="px-3 py-3 font-medium">{security.securityName}</td>
-                  <td className="px-3 py-3 text-muted-foreground">
-                    {security.isin ?? "-"}
-                  </td>
-                  <td className="px-3 py-3 text-muted-foreground">
-                    {security.ticker ?? "-"}
-                  </td>
-                  <td className="px-3 py-3 text-right">{security.dividendCount}</td>
-                  <td className="px-3 py-3 text-right">
-                    {formatCurrency(security.totalDividends, security.currency)}
-                  </td>
-                  <td className="px-3 py-3">{formatDate(security.latestTransactionDate)}</td>
-                </tr>
-              ))}
-            </tbody>
-        </table>
-      </CardContent>
-    </Card>
-  );
+export function MissingBuyHistoryTable({ securities }: { securities: SecurityActivityWithoutBuyHistory[] }) {
+  if (securities.length === 0) return null;
+  return <section className="space-y-4" aria-labelledby="missing-history-heading"><div><h2 id="missing-history-heading" className="alpha-section-title">Incomplete transaction history</h2><p className="mt-1 text-sm text-muted-foreground">These investments contain dividends or sells but no buy records, so they cannot be included in derived holdings.</p></div><div className="space-y-2 md:hidden">{securities.map((security) => <article key={security.securityKey} className="alpha-surface p-4"><p className="font-medium">{security.securityName}</p><p className="mt-1 text-xs text-muted-foreground">{security.isin ?? security.ticker ?? "No identifier"}</p><div className="mt-3 flex justify-between text-sm"><span>{security.dividendCount} dividend payments</span><span>{formatCurrency(security.totalDividends, security.currency)}</span></div></article>)}</div><div className="hidden overflow-clip rounded-lg border border-border bg-card md:block"><table className="alpha-table"><thead><tr><th>Investment</th><th>ISIN / Ticker</th><th className="text-right">Dividends</th><th className="text-right">Received</th><th className="text-right">Latest activity</th></tr></thead><tbody>{securities.map((security) => <tr key={security.securityKey}><td className="font-medium">{security.securityName}</td><td className="text-muted-foreground">{security.isin ?? security.ticker ?? "-"}</td><td className="text-right">{security.dividendCount}</td><td className="text-right">{formatCurrency(security.totalDividends, security.currency)}</td><td className="text-right">{formatDate(security.latestTransactionDate)}</td></tr>)}</tbody></table></div></section>;
 }

@@ -16,9 +16,9 @@ function isBulkRefreshAsset(assetType: string | null) {
 export default async function MarketDataPage({
   searchParams
 }: {
-  searchParams: Promise<{ filter?: string; message?: string; q?: string }>;
+  searchParams: Promise<{ filter?: string; message?: string; q?: string; portfolio?: string }>;
 }) {
-  const { filter, message, q } = await searchParams;
+  const { filter, message, q, portfolio: portfolioId } = await searchParams;
   const providerId = configuredMarketDataProviderId();
   const supabase = await createClient();
   // This operational counter should reflect the current request time.
@@ -72,6 +72,16 @@ export default async function MarketDataPage({
     .select("*")
     .order("trade_date", { ascending: true })
     .order("created_at", { ascending: true });
+  if (portfolioId) {
+    manualPricesQuery.eq("portfolio_id", portfolioId);
+    marketPricesQuery.eq("portfolio_id", portfolioId);
+    priceCoverageQuery.eq("portfolio_id", portfolioId);
+    dividendCoverageQuery.eq("portfolio_id", portfolioId);
+    providerSymbolsQuery.eq("portfolio_id", portfolioId);
+    syncRunsQuery.eq("portfolio_id", portfolioId);
+    recentSyncRunsQuery.eq("portfolio_id", portfolioId);
+    transactionsQuery.eq("portfolio_id", portfolioId);
+  }
   const [
     { data: manualPrices, error: manualPricesError },
     { data: marketPrices, error: marketPricesError },
@@ -162,7 +172,7 @@ export default async function MarketDataPage({
             </p>
           </div>
           <form action={refreshSyncedMarketData}>
-            <input type="hidden" name="return_to" value="/market-data" />
+            <input type="hidden" name="return_to" value={portfolioId ? `/market-data?portfolio=${encodeURIComponent(portfolioId)}` : "/market-data"} />
             <button
               type="submit"
               disabled={bulkRefreshCandidateCount === 0}

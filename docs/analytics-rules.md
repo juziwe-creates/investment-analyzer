@@ -1,8 +1,10 @@
 # Analytics Rules
 
+> Status: this document records implemented formulas and approved analytics decisions, while explicitly identifying unresolved product choices. Existing behavior is not automatically an approved product rule.
+
 # Purpose
 
-This document records the formulas and analytics decisions currently used by Investment Analyzer.
+This document records the formulas and analytics decisions currently used by Alpha.
 
 The goal is to make every displayed number reproducible from source transactions and prices. If an analytics formula changes, this document should change in the same pull request or commit.
 
@@ -407,14 +409,18 @@ Current behavior:
 - Open lots with no current price have missing current value.
 - Annualized return is missing when an open lot has no terminal price.
 - Portfolio charts report incomplete pricing rather than treating missing value as a loss.
+- User-facing aggregate analytics are withheld when non-EUR transaction or valuation currencies are present and no approved FX conversion is available. The UI reports the unsupported currencies instead of adding unlike currencies or changing only the symbol.
 
 # Current Open Decisions
 
-The following decisions should be revisited before analytics become broader or more formal:
+The following are unresolved and must not be silently decided during UI implementation:
 
-- Whether LIFO should apply only to Transaction/Stock Analytics or to every analytics view.
-- Whether current dividend yield should use latest dividend payment, trailing twelve months, or annualized expected dividend.
-- Whether the fixed dividend tax factor `0.71575` should become a user setting.
-- How to handle multiple currencies and FX rates.
-- How to represent corporate actions such as splits, spin-offs, and stock dividends.
-- Whether realized tax treatment should be separated from raw investment performance.
+1. **Portfolio Total Return after partial/full sales** - exact treatment of realized gains and correct denominator/methodology.
+2. **Realized Gain** - exact portfolio and investment-level definition.
+3. **Lot matching policy** - current behavior differs between the FIFO engine default and LIFO analytical views; one deliberate rule, or explicitly approved context-specific rules, is required.
+4. **Dividend semantics** - gross versus after-tax treatment and whether tax assumptions belong in investment-performance metrics.
+5. **Yield on Cost** - exact definition; current calculations and older proposals use inconsistent concepts and time windows.
+6. **EUR / FX** - user-facing V1 analytics require EUR, so multi-currency valuation requires a defined methodology rather than currency relabeling.
+7. **YTD and last-365-day return** - exact return methodology.
+
+Additional future decisions include corporate actions such as splits, spin-offs, and stock dividends, and whether the fixed `0.71575` dividend factor should ever become a user setting if after-tax analytics are approved.

@@ -138,7 +138,7 @@ export function CapitalDeploymentChart({
           role="img"
           aria-label={`Capital deployment chart with ${interval} interval`}
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          className="h-72 min-w-[720px] w-full cursor-crosshair"
+          className="h-auto w-full cursor-crosshair"
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setHoverPoint(null)}
         >
@@ -248,14 +248,9 @@ export function CapitalDeploymentChart({
             {formatDate(lastPoint.date)}
           </text>
       </svg>
-      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span>Blue area/line: cumulative buys minus sells</span>
-        <span>Green line: cumulative dividends collected</span>
-      </div>
-      <div className="text-xs text-muted-foreground">
-        Current net capital deployed:{" "}
-        {formatCurrency(lastPoint.capitalDeployed, currency)}. Total dividends collected:{" "}
-        {formatCurrency(lastPoint.dividendsCollected, currency)}.
+      <div className="flex flex-wrap gap-5 text-xs text-muted-foreground">
+        <span>Net capital deployed</span>
+        <span>Cumulative dividends received</span>
       </div>
     </div>
   );

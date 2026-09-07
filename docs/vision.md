@@ -1,4 +1,6 @@
-# Investment Analyzer
+# α Alpha
+
+> Authority note: this document preserves the original product vision. `docs/product-spec.md` is the authoritative product specification, and `docs/specification-authority.md` defines how conflicts are resolved.
 
 ## Tagline
 
@@ -8,7 +10,7 @@
 
 # Mission
 
-Investment Analyzer helps investors understand the performance of every investment decision they have made.
+Alpha helps investors understand the performance of every investment decision they have made.
 
 Unlike traditional broker dashboards, which primarily focus on portfolio value and current positions, Investment Analyzer provides decision-level analytics for every purchase, sale, and dividend received.
 
@@ -25,7 +27,7 @@ The goal is to answer questions such as:
 
 # Product Vision
 
-Investment Analyzer is a portfolio analytics platform that enables investors to analyze their historical investment decisions using transaction-level data.
+Alpha is a portfolio analytics platform that enables investors to analyze their historical investment decisions using transaction-level data.
 
 The system treats transactions as the source of truth and derives all portfolio analytics from those transactions.
 

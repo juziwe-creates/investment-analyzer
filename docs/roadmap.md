@@ -1,8 +1,24 @@
-# Roadmap
+# Alpha Roadmap
+
+> Authority note: this roadmap controls implementation order, not product truth. `docs/product-spec.md`, `docs/analytics-rules.md`, and `docs/ui-ux-spec.md` take precedence as defined in `docs/specification-authority.md`.
+
+# How To Read This Roadmap
+
+Phases 0 through 10 below preserve useful implementation history and the sequence in which the current capabilities were conceived or delivered. They are not, by themselves, the target Alpha information architecture.
+
+The approved target recomposes existing capabilities into:
+
+```text
+Portfolio
+  -> Investment
+       -> Decision / Lot
+```
+
+Correct analytics engines should be reused. A change in navigation or presentation is not justification for rewriting the transaction, market-data, or analytics layers.
 
 # Product Direction
 
-Investment Analyzer should grow from a focused transaction-level portfolio analytics MVP into a broker-independent decision analytics platform.
+Alpha should grow from a focused transaction-level portfolio analytics MVP into a broker-independent decision analytics platform.
 
 The north star is:
 
@@ -10,7 +26,18 @@ The north star is:
 
 The roadmap prioritizes a narrow but trustworthy foundation before adding broker automation and advanced analytics.
 
-# Implementation Phases
+# Current Implementation Snapshot
+
+As of the Phase 0 documentation audit:
+
+- **Operational foundations:** Next.js/Supabase application shell, authentication, RLS-backed user isolation, transaction-first storage, derived securities/holdings, manual transaction entry, historical/current market-data storage, provider-symbol mapping, and controlled EODHD/Alpha Vantage sync capabilities.
+- **Operational analytics:** portfolio and capital-deployment charts, holdings inventory, transaction ledger, purchase-lot calculations, security-level aggregation, dividend allocation, missing-price safeguards, and XIRR calculations in the contexts documented by `docs/analytics-rules.md`.
+- **Current presentation:** Portfolio, Investments, Stock Analytics, Lot Analytics, Transactions, Market Data, and placeholder destinations for Dividends, Import, and Settings. This is implementation state, not target navigation.
+- **Partially delivered:** CSV/import workflow, dedicated dividend analytics, complete transaction history, multi-account analytical context, and coordinated responsive/mobile treatment.
+- **Not yet delivered for target V1:** Investment Detail, contextual decision drawers, benchmark data/comparison, approved `α` metric, annual performance grid, the full nine-metric portfolio hierarchy, and complete calculation-lineage interactions.
+- **Later capabilities:** Comdirect automation, additional brokers, richer import/settings workflows, global search, advanced attribution, and deeper risk analytics.
+
+# Historical And Current Delivery Phases
 
 ## Phase 0: Foundations And Design
 
@@ -225,6 +252,8 @@ Success criteria:
 
 ## Phase 7A: Convincing Analytics Views
 
+Historical/current implementation phase: the three views below produced useful analytical capabilities. They are not the approved target user-facing architecture.
+
 Goal: make the three core analytics views correct, useful, and polished enough to guide real decisions.
 
 Scope:
@@ -251,6 +280,13 @@ Backlog:
 - profile and optimize the three analytics views for larger datasets
 - move expensive repeated analytics into cached server-side calculations or snapshots if needed
 - complete historical price coverage for the full portfolio
+
+Target recomposition:
+
+- portfolio development and holdings become the Portfolio experience;
+- security-level calculations become part of Investment Detail;
+- transaction/lot calculations become Purchase Lots and Decision Analytics reached from Investment Detail and transaction interactions;
+- existing calculators should be reused where their definitions are approved and their results reconcile.
 
 ## Phase 8: Comdirect Import
 
@@ -310,7 +346,54 @@ Success criteria:
 - users can refresh data without reimporting everything
 - duplicate detection and auditability still hold
 
-# MVP Definition
+# Target Alpha Implementation Phases
+
+These phases describe the next product-facing evolution. Detailed requirements are in `docs/ui-ux-spec.md`; unresolved formulas must be decided in `docs/analytics-rules.md` before affected metrics are finalized.
+
+## Target Phase 0: Authoritative Specifications
+
+- establish specification authority;
+- add the approved UI/UX specification;
+- consolidate the product specification;
+- reconcile architecture and roadmap;
+- register implementation discrepancies without changing application code.
+
+## Target Phase 1: Analytics Decisions And Shared Foundations
+
+- approve the unresolved return, realized-gain, lot-matching, dividend, Yield on Cost, FX, YTD, and last-365-day definitions;
+- preserve and test analytics that already match the approved rules;
+- establish reusable UI primitives, account context, calculation explanations, and responsive states.
+
+## Target Phase 2: Portfolio
+
+- implement the approved nine-metric hierarchy;
+- refine portfolio/deployed-capital chart interaction;
+- add optional dividends and normalized benchmark comparison;
+- refine holdings and mobile presentation;
+- make account context apply consistently.
+
+## Target Phase 3: Investments And Investment Detail
+
+- add Current, Closed, and All investment inventory;
+- build Investment Detail around security history, current state, and the user's decisions;
+- recompose Stock Analytics and Lot Analytics into KPIs, charts, purchase lots, and decision drawers;
+- add annual security performance and benchmark rows.
+
+## Target Phase 4: Dividends And Transactions
+
+- build the dedicated dividend analytical destination;
+- integrate approved dividend and Yield on Cost semantics across relevant views;
+- retain the transaction ledger and add complete history plus analytical row interaction.
+
+## Target Phase 5: Quality And Release Validation
+
+- complete loading, empty, error, accessibility, and mobile behavior;
+- visually validate the coordinated redesign across the application;
+- verify reconciliation, calculation lineage, and acceptable performance before release.
+
+# Historical MVP Definition
+
+The checklist below records the original MVP definition. The current target is governed by the Product and UI/UX specifications.
 
 The MVP is complete when a user can:
 
@@ -359,7 +442,9 @@ The following rules should remain explicit because they affect user-facing numbe
 - handling of missing price data
 - handling of multiple currencies and FX rates
 
-# Suggested MVP Defaults
+# Historical MVP Suggestions - Not Approved Product Rules
+
+The following were earlier proposals. They do not resolve the open analytics questions and must not be treated as authoritative where they conflict with `docs/product-spec.md` or `docs/analytics-rules.md`.
 
 - Use FIFO lot matching.
 - Include broker fees in cost basis.
@@ -377,7 +462,9 @@ The following rules should remain explicit because they affect user-facing numbe
 - Multiple currencies introduce FX complexity that can distort returns if deferred too long.
 - Storing derived snapshots too early could blur the source-of-truth model.
 
-# Non-Goals For MVP
+# Historical Non-Goals For The Original MVP
+
+These describe the earlier MVP boundary. They do not override V1 requirements in `docs/ui-ux-spec.md`, including benchmark comparison and multi-account-ready architecture.
 
 - automated broker synchronization
 - tax filing support
@@ -390,3 +477,13 @@ The following rules should remain explicit because they affect user-facing numbe
 # Documentation Maintenance
 
 These documents should be updated whenever a core analytics rule changes. In particular, changes to lot matching, dividend allocation, cost basis, taxes, or currency handling should be reflected before implementation continues.
+
+The unresolved decisions that block authoritative V1 metrics are:
+
+- Portfolio Total Return after partial/full sales;
+- Realized Gain at portfolio and investment level;
+- a deliberate lot-matching policy;
+- gross versus after-tax dividend semantics;
+- Yield on Cost definition;
+- EUR/FX valuation methodology; and
+- YTD and last-365-day return methodology.

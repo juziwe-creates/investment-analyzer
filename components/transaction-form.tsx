@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function TransactionForm() {
+export function TransactionForm({ portfolioId }: { portfolioId?: string }) {
   return (
     <Card>
       <CardHeader>
@@ -15,6 +15,7 @@ export function TransactionForm() {
       </CardHeader>
       <CardContent>
         <form action={createManualTransaction} className="space-y-6">
+          {portfolioId ? <input type="hidden" name="portfolio_id" value={portfolioId} /> : null}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="type">Type</Label>

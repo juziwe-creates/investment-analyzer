@@ -1,8 +1,10 @@
 # Architecture
 
+> Authority note: this document defines how the software supports the authoritative Product, Analytics, and UI/UX specifications. It does not override them.
+
 # Context
 
-Investment Analyzer is a transaction-led portfolio analytics platform. The system treats buy, sell, dividend, fee, and tax transactions as the source of truth, then derives holdings, portfolio value, gains, dividend income, and decision-level metrics from those records.
+Alpha is a transaction-led portfolio analytics platform. The system treats buy, sell, dividend, fee, and tax transactions as the source of truth, then derives holdings, portfolio value, gains, dividend income, and decision-level metrics from those records.
 
 The architecture should optimize for:
 
@@ -57,17 +59,24 @@ flowchart TD
 
 Responsible for rendering user workflows and analytics.
 
-Primary screens:
+Target user-facing structure:
 
-- authentication
-- dashboard
-- portfolio development
-- securities list
-- transaction list
-- lot-level purchase analytics
-- dividend analytics
-- securities discovered from transaction history
-- import history and source traceability
+```text
+Portfolio
+Investments
+  └─ Investment Detail
+       ├─ Investment performance
+       ├─ Price / position chart
+       ├─ Transactions
+       ├─ Purchase lots
+       └─ Annual performance
+Dividends
+Transactions
+Import
+Settings
+```
+
+Market Data remains supporting operational functionality. Existing standalone Stock Analytics and Lot/Transaction Analytics routes are current implementation surfaces, not permanent target destinations. Their analytical capabilities should be recomposed into Investment Detail, Purchase Lots, and contextual transaction drawers.
 
 The UI should request derived values from domain services rather than implementing calculations directly in components.
 
@@ -184,9 +193,9 @@ For each security identity:
 5. Join latest prices to calculate current value.
 6. Join dividend allocations to calculate income and yield on cost.
 
-The MVP should define one lot policy and keep it explicit. FIFO is a practical default because it is simple, reproducible, and common for tax and accounting workflows. The design should leave room for additional policies later.
+The product requires one deliberate lot-matching rule, or an explicitly approved reason for context-specific rules. The current implementation uses a FIFO engine default and LIFO in some analytical views; architecture must not silently choose between them. Once approved, the policy must remain explicit, reproducible, and testable.
 
-Implemented analytics formulas and current product decisions are documented in `docs/analytics-rules.md`. This includes the current distinction between the FIFO engine default and the LIFO rule used by Transaction Analytics and Stock Analytics.
+Implemented analytics formulas and current behavior are documented in `docs/analytics-rules.md`. This includes the unresolved distinction between the FIFO engine default and the LIFO rule used by Transaction Analytics and Stock Analytics.
 
 # Portfolio Development Strategy
 
@@ -239,14 +248,39 @@ Principles:
 - Keep broker import logic separate from analytics.
 - Start with manual entry and/or CSV-style import, then add Comdirect-specific automation.
 
+# Target Information Architecture
+
+The UI and data/analytics layers remain separable. Presentation routes may change without changing canonical transactions or correct deterministic calculators.
+
+- Portfolio composes portfolio-level performance and current holdings.
+- Investments provides Current, Closed, and All inventory.
+- Investment Detail composes security-level performance, prices, position state, transactions, purchase lots, and annual market performance.
+- Decision/Lot analysis is contextual to an investment or transaction interaction, not a competing top-level product.
+- Dividends and Transactions remain dedicated destinations because they represent major analytical and source-of-truth workflows.
+- Import and Settings remain secondary destinations.
+- Market Data remains an operational capability that supports analytics.
+
+Account context must be represented in service/query contracts so changing the selected account or portfolio updates KPIs, charts, holdings, transactions, dividends, and calculations consistently.
+
+# Evolution Principle
+
+> Alpha is being evolved, not rebuilt. Preserve working infrastructure, data models, market-data capabilities, authentication, transaction-source-of-truth behavior, and analytics implementations wherever they remain consistent with the authoritative specifications. Refactor or replace only behavior that conflicts with approved requirements or is technically necessary to support them.
+
+> Do not treat visual redesign as justification for rewriting the analytics/data layer.
+
 # Open Design Questions
 
-- Which lot matching policy should be the MVP default: FIFO, average cost, or user-selectable?
-- Which currencies are required for MVP, and how should FX rates be represented?
+- How should Portfolio Total Return treat partial/full sales, realized gains, and its denominator?
+- What is the exact portfolio and investment-level Realized Gain definition?
+- Which lot-matching policy is authoritative across views?
+- Should performance use gross dividends, after-tax dividends, both, or a configurable treatment?
+- What is the exact Yield on Cost definition?
+- How should EUR valuation and FX rates be sourced, dated, stored or derived, and audited?
+- Which return methodology applies to YTD and last-365-day values?
 - Should fees and taxes be stored as separate transactions, transaction components, or both?
 - What market data provider will supply current and historical prices?
 - How precise should portfolio development be in MVP: daily, weekly, monthly, or transaction-date based?
-- Should users have one default portfolio or multiple portfolios from the start?
+- How should the existing portfolio model evolve into multiple broker-account contexts?
 
 # Market Data Provider Boundary
 

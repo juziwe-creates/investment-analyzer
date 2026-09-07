@@ -2,13 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
-  BarChart3,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
-  DatabaseZap,
   Download,
   Landmark,
   ReceiptText,
@@ -32,13 +30,7 @@ const primaryNavItems: NavItem[] = [
   { href: "/transactions", label: "Transactions", icon: ReceiptText }
 ];
 
-const analysisNavItems: NavItem[] = [
-  { href: "/stock-analytics", label: "Stock Analytics", icon: BarChart3 },
-  { href: "/transaction-analytics", label: "Lot Analytics", icon: BarChart3 }
-];
-
 const secondaryNavItems: NavItem[] = [
-  { href: "/market-data", label: "Market Data", icon: DatabaseZap },
   { href: "/imports", label: "Import", icon: Download },
   { href: "/settings", label: "Settings", icon: Settings }
 ];
@@ -46,8 +38,13 @@ const secondaryNavItems: NavItem[] = [
 const mobileNavItems: NavItem[] = [
   { href: "/dashboard", label: "Portfolio", icon: WalletCards },
   { href: "/portfolio", label: "Investments", icon: Landmark },
-  { href: "/dividends", label: "Dividends", icon: CircleDollarSign },
-  { href: "/transactions", label: "More", icon: ReceiptText }
+  { href: "/dividends", label: "Dividends", icon: CircleDollarSign }
+];
+
+const mobileMoreItems: NavItem[] = [
+  { href: "/transactions", label: "Transactions", icon: ReceiptText },
+  { href: "/imports", label: "Import", icon: Download },
+  { href: "/settings", label: "Settings", icon: Settings }
 ];
 
 function NavLink({
@@ -62,11 +59,14 @@ function NavLink({
   label: string;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isActive = pathname === href;
+  const portfolio = searchParams.get("portfolio");
+  const target = portfolio ? `${href}?portfolio=${encodeURIComponent(portfolio)}` : href;
 
   return (
     <Link
-      href={href}
+      href={target}
       title={collapsed ? label : undefined}
       className={cn(
         "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition duration-200 hover:bg-[hsl(var(--accent-subtle))] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -133,9 +133,7 @@ export function AppSidebar() {
       <nav className="space-y-6">
         <NavGroup collapsed={collapsed} items={primaryNavItems} />
         <div className="h-px bg-border/80" />
-        <NavGroup collapsed={collapsed} items={analysisNavItems} label="Analysis" />
-        <div className="h-px bg-border/80" />
-        <NavGroup collapsed={collapsed} items={secondaryNavItems} label="Data" />
+        <NavGroup collapsed={collapsed} items={secondaryNavItems} label="Workspace" />
       </nav>
     </aside>
   );
@@ -143,9 +141,34 @@ export function AppSidebar() {
 
 export function MobileBottomNavigation() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const portfolio = searchParams.get("portfolio");
+  const targetFor = (href: string) =>
+    portfolio ? `${href}?portfolio=${encodeURIComponent(portfolio)}` : href;
+  const moreIsActive = mobileMoreItems.some((item) => item.href === pathname);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border/80 bg-card/95 px-2 py-2 backdrop-blur md:hidden">
+    <>
+      {moreOpen ? (
+        <div className="fixed inset-x-3 bottom-20 z-40 rounded-lg border border-border bg-card p-2 shadow-[0_18px_50px_hsl(var(--foreground)/0.14)] md:hidden">
+          {mobileMoreItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={targetFor(item.href)}
+                onClick={() => setMoreOpen(false)}
+                className="alpha-focus flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-[hsl(var(--accent-subtle))] hover:text-foreground"
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border/80 bg-card/95 px-2 py-2 backdrop-blur md:hidden">
       {mobileNavItems.map((item) => {
         const Icon = item.icon;
         const isActive = pathname === item.href;
@@ -153,7 +176,7 @@ export function MobileBottomNavigation() {
         return (
           <Link
             key={item.href}
-            href={item.href}
+            href={targetFor(item.href)}
             className={cn(
               "flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-[0.68rem] font-medium text-muted-foreground transition hover:bg-[hsl(var(--accent-subtle))]",
               isActive && "text-foreground"
@@ -169,7 +192,21 @@ export function MobileBottomNavigation() {
           </Link>
         );
       })}
-    </nav>
+        <button
+          type="button"
+          aria-expanded={moreOpen}
+          aria-label="Open more navigation"
+          onClick={() => setMoreOpen((open) => !open)}
+          className={cn(
+            "alpha-focus flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-[0.68rem] font-medium text-muted-foreground transition hover:bg-[hsl(var(--accent-subtle))]",
+            moreIsActive && "text-foreground"
+          )}
+        >
+          <ReceiptText className={cn("h-4 w-4", moreIsActive && "text-[hsl(var(--accent-brand))]")} />
+          More
+        </button>
+      </nav>
+    </>
   );
 }
 

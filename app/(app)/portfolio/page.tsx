@@ -1,12 +1,19 @@
+import { Suspense } from "react";
+import { InvestmentInventoryTable } from "@/components/investment-inventory-table";
 import { MissingBuyHistoryTable } from "@/components/missing-buy-history-table";
-import { PortfolioHoldingsTable } from "@/components/portfolio-holdings-table";
 import {
   buildCurrentAnalytics,
   findSecuritiesWithoutBuyHistory
 } from "@/lib/analytics/portfolio";
+import { calculateStockAnalytics } from "@/lib/analytics/transaction-analytics";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function PortfolioPage() {
+export default async function PortfolioPage({
+  searchParams
+}: {
+  searchParams: Promise<{ portfolio?: string }>;
+}) {
+  const { portfolio: portfolioId } = await searchParams;
   const supabase = await createClient();
   const transactionsQuery = supabase
     .from("transactions")
@@ -19,6 +26,11 @@ export default async function PortfolioPage() {
   const manualPricesQuery = supabase
     .from("manual_security_prices")
     .select("*");
+  if (portfolioId) {
+    transactionsQuery.eq("portfolio_id", portfolioId);
+    latestMarketPricesQuery.eq("portfolio_id", portfolioId);
+    manualPricesQuery.eq("portfolio_id", portfolioId);
+  }
   const [
     { data: transactions, error: transactionsError },
     { data: latestMarketPrices, error: latestPricesError },
@@ -29,11 +41,12 @@ export default async function PortfolioPage() {
     manualPricesQuery
   ]);
   const errors = [transactionsError, latestPricesError, manualPricesError].filter(Boolean);
-  const { holdings } = buildCurrentAnalytics(
+  const { lots } = buildCurrentAnalytics(
     transactions ?? [],
     latestMarketPrices ?? [],
     manualPrices ?? []
   );
+  const investmentRows = calculateStockAnalytics(lots);
   const missingBuyHistory = findSecuritiesWithoutBuyHistory(transactions ?? []);
 
   return (
@@ -42,7 +55,7 @@ export default async function PortfolioPage() {
         <p className="alpha-kpi-label">Investment inventory</p>
         <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em]">Investments</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Current holdings calculated from transactions and latest available prices.
+          Search current and closed investments, then open one to inspect its complete decision history.
         </p>
       </header>
 
@@ -52,7 +65,9 @@ export default async function PortfolioPage() {
         </div>
       ) : null}
 
-      <PortfolioHoldingsTable holdings={holdings} />
+      <Suspense fallback={<div className="h-72 animate-pulse rounded-lg bg-muted" />}>
+        <InvestmentInventoryTable rows={investmentRows} />
+      </Suspense>
       <MissingBuyHistoryTable securities={missingBuyHistory} />
     </div>
   );
