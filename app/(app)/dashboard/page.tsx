@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { BenchmarkSelector, benchmarkOptions, parseBenchmark } from "@/components/benchmark-selector";
+import { BenchmarkSelector } from "@/components/benchmark-selector";
 import { CapitalDeploymentChart } from "@/components/capital-deployment-chart";
 import { PortfolioDevelopmentChart } from "@/components/portfolio-development-chart";
 import { PortfolioHoldingsTable } from "@/components/portfolio-holdings-table";
 import { PortfolioMetrics } from "@/components/portfolio-metrics";
 import { Button } from "@/components/ui/button";
 import { buildCurrentAnalytics, calculateCapitalDeployment, calculatePortfolioDevelopment, findSecuritiesWithoutBuyHistory, parseChartInterval, transactionSecurityKey, type ChartInterval } from "@/lib/analytics/portfolio";
+import { benchmarkOptions, parseBenchmark } from "@/lib/analytics/benchmarks";
 import { eurAggregationStatus } from "@/lib/analytics/currency";
 import { formatCurrency } from "@/lib/formatters";
 import { marketDataCurrency } from "@/lib/market-data/currency";
