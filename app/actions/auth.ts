@@ -1,6 +1,7 @@
 "use server";
 
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
+import { presentationCookie } from "@/lib/presentation";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -52,8 +53,8 @@ export async function signUp(formData: FormData) {
 }
 
 export async function signOut() {
+  (await cookies()).delete(presentationCookie);
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
 }
-

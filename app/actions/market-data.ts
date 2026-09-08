@@ -1,5 +1,7 @@
 "use server";
 
+import { requireActualDataMode } from "@/lib/presentation";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -235,6 +237,7 @@ async function fetchAndStoreSecurityMarketData(input: {
 }
 
 export async function syncSecurityMarketData(formData: FormData) {
+  await requireActualDataMode();
   const returnTo = safeReturnPath(formData);
   const supabase = await createClient();
   const {
@@ -381,6 +384,7 @@ export async function syncSecurityMarketData(formData: FormData) {
 }
 
 export async function refreshSyncedMarketData(formData: FormData) {
+  await requireActualDataMode();
   const returnTo = safeReturnPath(formData);
   const supabase = await createClient();
   const {
@@ -542,6 +546,7 @@ export async function refreshSyncedMarketData(formData: FormData) {
 }
 
 export async function saveSecurityProviderSymbol(formData: FormData) {
+  await requireActualDataMode();
   const returnTo = safeReturnPath(formData);
   const supabase = await createClient();
   const {

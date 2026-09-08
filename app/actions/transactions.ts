@@ -1,5 +1,7 @@
 "use server";
 
+import { requireActualDataMode } from "@/lib/presentation";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -101,6 +103,7 @@ async function resolvePortfolio(userId: string, requestedPortfolioId: string | n
 }
 
 export async function createManualTransaction(formData: FormData) {
+  await requireActualDataMode();
   const supabase = await createClient();
   const {
     data: { user }

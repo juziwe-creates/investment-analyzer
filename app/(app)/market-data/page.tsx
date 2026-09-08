@@ -1,4 +1,5 @@
 import { refreshSyncedMarketData } from "@/app/actions/market-data";
+import { presentationEnabled } from "@/lib/presentation";
 import { MarketDataSyncTable } from "@/components/market-data-sync-table";
 import {
   buildCurrentAnalytics,
@@ -19,6 +20,7 @@ export default async function MarketDataPage({
   searchParams: Promise<{ filter?: string; message?: string; q?: string; portfolio?: string }>;
 }) {
   const { filter, message, q, portfolio: portfolioId } = await searchParams;
+  if (await presentationEnabled()) return <p>Leave presentation mode in Settings to access market data.</p>;
   const providerId = configuredMarketDataProviderId();
   const supabase = await createClient();
   // This operational counter should reflect the current request time.

@@ -12,6 +12,8 @@
     "incremental": false
   },
   "include": [
+    "lib/analytics/presentation.test.ts",
+    "lib/analytics/currency.test.ts",
     "lib/analytics/engine.ts",
     "lib/analytics/engine.test.ts",
     "lib/market-data/currency.ts",

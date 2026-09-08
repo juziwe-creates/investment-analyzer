@@ -1,5 +1,7 @@
 "use server";
 
+import { requireActualDataMode } from "@/lib/presentation";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -15,6 +17,7 @@ function requiredText(formData: FormData, key: string, label: string) {
 }
 
 export async function upsertManualSecurityPrice(formData: FormData) {
+  await requireActualDataMode();
   const supabase = await createClient();
   const {
     data: { user }
@@ -61,4 +64,3 @@ export async function upsertManualSecurityPrice(formData: FormData) {
   revalidatePath("/transactions");
   redirect("/securities?message=Price saved");
 }
-

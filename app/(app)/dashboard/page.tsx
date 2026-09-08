@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { presentationTransactions } from "@/lib/presentation";
 import Link from "next/link";
 import { BenchmarkSelector } from "@/components/benchmark-selector";
 import { CapitalDeploymentChart } from "@/components/capital-deployment-chart";
@@ -33,11 +34,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const benchmark = parseBenchmark(params.benchmark);
   const benchmarkLabel = benchmarkOptions.find((option) => option.id === benchmark)!.label;
   const supabase = await createClient();
-  const transactionsQuery = supabase.from("transactions").select("*").order("trade_date", { ascending: true }).order("created_at", { ascending: true });
+  const transactionsQuery = presentationTransactions(params.portfolio);
   const latestQuery = supabase.from("latest_market_prices").select("*");
   const manualQuery = supabase.from("manual_security_prices").select("*");
   const marketQuery = supabase.from("market_prices").select("*").order("price_date", { ascending: true });
-  if (params.portfolio) { transactionsQuery.eq("portfolio_id", params.portfolio); latestQuery.eq("portfolio_id", params.portfolio); manualQuery.eq("portfolio_id", params.portfolio); marketQuery.eq("portfolio_id", params.portfolio); }
+  if (params.portfolio) { latestQuery.eq("portfolio_id", params.portfolio); manualQuery.eq("portfolio_id", params.portfolio); marketQuery.eq("portfolio_id", params.portfolio); }
   const [{ data: allTransactions, error: transactionsError }, { data: allLatest, error: latestError }, { data: allManual, error: manualError }, { data: allMarket, error: marketError }] = await Promise.all([transactionsQuery, latestQuery, manualQuery, marketQuery]);
   const transactions = allTransactions ?? [];
   const optionsByKey = new Map<string, string>();

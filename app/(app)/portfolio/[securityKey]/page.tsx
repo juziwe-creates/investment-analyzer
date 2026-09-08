@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { presentationTransactions } from "@/lib/presentation";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AnnualPerformanceGrid, type AnnualPerformancePoint } from "@/components/annual-performance-grid";
@@ -73,11 +74,11 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
   const benchmark = parseBenchmark(rawBenchmark);
   const benchmarkLabel = benchmarkOptions.find((option) => option.id === benchmark)!.label;
   const supabase = await createClient();
-  const transactionsQuery = supabase.from("transactions").select("*").order("trade_date", { ascending: true }).order("created_at", { ascending: true });
+  const transactionsQuery = presentationTransactions(portfolioId);
   const latestPricesQuery = supabase.from("latest_market_prices").select("*");
   const manualPricesQuery = supabase.from("manual_security_prices").select("*");
   const marketPricesQuery = supabase.from("market_prices").select("*").eq("security_key", securityKey).order("price_date", { ascending: true });
-  if (portfolioId) { transactionsQuery.eq("portfolio_id", portfolioId); latestPricesQuery.eq("portfolio_id", portfolioId); manualPricesQuery.eq("portfolio_id", portfolioId); marketPricesQuery.eq("portfolio_id", portfolioId); }
+  if (portfolioId) { latestPricesQuery.eq("portfolio_id", portfolioId); manualPricesQuery.eq("portfolio_id", portfolioId); marketPricesQuery.eq("portfolio_id", portfolioId); }
   const [{ data: allTransactions, error: transactionError }, { data: latestPrices, error: latestError }, { data: manualPrices, error: manualError }, { data: prices, error: priceError }] = await Promise.all([transactionsQuery, latestPricesQuery, manualPricesQuery, marketPricesQuery]);
   const transactions = (allTransactions ?? []).filter((transaction) => transactionSecurityKey(transaction) === securityKey);
   if (transactions.length === 0) notFound();

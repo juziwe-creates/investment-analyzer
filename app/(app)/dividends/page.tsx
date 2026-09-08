@@ -2,14 +2,11 @@ import Link from "next/link";
 import { eurAggregationStatus } from "@/lib/analytics/currency";
 import { transactionSecurityKey } from "@/lib/analytics/portfolio";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { createClient } from "@/lib/supabase/server";
+import { presentationTransactions } from "@/lib/presentation";
 
 export default async function DividendsPage({ searchParams }: { searchParams: Promise<{ portfolio?: string }> }) {
   const { portfolio: portfolioId } = await searchParams;
-  const supabase = await createClient();
-  const query = supabase.from("transactions").select("*").eq("type", "dividend").order("trade_date", { ascending: false }).order("created_at", { ascending: false });
-  if (portfolioId) query.eq("portfolio_id", portfolioId);
-  const { data, error } = await query;
+  const { data, error } = await presentationTransactions(portfolioId, { type: "dividend" });
   const dividends = data ?? [];
   const amount = (transaction: (typeof dividends)[number]) => Math.abs(transaction.gross_amount ?? transaction.net_amount ?? ((transaction.quantity ?? 0) * (transaction.unit_price ?? 0)));
   const { canAggregate: currencyReady, unsupportedCurrencies } = eurAggregationStatus(dividends.map((transaction) => transaction.currency));
@@ -30,7 +27,7 @@ export default async function DividendsPage({ searchParams }: { searchParams: Pr
 
   return <div className="space-y-10">
     <header className="border-b border-border/70 pb-7"><p className="alpha-kpi-label">Income</p><h1 className="mt-2 text-3xl font-medium">Dividends</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Received dividend cash from your transaction ledger, grouped by investment and year.</p></header>
-    {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error.message}</div> : null}
+    {error ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{String(error)}</div> : null}
     {!currencyReady ? <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">EUR conversion is unavailable for {unsupportedCurrencies.join(", ")}. Cross-currency dividend totals are withheld.</div> : null}
     {dividends.length === 0 ? <section className="alpha-surface flex min-h-64 items-center justify-center px-6 text-center"><div><h2 className="alpha-section-title">No dividend payments yet</h2><p className="mt-2 text-sm text-muted-foreground">Import or add dividend transactions to see income analysis.</p><Link href={portfolioId ? `/transactions?portfolio=${encodeURIComponent(portfolioId)}` : "/transactions"} className="alpha-focus mt-5 inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Add transactions</Link></div></section> : <>
       <section className="grid gap-x-8 gap-y-6 border-b border-border/70 pb-7 sm:grid-cols-2 lg:grid-cols-4"><div className="sm:col-span-2"><p className="alpha-kpi-label">Total dividends received</p><p className="mt-2 text-4xl font-medium">{currencyReady ? formatCurrency(total, "EUR") : "Unavailable"}</p></div><div><p className="alpha-kpi-label">This year</p><p className="mt-2 text-2xl font-medium">{currencyReady ? formatCurrency(currentYearTotal, "EUR") : "Unavailable"}</p></div><div><p className="alpha-kpi-label">Payments</p><p className="mt-2 text-2xl font-medium">{dividends.length}</p></div></section>

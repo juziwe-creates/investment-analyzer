@@ -54,7 +54,7 @@ Implementation Notes:
 
 ## Obfuscated Portfolio Presentation Mode
 
-Status: unreviewed
+Status: implemented as fixed normalization to EUR 1,000,000 current deployed capital. See [presentation-mode.md](presentation-mode.md). The decisions below describe the original brainstorm; the implemented behavior uses a single deterministic factor across all accounts, with amounts calculated only in request memory.
 
 Problem:
 

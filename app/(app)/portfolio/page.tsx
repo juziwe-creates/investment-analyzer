@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { presentationTransactions } from "@/lib/presentation";
 import { InvestmentInventoryTable } from "@/components/investment-inventory-table";
 import { MissingBuyHistoryTable } from "@/components/missing-buy-history-table";
 import {
@@ -15,11 +16,7 @@ export default async function PortfolioPage({
 }) {
   const { portfolio: portfolioId } = await searchParams;
   const supabase = await createClient();
-  const transactionsQuery = supabase
-    .from("transactions")
-    .select("*")
-    .order("trade_date", { ascending: true })
-    .order("created_at", { ascending: true });
+  const transactionsQuery = presentationTransactions(portfolioId);
   const latestMarketPricesQuery = supabase
     .from("latest_market_prices")
     .select("*");
@@ -27,7 +24,6 @@ export default async function PortfolioPage({
     .from("manual_security_prices")
     .select("*");
   if (portfolioId) {
-    transactionsQuery.eq("portfolio_id", portfolioId);
     latestMarketPricesQuery.eq("portfolio_id", portfolioId);
     manualPricesQuery.eq("portfolio_id", portfolioId);
   }
