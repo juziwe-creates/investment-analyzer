@@ -1546,6 +1546,10 @@ The redesign is successful when a user can:
 
 # 46. Core Design Summary for Codex
 
+## Historical Time Navigation Amendment (2026-09-09)
+
+The approved time zoom/pan specification is implemented as detailed in `docs/chart-navigation.md`. All primary historical charts provide client-side zoom, pan, presets, responsive axes, overview navigation, and URL-persisted dates. Portfolio Performance and Capital Deployment share a viewport; Investment Price and Position Value preserve their shared viewport across mode changes. This replaces technical Daily/Weekly/Monthly selectors and server-side date cropping. Viewport changes never redefine headline financial KPIs or analytics methodology.
+
 If a design decision is ambiguous, optimize for this sentence:
 
 > **Alpha should feel like Linear structure + Mercury restraint + Koyfin analytical depth + TradingView-quality chart interaction — built around the unique idea that every investment decision can be measured.**

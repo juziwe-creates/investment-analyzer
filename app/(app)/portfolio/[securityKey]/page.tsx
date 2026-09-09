@@ -12,6 +12,7 @@ import { calculateStockAnalytics, calculateTransactionAnalytics } from "@/lib/an
 import { formatCurrency, formatDate, formatNumber, formatPercent } from "@/lib/formatters";
 import { marketDataCurrency } from "@/lib/market-data/currency";
 import { createClient } from "@/lib/supabase/server";
+import { readMarketHistory } from "@/lib/market-data/history";
 import type { Database } from "@/types/database";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
@@ -77,8 +78,8 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
   const transactionsQuery = presentationTransactions(portfolioId);
   const latestPricesQuery = supabase.from("latest_market_prices").select("*");
   const manualPricesQuery = supabase.from("manual_security_prices").select("*");
-  const marketPricesQuery = supabase.from("market_prices").select("*").eq("security_key", securityKey).order("price_date", { ascending: true });
-  if (portfolioId) { latestPricesQuery.eq("portfolio_id", portfolioId); manualPricesQuery.eq("portfolio_id", portfolioId); marketPricesQuery.eq("portfolio_id", portfolioId); }
+  const marketPricesQuery = readMarketHistory(portfolioId, securityKey);
+  if (portfolioId) { latestPricesQuery.eq("portfolio_id", portfolioId); manualPricesQuery.eq("portfolio_id", portfolioId); }
   const [{ data: allTransactions, error: transactionError }, { data: latestPrices, error: latestError }, { data: manualPrices, error: manualError }, { data: prices, error: priceError }] = await Promise.all([transactionsQuery, latestPricesQuery, manualPricesQuery, marketPricesQuery]);
   const transactions = (allTransactions ?? []).filter((transaction) => transactionSecurityKey(transaction) === securityKey);
   if (transactions.length === 0) notFound();

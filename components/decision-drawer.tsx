@@ -12,7 +12,8 @@ export function DecisionDrawer({
   title,
   subtitle,
   metrics,
-  note
+  note,
+  modal = true
 }: {
   open: boolean;
   onClose: () => void;
@@ -21,6 +22,7 @@ export function DecisionDrawer({
   subtitle?: string;
   metrics: DecisionDrawerMetric[];
   note?: string;
+  modal?: boolean;
 }) {
   const drawerRef = useRef<HTMLElement>(null);
 
@@ -33,7 +35,7 @@ export function DecisionDrawer({
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
-      if (event.key !== "Tab") return;
+      if (event.key !== "Tab" || !modal) return;
       const items = focusable();
       if (items.length === 0) return;
       const first = items[0];
@@ -52,14 +54,14 @@ export function DecisionDrawer({
       document.removeEventListener("keydown", onKeyDown);
       previousFocus?.focus();
     };
-  }, [onClose, open]);
+  }, [onClose, open, modal]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50" role="presentation">
-      <button type="button" className="absolute inset-0 bg-foreground/20" aria-label="Close decision details" onClick={onClose} />
-      <aside ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="decision-drawer-title" className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto border-l border-border bg-card p-6 shadow-[0_0_60px_hsl(var(--foreground)/0.16)]">
+    <div className={modal ? "fixed inset-0 z-50" : "pointer-events-none fixed inset-0 z-50"} role="presentation">
+      {modal ? <button type="button" className="absolute inset-0 bg-foreground/20" aria-label="Close decision details" onClick={onClose} /> : null}
+      <aside ref={drawerRef} role="dialog" aria-modal={modal || undefined} aria-labelledby="decision-drawer-title" className={`pointer-events-auto absolute right-0 w-full max-w-md overflow-y-auto border-l border-border bg-card p-6 shadow-[0_0_60px_hsl(var(--foreground)/0.16)] ${modal ? "inset-y-0" : "bottom-0 max-h-[45dvh] sm:inset-y-0 sm:max-h-none"}`}>
         <div className="flex items-start justify-between gap-4">
           <div><p className="alpha-kpi-label">{eyebrow}</p><h2 id="decision-drawer-title" className="mt-2 text-2xl font-medium">{title}</h2>{subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}</div>
           <button type="button" onClick={onClose} className="alpha-focus rounded-md p-2 text-muted-foreground hover:bg-muted" aria-label="Close decision details"><X className="h-4 w-4" /></button>

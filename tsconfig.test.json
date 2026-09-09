@@ -12,6 +12,7 @@
     "incremental": false
   },
   "include": [
+    "lib/charts/time-viewport.test.ts",
     "lib/analytics/presentation.test.ts",
     "lib/analytics/currency.test.ts",
     "lib/analytics/engine.ts",
