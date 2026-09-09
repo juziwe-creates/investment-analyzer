@@ -41,3 +41,7 @@ Implemented from the user-approved `CODEX_ALPHA_TIME_ZOOM_PAN_SPEC.md` on 2026-0
 - Native physical trackpad and two-finger touchscreen gestures still require device QA; the available browser test surface cannot synthesize those gestures. No real portfolio data or API credits were used for fixture checks.
 
 No database migration or environment-variable change is required.
+
+## Provider Currency Labels
+
+The configured EODHD and Alpha Vantage feeds are treated as EUR for analytics and display. Their API responses can carry an original/listing currency label even when the quote values used by this EUR portfolio are already EUR. This is a presentation/interpretation correction only: stored source rows remain unchanged, transaction currencies are unaffected, and no FX conversion is performed.

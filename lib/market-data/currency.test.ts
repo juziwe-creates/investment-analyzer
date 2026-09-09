@@ -28,10 +28,29 @@ test("keeps non-German market data currency unchanged", () => {
   assert.equal(
     marketDataCurrency({
       fallbackCurrency: "USD",
-      providerId: "eodhd",
+      providerId: "other-provider",
       providerSymbol: "AAPL.US"
     }),
     "USD"
+  );
+});
+
+test("treats configured provider labels as EUR even for non-German symbols", () => {
+  assert.equal(
+    marketDataCurrency({
+      fallbackCurrency: "USD",
+      providerId: "eodhd",
+      providerSymbol: "AAPL.US"
+    }),
+    "EUR"
+  );
+  assert.equal(
+    marketDataCurrency({
+      fallbackCurrency: "DKK",
+      providerId: "alpha_vantage",
+      providerSymbol: "NOV"
+    }),
+    "EUR"
   );
 });
 
