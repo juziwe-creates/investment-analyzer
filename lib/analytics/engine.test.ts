@@ -6,10 +6,58 @@ import {
   calculateLifetimeDeployedCapital,
   calculatePurchaseLots,
   calculateXirr,
+  dividendAmount,
   saleProceeds,
   type AnalyticsPrice,
   type AnalyticsTransaction
 } from "./engine";
+
+test("timeline matches full lot valuations for FIFO and LIFO across missing prices, dividends and partial/full sales", () => {
+  const transactions = [
+    transaction({ id: "a1", type: "buy", trade_date: "2020-01-01", quantity: 12.5, gross_amount: 1025 }),
+    transaction({ id: "b1", type: "buy", trade_date: "2020-01-02", isin: "B", quantity: 8, gross_amount: 800, currency: "USD" }),
+    transaction({ id: "a2", type: "buy", trade_date: "2020-01-03", quantity: 5.25, gross_amount: 600 }),
+    transaction({ id: "div1", type: "dividend", trade_date: "2020-01-04", gross_amount: 41 }),
+    transaction({ id: "sell1", type: "sell", trade_date: "2020-01-05", quantity: 7, gross_amount: 900 }),
+    transaction({ id: "div2", type: "dividend", trade_date: "2020-01-06", gross_amount: 17 }),
+    transaction({ id: "sell2", type: "sell", trade_date: "2020-01-07", quantity: 10.75, gross_amount: 1400 }),
+    transaction({ id: "sell3", type: "sell", trade_date: "2020-01-08", isin: "B", quantity: 8, gross_amount: 850 }),
+    transaction({ id: "reopen", type: "buy", trade_date: "2020-01-10", quantity: 1.5, net_amount: 153 }),
+    transaction({ id: "zero", type: "buy", trade_date: "2020-01-10", quantity: 0, gross_amount: 0 })
+  ];
+  const prices = [
+    price({ price_date: "2019-12-31", security_key: "unheld", price: 1 }),
+    price({ price_date: "2020-01-03", price: 105 }),
+    price({ price_date: "2020-01-03", price: 106, id: "second-provider" }),
+    price({ price_date: "2020-01-06", security_key: "B", price: 111, currency: "USD" }),
+    price({ price_date: "2020-01-11", price: 119 })
+  ];
+  const untouched = structuredClone({ transactions, prices });
+  for (const lotMatchingMethod of ["fifo", "lifo"] as const) {
+    const options = { lotMatchingMethod };
+    const timeline = buildPortfolioTimeline(transactions, prices, options);
+    const expected = [...new Set([...transactions.map((row) => row.trade_date), ...prices.map((row) => row.price_date)])].sort().flatMap((date) => {
+      const eligible = transactions.filter((row) => row.trade_date <= date);
+      const latest = new Map(prices.filter((row) => row.price_date <= date).map((row) => [row.security_key, row]));
+      const open = calculatePurchaseLots(eligible, [...latest.values()], undefined, options).filter((lot) => lot.remainingQuantity > 0);
+      const priced = open.filter((lot) => lot.currentRemainingValue !== null);
+      const dividendsCollected = eligible.reduce((sum, row) => sum + dividendAmount(row), 0);
+      if (!open.length && !dividendsCollected) return [];
+      const currentDeployedCapital = open.reduce((sum, lot) => sum + lot.remainingAcquisitionCost, 0);
+      const pricedCurrentDeployedCapital = priced.reduce((sum, lot) => sum + lot.remainingAcquisitionCost, 0);
+      const portfolioMarketValue = priced.reduce((sum, lot) => sum + (lot.currentRemainingValue ?? 0), 0);
+      const missingPriceSecurityKeys = [...new Set(open.filter((lot) => !latest.has(lot.securityKey)).map((lot) => lot.securityKey))];
+      const unrealizedGain = portfolioMarketValue - pricedCurrentDeployedCapital;
+      return [{ date, portfolioMarketValue, currentDeployedCapital, pricedCurrentDeployedCapital,
+        unpricedCurrentDeployedCapital: currentDeployedCapital - pricedCurrentDeployedCapital,
+        unrealizedGain, unrealizedGainPercent: pricedCurrentDeployedCapital > 0 ? unrealizedGain / pricedCurrentDeployedCapital * 100 : null,
+        lifetimeDeployedCapital: eligible.reduce((sum, row) => sum + acquisitionCost(row), 0), dividendsCollected,
+        missingPriceSecurityKeys, hasCompletePricing: !missingPriceSecurityKeys.length, currency: priced[0]?.currency ?? "EUR" }];
+    });
+    assert.deepEqual(timeline, expected, lotMatchingMethod);
+  }
+  assert.deepEqual({ transactions, prices }, untouched);
+});
 import {
   calculateStockAnalytics,
   calculateTransactionAnalytics,

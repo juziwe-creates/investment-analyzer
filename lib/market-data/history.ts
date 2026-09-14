@@ -1,19 +1,21 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/types/database";
+import { measureAnalytics } from "@/lib/performance";
+import type { MarketHistoryPrice } from "@/types/market-history";
 
-type Price = Database["public"]["Tables"]["market_prices"]["Row"];
-
-export async function readMarketHistory(portfolioId?: string, securityKey?: string) {
+export const readMarketHistory = cache(async (portfolioId?: string, securityKey?: string) => measureAnalytics("market-history.read", async () => {
   const supabase = await createClient();
-  const rows: Price[] = [];
+  const rows: MarketHistoryPrice[] = [];
   for (let offset = 0; ; offset += 1000) {
-    const query = supabase.from("market_prices").select("*").order("price_date").order("id").range(offset, offset + 999);
+    const query = supabase.from("market_prices")
+      .select("id,security_key,price_date,close_price,adjusted_close_price,currency,provider,provider_symbol")
+      .order("price_date").order("id").range(offset, offset + 999);
     if (portfolioId) query.eq("portfolio_id", portfolioId);
     if (securityKey) query.eq("security_key", securityKey);
     const { data, error } = await query;
-    if (error) return { data: [] as Price[], error };
+    if (error) return { data: [] as MarketHistoryPrice[], error };
     rows.push(...data);
     if (data.length < 1000) return { data: rows, error: null };
   }
-}
+}));

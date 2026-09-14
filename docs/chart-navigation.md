@@ -10,6 +10,14 @@ Implemented from the user-approved `CODEX_ALPHA_TIME_ZOOM_PAN_SPEC.md` on 2026-0
 - Complete daily-resolution derived history is sent to the client. Existing weekly/monthly source observations remain available without inventing daily observations. Daily/Weekly/Monthly UI controls are removed.
 - Price history reads paginate past Supabase's 1,000-row response limit, ordered by date and ID and protected by existing session/RLS. Partial reads on error are withheld.
 
+## Progressive History Loading
+
+Portfolio metrics and holdings render before the historical query completes. Portfolio Performance and Capital Deployment share one history promise and show fixed-height loading placeholders while it is pending. A query failure is shown explicitly and does not erase current metrics.
+
+The shared viewport receives complete dates when the streamed chart data arrives; presets remain disabled until then. URL `from`/`to` values survive early filter submissions and initialize the loaded viewport. Changing account/security context resets the deferred provider so previous context dates are not reused. Investment Detail continues supplying dates directly. Zoom and pan remain client-side and do not trigger provider requests.
+
+The performance package passed an HTTP streaming fixture check: current content arrived at approximately 218 ms and deliberately delayed history at 6,298 ms. This is a synthetic local development check, not a production latency measurement. Interactive browser re-verification of deferred loading is outstanding because the automatic approval review system rejected the browser tool with a compatibility error. Earlier browser checks below predate this loading change.
+
 ## Controls
 
 - Presets: 1M, 3M, YTD, 1Y, 3Y, 5Y, 10Y, MAX. End dates refer to the latest available observation, not the machine clock. Calendar-month subtraction clamps month ends correctly.

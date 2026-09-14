@@ -180,6 +180,8 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     else { drag.current = null; setGesturing(false); }
   }
 
+  if (points.length && !times.length) return <div ref={root} role="status" aria-label={`Loading ${label}`} className="h-[440px] animate-pulse rounded-md bg-muted/40" />;
+
   return <div ref={root} className="min-w-0 space-y-3" data-time-chart={label}>
     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs tabular-nums text-muted-foreground" aria-live="off">{times.length ? `${formatDate(dateString(range.start))} – ${formatDate(dateString(range.end))}` : "No history"}</p><div className="flex gap-1">{[
       { label: "Zoom out", icon: Minus, action: () => zoomAt(1 / .7), disabled: atMaximum },

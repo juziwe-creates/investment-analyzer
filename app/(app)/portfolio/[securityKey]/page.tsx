@@ -14,9 +14,10 @@ import { marketDataCurrency } from "@/lib/market-data/currency";
 import { createClient } from "@/lib/supabase/server";
 import { readMarketHistory } from "@/lib/market-data/history";
 import type { Database } from "@/types/database";
+import type { MarketHistoryPrice } from "@/types/market-history";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
-type MarketPrice = Database["public"]["Tables"]["market_prices"]["Row"];
+type MarketPrice = MarketHistoryPrice;
 
 function cashAmount(transaction: Transaction) {
   return Math.abs(transaction.gross_amount ?? transaction.net_amount ?? ((transaction.quantity ?? 0) * (transaction.unit_price ?? 0)));

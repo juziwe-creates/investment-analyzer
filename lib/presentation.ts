@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { buildCurrentAnalytics } from "@/lib/analytics/portfolio";
 import { presentationFactor, scaleTransaction } from "@/lib/analytics/presentation";
+import { measureAnalytics } from "@/lib/performance";
 import type { Database } from "@/types/database";
 
 export const presentationCookie = "alpha-presentation";
@@ -11,17 +12,19 @@ export const presentationEnabled = cache(async () => (await cookies()).get(prese
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 
 // React cache deduplicates within one server render, never across users or requests.
-const sourceTransactions = cache(async () => {
+const sourceTransactions = cache(async (portfolioId?: string) => measureAnalytics("transactions.read", async () => {
   const supabase = await createClient();
   const rows: Transaction[] = [];
   for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await supabase.from("transactions").select("*")
+    const query = supabase.from("transactions").select("*")
       .order("trade_date").order("created_at").order("id").range(offset, offset + 999);
+    if (portfolioId) query.eq("portfolio_id", portfolioId);
+    const { data, error } = await query;
     if (error) throw new Error("Unable to load complete transaction history.");
     rows.push(...(data ?? []));
     if (!data || data.length < 1000) return rows;
   }
-});
+}));
 
 const scaleFactor = cache(async () => {
   const rows = await sourceTransactions();
@@ -43,7 +46,7 @@ export async function requireActualDataMode() {
 export async function presentationTransactions(portfolioId?: string, options: { type?: string; page?: number; pageSize?: number } = {}) {
   const enabled = await presentationEnabled();
   const factor = enabled ? await scaleFactor() : 1;
-  let rows = (await sourceTransactions()).filter((row) =>
+  let rows = (await sourceTransactions(enabled ? undefined : portfolioId)).filter((row) =>
     (!portfolioId || row.portfolio_id === portfolioId) && (!options.type || row.type === options.type));
   const count = rows.length;
   if (options.page) {

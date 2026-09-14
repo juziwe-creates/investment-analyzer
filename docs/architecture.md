@@ -210,6 +210,22 @@ The chart should support:
 
 Initial implementation can calculate daily or monthly points depending on available price data. The schema should support daily prices so the product can become more precise over time.
 
+# Read-Time Performance
+
+The first performance package preserves the existing financial formulas and full chart history:
+
+- Portfolio current metrics and holdings read transactions and latest/manual quotes without waiting for historical prices. Both historical charts share one asynchronous calculation, streamed through independent Suspense boundaries with reserved loading space and an explicit error state.
+- The timeline values the existing incremental lot inventory directly. It no longer constructs full purchase-lot analytics and runs unused XIRR solvers for every historical observation. Actual lot-return calculations retain the same solver, with date offsets prepared once per calculation.
+- Historical reads select only analytical quote fields, retain complete 1,000-row pagination, and scope to the account and, when applicable, a single security. Multi-security selection filters the account history in memory. No recent-only cutoff is introduced.
+- React request-scoped caching deduplicates identical history and transaction reads. Ordinary account reads filter in Postgres; presentation mode still derives its global scaling factor from all user accounts before filtering. RLS, session authentication, and in-memory-only scaling are unchanged.
+- No persistent analytics cache or new indexes are introduced in this package. Direct SQL imports currently make cache invalidation a correctness risk; existing indexes should be evaluated with production query plans before adding more.
+
+Set optional `ANALYTICS_PERF_LOGS=1` to emit server-side stage durations, row counts, and success status for transaction/current-quote/history reads and dashboard calculations. Logs contain neither monetary values nor user IDs. The flag is off by default; unset it or set it to `0` after measurement. In Vercel, changing it requires a redeployment.
+
+`npm run bench:analytics` exercises synthetic data without Supabase or provider calls. The 22,000-price, 1,100-observation fixture took 45,064 ms for the original timeline and 45-99 ms after optimization in local runs, with an identical full-output checksum. Run `npm run bench:analytics -- --large` for the 1,000,000-price, 5,000-observation fixture; its optimized timeline took approximately 2.8-5.3 seconds across local runs, including one during a concurrent build. These are calculation-only observations, not production page-load guarantees. FIFO/LIFO differential tests cover partial/full sales, dividends, missing prices, fractional lots, and input immutability.
+
+Remaining scaling work should follow production measurements: inspect database query plans and payload/round-trip costs, then consider bounded historical queries, revisioned derived snapshots, or additional indexes where justified. Any persistent cache must be keyed by authenticated user, account, source revision, calculation policy, and presentation context, and invalidated by imports, edits, price updates, and direct SQL changes.
+
 # Auditability
 
 Every imported transaction should be traceable to its origin.

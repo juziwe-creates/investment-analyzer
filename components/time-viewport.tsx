@@ -1,17 +1,19 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { constrainRange, dateString, fullRange, presets, presetRange, rangeFromSearch, timestamp, zoomRange, type TimeRange } from "@/lib/charts/time-viewport";
 import { cn } from "@/lib/utils";
 
-type Viewport = { range: TimeRange; times: number[]; full: TimeRange; setRange: (range: TimeRange) => void; zoomAt: (factor: number, anchor?: number) => void; fitAll: () => void };
+type Viewport = { range: TimeRange; times: number[]; full: TimeRange; setRange: (range: TimeRange) => void; zoomAt: (factor: number, anchor?: number) => void; fitAll: () => void; registerDates: (dates: string[]) => void };
 const Context = createContext<Viewport | null>(null);
 
-export function TimeViewportProvider({ dates, children }: { dates: string[]; children: ReactNode }) {
+export function TimeViewportProvider({ dates, children }: { dates?: string[]; children: ReactNode }) {
+  const [loadedDates, registerDates] = useState<string[]>([]);
+  const availableDates = dates ?? loadedDates;
   const search = useSearchParams();
   const pathname = usePathname();
-  const times = useMemo(() => [...new Set(dates.map(timestamp).filter(Number.isFinite))].sort((a, b) => a - b), [dates]);
+  const times = useMemo(() => [...new Set(availableDates.map(timestamp).filter(Number.isFinite))].sort((a, b) => a - b), [availableDates]);
   const from = search.get("from"), to = search.get("to");
   const key = `${pathname}:${times[0]}:${times.at(-1)}:${times.length}:${from}:${to}`;
   const initial = rangeFromSearch(new URLSearchParams({ from: from ?? "", to: to ?? "" }), times);
@@ -31,7 +33,13 @@ export function TimeViewportProvider({ dates, children }: { dates: string[]; chi
     return () => clearTimeout(timer);
   }, [state, key, times.length]);
 
-  return <Context.Provider value={{ range, times, full: fullRange(times), setRange, zoomAt: (factor, anchor = .5) => setRange(zoomRange(range, factor, anchor, times)), fitAll: () => setRange(fullRange(times)) }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ range, times, full: fullRange(times), setRange, zoomAt: (factor, anchor = .5) => setRange(zoomRange(range, factor, anchor, times)), fitAll: () => setRange(fullRange(times)), registerDates }}>{children}</Context.Provider>;
+}
+
+export function TimeViewportData({ dates }: { dates: string[] }) {
+  const { registerDates } = useTimeViewport();
+  useLayoutEffect(() => registerDates(dates), [dates, registerDates]);
+  return null;
 }
 
 export function useTimeViewport() {
@@ -49,5 +57,6 @@ export function TimePresets() {
 
 export function ViewportFields() {
   const { range, times } = useTimeViewport();
-  return times.length ? <><input type="hidden" name="from" value={dateString(range.start)} /><input type="hidden" name="to" value={dateString(range.end)} /></> : null;
+  const search = useSearchParams();
+  return <><input type="hidden" name="from" value={times.length ? dateString(range.start) : search.get("from") ?? ""} /><input type="hidden" name="to" value={times.length ? dateString(range.end) : search.get("to") ?? ""} /></>;
 }

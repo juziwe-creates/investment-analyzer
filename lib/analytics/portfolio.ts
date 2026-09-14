@@ -16,11 +16,12 @@ import {
 } from "@/lib/analytics/engine";
 import { marketDataCurrency } from "@/lib/market-data/currency";
 import type { Database } from "@/types/database";
+import type { MarketHistoryPrice } from "@/types/market-history";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 type ManualSecurityPrice = Database["public"]["Tables"]["manual_security_prices"]["Row"];
 type LatestMarketPrice = Database["public"]["Views"]["latest_market_prices"]["Row"];
-type MarketPrice = Database["public"]["Tables"]["market_prices"]["Row"];
+type MarketPrice = MarketHistoryPrice;
 
 export type ChartInterval = "daily" | "weekly" | "monthly";
 

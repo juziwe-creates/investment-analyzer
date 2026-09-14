@@ -277,7 +277,8 @@ Success criteria:
 Backlog:
 
 - add richer graphics for transaction and stock analytics after table metrics are validated
-- profile and optimize the three analytics views for larger datasets
+- first performance package delivered: remove redundant historical lot-return calculations, stream Portfolio history after current metrics, narrow historical payloads, scope ordinary transaction reads by account, and add opt-in server timings plus synthetic benchmarks (see `docs/architecture.md`)
+- measure authenticated production query/page latency and recheck deferred chart controls in the browser; use those findings to prioritize remaining optimization of the three analytics views
 - move expensive repeated analytics into cached server-side calculations or snapshots if needed
 - complete historical price coverage for the full portfolio
 

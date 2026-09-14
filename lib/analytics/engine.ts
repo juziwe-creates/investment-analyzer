@@ -255,16 +255,13 @@ function sortTransactionsChronologically(transactions: AnalyticsTransaction[]) {
   });
 }
 
-function xnpv(rate: number, cashFlows: LotCashFlow[]) {
-  const firstDate = cashFlows[0]?.date;
-
-  if (!firstDate || rate <= -1) {
+function xnpv(rate: number, cashFlows: { amount: number; years: number }[]) {
+  if (!cashFlows.length || rate <= -1) {
     return Number.NaN;
   }
 
   return cashFlows.reduce((sum, cashFlow) => {
-    const years = yearsBetween(firstDate, cashFlow.date);
-    return sum + cashFlow.amount / (1 + rate) ** years;
+    return sum + cashFlow.amount / (1 + rate) ** cashFlow.years;
   }, 0);
 }
 
@@ -280,6 +277,10 @@ export function calculateXirr(cashFlows: LotCashFlow[]) {
   }
 
   try {
+    const preparedCashFlows = chronologicalCashFlows.map((cashFlow) => ({
+      amount: cashFlow.amount,
+      years: yearsBetween(chronologicalCashFlows[0].date, cashFlow.date)
+    }));
     const candidates = [
       -0.9999,
       -0.99,
@@ -301,10 +302,10 @@ export function calculateXirr(cashFlows: LotCashFlow[]) {
     let low: number | null = null;
     let high: number | null = null;
     let previousRate = candidates[0];
-    let previousValue = xnpv(previousRate, chronologicalCashFlows);
+    let previousValue = xnpv(previousRate, preparedCashFlows);
 
     for (const rate of candidates.slice(1)) {
-      const value = xnpv(rate, chronologicalCashFlows);
+      const value = xnpv(rate, preparedCashFlows);
 
       if (!Number.isFinite(previousValue) || !Number.isFinite(value)) {
         previousRate = rate;
@@ -335,8 +336,8 @@ export function calculateXirr(cashFlows: LotCashFlow[]) {
 
     for (let index = 0; index < 100; index += 1) {
       const middle = (bracketLow + bracketHigh) / 2;
-      const lowValue = xnpv(bracketLow, chronologicalCashFlows);
-      const middleValue = xnpv(middle, chronologicalCashFlows);
+      const lowValue = xnpv(bracketLow, preparedCashFlows);
+      const middleValue = xnpv(middle, preparedCashFlows);
 
       if (!Number.isFinite(lowValue) || !Number.isFinite(middleValue)) {
         return { value: null, status: "calculation_error" as XirrStatus };
@@ -660,15 +661,16 @@ export function buildPortfolioTimeline(
   options: LotCalculationOptions = {}
 ): PortfolioTimelinePoint[] {
   const chronologicalTransactions = sortTransactionsChronologically(transactions);
+  // Canonical database dates are YYYY-MM-DD, so lexical order is chronological.
   const chronologicalPrices = [...prices].sort(
-    (a, b) => dateTimestamp(a.price_date) - dateTimestamp(b.price_date)
+    (a, b) => a.price_date < b.price_date ? -1 : a.price_date > b.price_date ? 1 : 0
   );
   const dates = [
     ...new Set([
       ...chronologicalTransactions.map((transaction) => transaction.trade_date),
       ...chronologicalPrices.map((price) => price.price_date)
     ])
-  ].sort((a, b) => dateTimestamp(a) - dateTimestamp(b));
+  ].sort();
   const points: PortfolioTimelinePoint[] = [];
   const baseCurrency = transactions[0]?.currency ?? prices[0]?.currency ?? "EUR";
   const lots: WorkingLot[] = [];
@@ -679,11 +681,9 @@ export function buildPortfolioTimeline(
   let lifetimeDeployedCapital = 0;
 
   for (const date of dates) {
-    const targetTime = dateTimestamp(date);
-
     while (
       chronologicalTransactions[transactionIndex] &&
-      dateTimestamp(chronologicalTransactions[transactionIndex].trade_date) <= targetTime
+      chronologicalTransactions[transactionIndex].trade_date <= date
     ) {
       const transaction = chronologicalTransactions[transactionIndex];
 
@@ -701,7 +701,7 @@ export function buildPortfolioTimeline(
 
     while (
       chronologicalPrices[priceIndex] &&
-      dateTimestamp(chronologicalPrices[priceIndex].price_date) <= targetTime
+      chronologicalPrices[priceIndex].price_date <= date
     ) {
       const price = chronologicalPrices[priceIndex];
 
@@ -709,34 +709,33 @@ export function buildPortfolioTimeline(
       priceIndex += 1;
     }
 
-    const lotAnalytics = buildPurchaseLotAnalytics(lots, latestPriceMap, date);
-    const openLots = lotAnalytics.filter((lot) => lot.remainingQuantity > 0);
-    const pricedOpenLots = openLots.filter((lot) => lot.currentRemainingValue !== null);
-    const currentDeployedCapital = openLots.reduce(
-      (sum, lot) => sum + lot.remainingAcquisitionCost,
-      0
-    );
-    const pricedCurrentDeployedCapital = pricedOpenLots.reduce(
-      (sum, lot) => sum + lot.remainingAcquisitionCost,
-      0
-    );
+    // Timeline values need inventory and quotes only. Computing full lot returns
+    // here would run an unused XIRR solver for every lot at every historical date.
+    let currentDeployedCapital = 0;
+    let pricedCurrentDeployedCapital = 0;
+    let portfolioMarketValue = 0;
+    let openLotCount = 0;
+    let firstPricedCurrency: string | undefined;
+    const missingKeys = new Set<string>();
+    for (const lot of lots) {
+      if (lot.remainingQuantity <= 0) continue;
+      openLotCount++;
+      const cost = Math.max(lot.remainingAcquisitionCost, 0);
+      currentDeployedCapital += cost;
+      const price = latestPriceMap.get(lot.securityKey);
+      if (price) {
+        pricedCurrentDeployedCapital += cost;
+        portfolioMarketValue += lot.remainingQuantity * price.price;
+        firstPricedCurrency ??= price.currency;
+      } else missingKeys.add(lot.securityKey);
+    }
     const unpricedCurrentDeployedCapital =
       currentDeployedCapital - pricedCurrentDeployedCapital;
-    const portfolioMarketValue = pricedOpenLots.reduce(
-      (sum, lot) => sum + (lot.currentRemainingValue ?? 0),
-      0
-    );
-    const missingPriceSecurityKeys = [
-      ...new Set(
-        openLots
-          .filter((lot) => !latestPriceMap.has(lot.securityKey))
-          .map((lot) => lot.securityKey)
-      )
-    ];
+    const missingPriceSecurityKeys = [...missingKeys];
     const hasCompletePricing = missingPriceSecurityKeys.length === 0;
     const unrealizedGain = portfolioMarketValue - pricedCurrentDeployedCapital;
 
-    if (openLots.length === 0 && dividendsCollected === 0) {
+    if (openLotCount === 0 && dividendsCollected === 0) {
       continue;
     }
 
@@ -755,7 +754,7 @@ export function buildPortfolioTimeline(
       dividendsCollected,
       missingPriceSecurityKeys,
       hasCompletePricing,
-      currency: pricedOpenLots[0]?.currency ?? baseCurrency
+      currency: firstPricedCurrency ?? baseCurrency
     });
   }
 
