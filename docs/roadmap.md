@@ -276,6 +276,8 @@ Success criteria:
 
 Backlog:
 
+- UI refinement package delivered: Capital Deployment selection with canonical transactions, annual Personal Dividend Yield, branded route/action progress, and Investment History dividend overlays. Physical touch/trackpad and reduced-motion device verification remain follow-up QA.
+
 - add richer graphics for transaction and stock analytics after table metrics are validated
 - first performance package delivered: remove redundant historical lot-return calculations, stream Portfolio history after current metrics, narrow historical payloads, scope ordinary transaction reads by account, and add opt-in server timings plus synthetic benchmarks (see `docs/architecture.md`)
 - measure authenticated production query/page latency and recheck deferred chart controls in the browser; use those findings to prioritize remaining optimization of the three analytics views

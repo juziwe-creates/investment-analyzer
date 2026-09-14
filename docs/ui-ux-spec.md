@@ -436,6 +436,10 @@ In comparison-heavy tables, percentage may be visually primary.
 
 # 10. Portfolio Performance Chart
 
+## Approved UI Refinements (2026-09)
+
+`CODEX_ALPHA_UI_REFINEMENTS_SPEC.md` extends the current UI with Capital Deployment selection/transactions, annual Personal Dividend Yield, shared branded progress, and personal dividend overlays in Investment History. Detailed implemented interaction contracts are recorded in `docs/chart-navigation.md`; new calculation rules are in `docs/analytics-rules.md`. Existing navigation, visual system, shared time viewport, privacy, and unrelated unresolved financial definitions remain unchanged.
+
 ## 10.1 Default series
 
 Default visible series:

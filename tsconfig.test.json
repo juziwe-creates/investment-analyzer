@@ -12,6 +12,8 @@
     "incremental": false
   },
   "include": [
+    "lib/analytics/dividends.test.ts",
+    "lib/charts/series.test.ts",
     "lib/analytics/performance.bench.ts",
     "lib/charts/time-viewport.test.ts",
     "lib/analytics/presentation.test.ts",

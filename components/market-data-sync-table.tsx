@@ -3,6 +3,7 @@ import {
   syncSecurityMarketData
 } from "@/app/actions/market-data";
 import { Button } from "@/components/ui/button";
+import { ProgressSubmit } from "@/components/alpha-progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -423,9 +424,9 @@ export function MarketDataSyncTable({
                               placeholder="MSF.XETRA"
                               className="h-8 min-w-36"
                             />
-                            <Button type="submit" variant="outline" size="sm">
+                            <ProgressSubmit status="Saving provider symbol" variant="outline" size="sm">
                               Save
-                            </Button>
+                            </ProgressSubmit>
                           </div>
                           <Input
                             name="notes"
@@ -507,13 +508,13 @@ export function MarketDataSyncTable({
                           <input type="hidden" name="return_to" value="/market-data" />
                           <input type="hidden" name="portfolio_id" value={security.portfolio_id} />
                           <input type="hidden" name="security_key" value={security.security_key} />
-                          <Button
+                          <ProgressSubmit status="Updating prices"
                             type="submit"
                             size="sm"
                             disabled={!providerSymbol || recentlySynced}
                           >
                             Sync one
-                          </Button>
+                          </ProgressSubmit>
                           <div className="text-xs text-muted-foreground">
                             {recentlySynced
                               ? "Synced recently"

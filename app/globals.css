@@ -84,6 +84,19 @@
 }
 
 @layer components {
+  .alpha-progress-mark {
+    animation: alpha-breathe 1.4s ease-in-out infinite;
+  }
+
+  @keyframes alpha-breathe {
+    0%, 100% { opacity: .55; transform: rotate(-5deg); }
+    50% { opacity: 1; transform: rotate(5deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .alpha-progress-mark { animation: none; }
+  }
+
   .alpha-surface {
     @apply rounded-lg border border-border/80 bg-card;
   }

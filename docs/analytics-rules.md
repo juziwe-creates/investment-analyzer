@@ -218,6 +218,23 @@ This means the app currently assumes:
 
 This is an MVP assumption, not personalized tax advice.
 
+# Personal Dividend Yield (Approved UI Refinement)
+
+The 2026-09 UI refinement specification adds a separate calendar-year metric named **Personal Dividend Yield**. It does not replace the existing lot yield, canonical Total Return, or unresolved general Yield on Cost definitions.
+
+`Personal Dividend Yield (%) = 100 * actual gross dividends in the year / time-weighted average active acquisition cost`.
+
+- Active acquisition cost is remaining cost basis from the shared lot engine, after each buy/sell. Sale proceeds and market prices are not the denominator.
+- Weight each basis by its active UTC calendar days. A transaction applies on its event date; same-day ordering matches the shared engine. Divide accumulated basis-days by all days from January 1 to December 31 (365/366), including zero-capital days before the first purchase.
+- For the current year, stop at today inclusive and divide by elapsed calendar days only. Label it `YYYY YTD`; do not annualize. Future transactions are excluded from this metric.
+- Portfolio uses its existing FIFO basis policy. Selection buy-row metrics and Investment Detail continue using the existing LIFO Purchase Lots policy. This refinement does not silently resolve the cross-view policy difference.
+- Numerator uses only canonical `gross_amount`. A net-only dividend makes that year's gross yield unavailable, not estimated. Zero cost, incomplete buy history (including oversells or dividends without eligible holdings), and mixed currencies also withhold the metric. An incomplete inventory remains flagged for later years rather than assuming later purchases repair it.
+- Example: unchanged EUR100 + EUR200 acquisition cost and EUR30 annual gross dividends gives exactly 10.0%.
+
+Investment History's Price mode uses factual gross dividend cash divided by eligible shares at the event, derived by the same lot inventory engine. No eligible shares or missing gross cash means no per-share value. Net cash is separately labeled only when factual. Position mode cumulatively sums canonical dividend cash using the existing gross, else net, else factual quantity-times-price convention; missing cash makes the running total unavailable. It starts at zero before the first payment and groups same-day running totals at the final total for drawing. No provider dividend events are used.
+
+These functions operate on the already account/security-filtered and, when enabled, presentation-scaled input. They persist no derived values. Scaling multiplies cost and cash together, preserving yield percentages and per-share dividends.
+
 # Current Dividend Yield
 
 Transaction Analytics currently uses the latest dividend allocation for the buy lot.

@@ -5,10 +5,13 @@ import { readMarketHistory } from "@/lib/market-data/history";
 import { marketDataCurrency } from "@/lib/market-data/currency";
 import { measureAnalytics } from "@/lib/performance";
 import type { Database } from "@/types/database";
+import { calculateAnnualPersonalDividendYield } from "./dividends";
+import { calculateLotProfitability, type ValuationPrice } from "./profitability";
+import { selectedTransactionRows } from "./selected-transactions";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 
-export async function loadDashboardHistory(transactions: Transaction[], portfolioId: string | undefined, currencyReady: boolean) {
+export async function loadDashboardHistory(transactions: Transaction[], portfolioId: string | undefined, currencyReady: boolean, valuationPrices: ValuationPrice[] = []) {
   try {
     const keys = new Set(transactions.map(transactionSecurityKey));
     const result = currencyReady && keys.size ? await readMarketHistory(portfolioId, keys.size === 1 ? [...keys][0] : undefined) : { data: [], error: null };
@@ -18,9 +21,11 @@ export async function loadDashboardHistory(transactions: Transaction[], portfoli
     return await measureAnalytics("dashboard.history.calculate", () => ({
       development: ready ? calculatePortfolioDevelopment(transactions, prices, "daily") : [],
       deployment: ready ? calculateCapitalDeployment(transactions, "daily") : [],
+      annual: ready ? calculateAnnualPersonalDividendYield(transactions, new Date().toISOString().slice(0, 10)) : [],
+      rows: ready ? selectedTransactionRows(transactions, calculateLotProfitability(transactions, valuationPrices, { lotMatchingMethod: "lifo" })) : [],
       error: ready ? null : "Portfolio history is unavailable until EUR conversion is defined."
     }));
   } catch {
-    return { development: [], deployment: [], error: "Portfolio history could not be loaded. Reload the page to retry." };
+    return { development: [], deployment: [], annual: [], rows: [], error: "Portfolio history could not be loaded. Reload the page to retry." };
   }
 }

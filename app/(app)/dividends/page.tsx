@@ -3,12 +3,13 @@ import { eurAggregationStatus } from "@/lib/analytics/currency";
 import { transactionSecurityKey } from "@/lib/analytics/portfolio";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { presentationTransactions } from "@/lib/presentation";
+import { dividendAmount } from "@/lib/analytics/engine";
 
 export default async function DividendsPage({ searchParams }: { searchParams: Promise<{ portfolio?: string }> }) {
   const { portfolio: portfolioId } = await searchParams;
   const { data, error } = await presentationTransactions(portfolioId, { type: "dividend" });
   const dividends = data ?? [];
-  const amount = (transaction: (typeof dividends)[number]) => Math.abs(transaction.gross_amount ?? transaction.net_amount ?? ((transaction.quantity ?? 0) * (transaction.unit_price ?? 0)));
+  const amount = dividendAmount;
   const { canAggregate: currencyReady, unsupportedCurrencies } = eurAggregationStatus(dividends.map((transaction) => transaction.currency));
   const currentYear = String(new Date().getUTCFullYear());
   const total = dividends.reduce((sum, transaction) => sum + amount(transaction), 0);

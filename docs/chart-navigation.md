@@ -43,6 +43,16 @@ The performance package passed an HTTP streaming fixture check: current content 
 
 ## Verification
 
+### UI Refinements (2026-09)
+
+- Shared series support independent left/right Y scales, per-series formatters, nullable values, and discrete bars/lollipops. Each scale fits only visible samples; discrete events are never interpolated. Stepped cash retains its prior known value at viewport boundaries. Exact event tooltips remain available using an enlarged pointer target.
+- Capital Deployment adds an explicit Select period mode. Horizontal drag selects only while enabled; otherwise existing pan/zoom remains. Selection is a separate inclusive date range, can be adjusted with handles or native date fields, clips to the visible intersection, survives zoom/MAX, and can be cleared. Escape restores the prior range during an incomplete drag. Account/security remounts clear selection.
+- The selected-period view includes BUY, SELL, and DIVIDEND ledger rows in the current account/security context. Buy amounts/reference values/returns/XIRR reuse the LIFO Purchase Lots read model; sale/dividend standalone returns remain unavailable. Rows open the existing nonmodal Decision Drawer. Desktop tables switch to readable cards below 1280px.
+- Personal Dividend Yield uses annual observations on the right percentage axis, with factual gross dividends and weighted cost in the tooltip. Current-year observations are labeled YTD, not annualized. Data-quality reasons are disclosed. See `analytics-rules.md` for the exact method.
+- The existing Investment History Dividends toggle controls both personal transaction markers and the right series/axis. Price mode shows discrete personal gross dividend/share events; Position Value shows stepped cumulative dividend cash. The toggle, viewport, and drawer survive Price/Position switching. No personal dividends means no dividend axis.
+- AlphaProgress replaces major route/history and supported local action progress with the existing Alpha mark. Status text is at most four words, appears after 250 ms, and remains for at least 400 ms while mounted. Completed navigation/Suspense boundaries are never held back just to finish an animation. The 1.4-second gentle animation is disabled under reduced motion. No fake import or broker stages were added.
+- Browser checks on 2,200 synthetic observations covered selection versus zoom, single-day inclusivity, keyboard pan with selection retained, drawer continuity, dividend modes/tooltips, and 1440/1024/390px layouts. No invalid SVG paths or horizontal viewport overflow were found at the checked sizes. Quick/long progress operations and the animation were checked; physical touchscreen/trackpad and OS reduced-motion device QA remain manual checks.
+
 - Automated viewport tests: boundaries, 0.70 zoom, anchored dates, irregular minimum observations, sparse/empty data, calendar presets, invalid URL handling, and multi-series extrema preservation.
 - Existing analytics, market-currency, and presentation-mode regression tests remain in the test suite.
 - Browser checks with 6,600 synthetic daily observations: synchronized presets/zoom/pan, keyboard pan/zoom, navigator resize, refresh restoration, dividend toggle, marker drawer, mode switch with drawer open, three-point/empty states, and 390px responsive layout.

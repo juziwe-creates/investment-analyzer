@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { AlphaLogo } from "@/components/alpha-logo";
-import { Button } from "@/components/ui/button";
+import { ProgressSubmit } from "@/components/alpha-progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -59,9 +59,9 @@ export function AuthForm({
               required
             />
           </div>
-          <Button type="submit" className="w-full">
+          <ProgressSubmit status="Authenticating account" className="w-full">
             {buttonLabel}
-          </Button>
+          </ProgressSubmit>
           <p className="text-center text-sm text-muted-foreground">{footer}</p>
         </form>
       </section>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { setPresentation } from "@/app/actions/presentation";
+import { AlphaProgress } from "@/components/alpha-progress";
 
 export function PresentationSettings({ enabled }: { enabled: boolean }) {
   const [pending, setPending] = useState(false);
@@ -22,7 +23,7 @@ export function PresentationSettings({ enabled }: { enabled: boolean }) {
     </label>
     <p className="text-sm text-muted-foreground">Scales all accounts together for presentation. Quantities and money totals change; per-share prices and dates stay the same. Your stored records remain unchanged.</p>
     <p className="text-xs text-muted-foreground">Only the on/off preference is held in a session cookie. The scale and presentation amounts are calculated in memory.</p>
-    {pending && <p role="status" className="text-sm">Updating presentation mode...</p>}
+    <AlphaProgress active={pending} status="Updating presentation mode" />
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </div>;
 }

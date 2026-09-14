@@ -9,7 +9,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "bench:analytics": "tsc -p tsconfig.test.json && node .tmp-tests/lib/analytics/performance.bench.js",
-    "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/charts/time-viewport.test.js .tmp-tests/lib/analytics/presentation.test.js .tmp-tests/lib/analytics/currency.test.js .tmp-tests/lib/analytics/engine.test.js .tmp-tests/lib/market-data/currency.test.js .tmp-tests/lib/market-data/symbols.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/charts/series.test.js .tmp-tests/lib/analytics/dividends.test.js .tmp-tests/lib/charts/time-viewport.test.js .tmp-tests/lib/analytics/presentation.test.js .tmp-tests/lib/analytics/currency.test.js .tmp-tests/lib/analytics/engine.test.js .tmp-tests/lib/market-data/currency.test.js .tmp-tests/lib/market-data/symbols.test.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",

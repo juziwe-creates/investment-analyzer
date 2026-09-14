@@ -5,16 +5,20 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useTimeViewport } from "@/components/time-viewport";
 import { dateString, DAY, decimate, lowerBound, nearestIndex, timestamp, zoomRange, type TimeRange } from "@/lib/charts/time-viewport";
 import { formatDate } from "@/lib/formatters";
+import { selectionRange, seriesExtent, visibleSamples } from "@/lib/charts/series";
+import { AlphaProgress } from "@/components/alpha-progress";
 
-export type ChartSeries<T> = { label: string; color: string; value: (point: T) => number; stepped?: boolean };
+export type ChartObservation = { date: string; value: number | null; tooltip?: { label: string; value: string }[] };
+export type ChartSeries<T> = { label: string; color: string; value: (point: T) => number | null; stepped?: boolean; axis?: "left" | "right"; format?: (value: number) => string; render?: "line" | "bar" | "lollipop"; observations?: ChartObservation[] };
 export type ChartMarker = { id: string; date: string; type: "buy" | "sell" | "dividend" };
 type Point = { date: string; currency: string };
 type Drag = { x: number; y: number; range: TimeRange; direction?: "horizontal" | "vertical"; mode: "pan" | "start" | "end"; navigator: boolean };
 const colors = { buy: "hsl(var(--positive))", sell: "hsl(var(--negative))", dividend: "hsl(var(--chart-dividend))" };
 
-export function TimeSeriesChart<T extends Point>({ points, series, label, tooltip, markers = [], onMarker, emptyMessage = "Historical data is unavailable." }: {
+export function TimeSeriesChart<T extends Point>({ points, series, label, tooltip, markers = [], onMarker, selection, emptyMessage = "Historical data is unavailable." }: {
   points: T[]; series: ChartSeries<T>[]; label: string; tooltip: (point: T) => { label: string; value: string }[];
   markers?: ChartMarker[]; onMarker?: (marker: ChartMarker) => void; emptyMessage?: string;
+  selection?: { active: boolean; range: TimeRange | null; onChange: (range: TimeRange | null) => void };
 }) {
   const viewport = useTimeViewport();
   const { range, full, times, setRange, zoomAt, fitAll } = viewport;
@@ -25,12 +29,14 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
   const [gesturing, setGesturing] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const drag = useRef<Drag | null>(null);
+  const selecting = useRef<{ anchor: number; previous: TimeRange | null; edge?: "start" | "end"; x: number; y: number; vertical: boolean } | null>(null);
   const pinch = useRef<{ distance: number; middle: number; range: TimeRange } | null>(null);
   const suppressClick = useRef(false);
   const gestureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(viewport);
   const clipId = useId().replaceAll(":", "");
-  const left = width < 500 ? 66 : 88, right = 18, top = 20, bottom = 42, height = 320;
+  const hasRight = series.some((item) => item.axis === "right");
+  const left = width < 500 ? 66 : 88, right = hasRight ? (width < 500 ? 70 : 88) : 18, top = 20, bottom = 42, height = 320;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
   const duration = range.end - range.start || DAY;
   const fullDuration = full.end - full.start || DAY;
@@ -39,6 +45,7 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
   const atMinimum = zoomedIn.end - zoomedIn.start >= range.end - range.start;
   const atMaximum = range.start === full.start && range.end === full.end;
   const pointTimes = useMemo(() => points.map((point) => timestamp(point.date)), [points]);
+  const hoverTimes = useMemo(() => [...new Set([...pointTimes, ...series.flatMap((item) => item.observations?.map((row) => timestamp(row.date)) ?? [])])].sort((a, b) => a - b), [pointTimes, series]);
   const x = (time: number) => left + (time - range.start) / duration * plotWidth;
   const navX = (time: number) => left + (time - full.start) / fullDuration * plotWidth;
   const currency = points.at(-1)?.currency ?? "EUR";
@@ -67,31 +74,15 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     return () => { svg.removeEventListener("wheel", wheel); if (gestureTimer.current) clearTimeout(gestureTimer.current); };
   }, [enabled, width, left, plotWidth]);
 
-  // Boundary intersections affect drawing/axes only. Tooltips always use source observations.
-  const visible = useMemo(() => {
-    if (!points.length) return [];
-    const first = lowerBound(pointTimes, range.start), after = lowerBound(pointTimes, range.end + 1);
-    const rows: { time: number; values: number[] }[] = [];
-    const boundary = (time: number, index: number) => {
-      const before = points[index - 1], next = points[index];
-      if (!before) return;
-      if (!next && !series.every((item) => item.stepped)) return;
-      rows.push({ time, values: series.map((item) => {
-        const value = item.value(before);
-        return item.stepped || !next ? value : value + (item.value(next) - value) * (time - pointTimes[index - 1]) / (pointTimes[index] - pointTimes[index - 1] || 1);
-      }) });
-    };
-    if (pointTimes[first] !== range.start) boundary(range.start, first);
-    for (let index = first; index < after; index++) rows.push({ time: pointTimes[index], values: series.map((item) => item.value(points[index])) });
-    if (pointTimes[after - 1] !== range.end) boundary(range.end, after);
-    return rows;
-  }, [points, pointTimes, range.start, range.end, series]);
-  const yValues = visible.flatMap((row) => row.values).filter(Number.isFinite);
-  const rawMin = yValues.reduce((min, value) => Math.min(min, value), Infinity);
-  const rawMax = yValues.reduce((max, value) => Math.max(max, value), -Infinity);
-  const padding = yValues.length ? (rawMax - rawMin || Math.abs(rawMax) || 1) * .05 : 1;
-  const min = yValues.length ? rawMin - padding : 0, max = yValues.length ? rawMax + padding : 1;
+  // Each axis uses only its visible samples. Event series never interpolate.
+  const visible = useMemo(() => series.map((item) => visibleSamples(
+    item.observations ? item.observations.map((row) => ({ time: timestamp(row.date), value: row.value })) : points.map((point, index) => ({ time: pointTimes[index], value: item.value(point) })),
+    range, item.stepped, item.render === "bar" || item.render === "lollipop"
+  )), [series, points, pointTimes, range]);
+  const { min, max } = seriesExtent(visible.filter((_, index) => series[index].axis !== "right"));
+  const rightExtent = seriesExtent(visible.filter((_, index) => series[index].axis === "right"), series.some((item) => item.axis === "right" && (item.render === "bar" || item.render === "lollipop")));
   const y = (value: number) => top + plotHeight - (value - min) / (max - min) * plotHeight;
+  const rightY = (value: number) => top + plotHeight - (value - rightExtent.min) / (rightExtent.max - rightExtent.min) * plotHeight;
   const narrowAxis = max - min < Math.max(Math.abs(max), 1) * .08;
   const axisLabel = (value: number) => {
     const divisor = narrowAxis ? 1 : Math.abs(value) >= 1_000_000 ? 1_000_000 : Math.abs(value) >= 1000 ? 1000 : 1;
@@ -99,12 +90,23 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     // Explicit decimals avoid server/browser ICU differences in compact currency notation.
     return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: digits }).format(value / divisor) + (divisor === 1_000_000 ? "M" : divisor === 1000 ? "K" : "");
   };
-  const renderRows = decimate(visible, (row) => row.values, Math.max(400, width * 2));
   const overview = useMemo(() => decimate(points.map((point, index) => ({ time: pointTimes[index], value: series[0]?.value(point) ?? 0 })), (row) => [row.value], 500), [points, pointTimes, series]);
   const navMin = overview.reduce((value, row) => Math.min(value, row.value), Infinity);
   const navMax = overview.reduce((value, row) => Math.max(value, row.value), -Infinity);
   const navPath = overview.map((row, index) => `${index ? "L" : "M"} ${navX(row.time)} ${39 - (row.value - navMin) / (navMax - navMin || 1) * 30}`).join(" ");
-  const hoverPoint = hover && hover.start === range.start && hover.end === range.end && !gesturing ? points[hover.index] : null;
+  const hoverTime = hover && hover.start === range.start && hover.end === range.end && !gesturing ? hoverTimes[hover.index] : undefined;
+  const hoverPoint = hoverTime === undefined ? null : points[lowerBound(pointTimes, hoverTime)];
+  const hoverRows = hoverTime === undefined ? [] : [
+    ...(hoverPoint && timestamp(hoverPoint.date) === hoverTime ? tooltip(hoverPoint) : []),
+    ...series.flatMap((item) => {
+      const exact = item.observations?.filter((row) => timestamp(row.date) === hoverTime) ?? [];
+      if (exact.length) return exact.flatMap((row) => row.tooltip ?? [{ label: item.label, value: row.value === null ? "Unavailable" : (item.format ?? axisLabel)(row.value) }]);
+      if (!item.stepped || !item.observations) return [];
+      const index = lowerBound(item.observations.map((row) => timestamp(row.date)), hoverTime + 1) - 1;
+      const value = item.observations[index]?.value;
+      return value === undefined ? [] : [{ label: item.label, value: value === null ? "Unavailable" : (item.format ?? axisLabel)(value) }];
+    })
+  ];
   const ticks = Math.max(3, Math.min(8, Math.floor(plotWidth / 110) + 1));
   const tickFormat = new Intl.DateTimeFormat("en", { timeZone: "UTC", ...(duration < 120 * DAY ? { month: "short", day: "numeric" } as const : duration < 4 * 365 * DAY ? { month: "short", year: "numeric" } as const : { year: "numeric" } as const) });
   const tickTimes = range.start === range.end ? [range.start] : [...new Set(Array.from({ length: ticks }, (_, index) => Math.round((range.start + duration * index / (ticks - 1)) / DAY) * DAY))];
@@ -116,6 +118,15 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     return ((clientX - rect.left) * width / rect.width - left) / plotWidth;
   }
   function begin(event: ReactPointerEvent<SVGSVGElement>, navigator = false) {
+    if (!navigator && selection?.active && event.button === 0 && points.length) {
+      const fraction = plotFraction(event.clientX, event.currentTarget);
+      if (fraction < 0 || fraction > 1) return;
+      const edge = (event.target as Element).getAttribute("data-selection-edge") as "start" | "end" | null;
+      selecting.current = { anchor: range.start + fraction * duration, previous: selection.range, edge: edge ?? undefined, x: event.clientX, y: event.clientY, vertical: false };
+      suppressClick.current = true;
+      (event.target as Element).setPointerCapture(event.pointerId);
+      return;
+    }
     if (!enabled || event.button !== 0) return;
     const target = event.target as Element;
     const mode = (target.getAttribute("data-handle") ?? "pan") as Drag["mode"];
@@ -141,11 +152,22 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     (event.target as Element).setPointerCapture(event.pointerId);
   }
   function move(event: ReactPointerEvent<SVGSVGElement>) {
+    const activeSelection = selecting.current;
+    if (activeSelection && selection) {
+      const dx = event.clientX - activeSelection.x, dy = event.clientY - activeSelection.y;
+      if (event.pointerType === "touch" && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) >= 5) activeSelection.vertical = true;
+      if (activeSelection.vertical || Math.max(Math.abs(dx), Math.abs(dy)) < 5) return;
+      setGesturing(true); setHover(null);
+      const time = range.start + plotFraction(event.clientX, event.currentTarget) * duration;
+      const anchor = activeSelection.edge && activeSelection.previous ? activeSelection.previous[activeSelection.edge === "start" ? "end" : "start"] : activeSelection.anchor;
+      selection.onChange(selectionRange(anchor, time, full));
+      return;
+    }
     if (!pointers.current.has(event.pointerId)) {
       if (event.pointerType !== "mouse" || !pointTimes.length) return;
       const fraction = plotFraction(event.clientX, event.currentTarget);
-      const index = nearestIndex(pointTimes, range.start + fraction * duration);
-      setHover(fraction >= 0 && fraction <= 1 && pointTimes[index] >= range.start && pointTimes[index] <= range.end ? { index, start: range.start, end: range.end } : null);
+      const index = nearestIndex(hoverTimes, range.start + fraction * duration);
+      setHover(fraction >= 0 && fraction <= 1 && hoverTimes[index] >= range.start && hoverTimes[index] <= range.end ? { index, start: range.start, end: range.end } : null);
       return;
     }
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -173,6 +195,11 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     else { const shift = initial.navigator ? delta : -delta; setRange({ start: initial.range.start + shift, end: initial.range.end + shift }); }
   }
   function end(event: ReactPointerEvent<SVGSVGElement>) {
+    if (selecting.current) {
+      if (event.type === "pointercancel") selection?.onChange(selecting.current.previous);
+      selecting.current = null; setGesturing(false);
+      return;
+    }
     pointers.current.delete(event.pointerId);
     pinch.current = null;
     const remaining = [...pointers.current.values()][0];
@@ -180,7 +207,7 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     else { drag.current = null; setGesturing(false); }
   }
 
-  if (points.length && !times.length) return <div ref={root} role="status" aria-label={`Loading ${label}`} className="h-[440px] animate-pulse rounded-md bg-muted/40" />;
+  if (points.length && !times.length) return <div ref={root} className="flex h-[440px] items-center justify-center rounded-md bg-muted/40"><AlphaProgress status="Preparing chart" /></div>;
 
   return <div ref={root} className="min-w-0 space-y-3" data-time-chart={label}>
     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs tabular-nums text-muted-foreground" aria-live="off">{times.length ? `${formatDate(dateString(range.start))} – ${formatDate(dateString(range.end))}` : "No history"}</p><div className="flex gap-1">{[
@@ -190,10 +217,11 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     ].map(({ label: controlLabel, icon: Icon, action, disabled }) => <button type="button" key={controlLabel} aria-label={controlLabel} title={controlLabel} disabled={!enabled || disabled} onClick={() => { setHover(null); action(); }} className="alpha-focus flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:text-foreground disabled:opacity-40"><Icon size={16} /></button>)}</div></div>
     {!points.length ? <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">{emptyMessage}</div> : <>
       <div className="relative">
-        <svg ref={plot} role="group" aria-label={`${label}. Use plus, minus, arrow keys, or Home to navigate time.`} tabIndex={0} viewBox={`0 0 ${width} ${height}`} className="alpha-focus block w-full rounded-sm" style={{ touchAction: "pan-y", cursor: gesturing ? "grabbing" : enabled ? "grab" : "crosshair" }}
+        <svg ref={plot} role="group" aria-label={`${label}. Use plus, minus, arrow keys, or Home to navigate time.`} tabIndex={0} viewBox={`0 0 ${width} ${height}`} className="alpha-focus block w-full rounded-sm" style={{ touchAction: "pan-y", cursor: selection?.active ? "crosshair" : gesturing ? "grabbing" : enabled ? "grab" : "crosshair" }}
           onPointerDown={(event) => begin(event)} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onPointerLeave={() => setHover(null)}
           onClickCapture={(event) => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); } }}
           onKeyDown={(event) => {
+            if (event.key === "Escape" && selecting.current) { selection?.onChange(selecting.current.previous); selecting.current = null; setGesturing(false); return; }
             if (event.target !== event.currentTarget || !enabled) return;
             if (["+", "=", "-", "ArrowLeft", "ArrowRight", "Home"].includes(event.key)) { event.preventDefault(); setHover(null); }
             if (event.key === "+" || event.key === "=") zoomAt(.7);
@@ -203,21 +231,38 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
           }}>
           <defs><clipPath id={clipId}><rect x={left} y={top} width={plotWidth} height={plotHeight} /></clipPath></defs>
           {[0, .25, .5, .75, 1].map((fraction) => { const value = min + (max - min) * fraction; return <g key={fraction}><line x1={left} x2={width - right} y1={y(value)} y2={y(value)} stroke="hsl(var(--border-subtle))" strokeDasharray="3 6" /><text x={left - 8} y={y(value)} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground text-[11px]">{axisLabel(value)}</text></g>; })}
+          {hasRight ? [0, .25, .5, .75, 1].map((fraction) => { const value = rightExtent.min + (rightExtent.max - rightExtent.min) * fraction; return <text key={fraction} x={width - right + 8} y={rightY(value)} dominantBaseline="middle" className="fill-muted-foreground text-[11px]">{(series.find((item) => item.axis === "right")?.format ?? axisLabel)(value)}</text>; }) : null}
           <g clipPath={`url(#${clipId})`}>
-            {series.map((item, column) => <path key={item.label} d={renderRows.map((row, index) => `${index ? item.stepped ? `H ${x(row.time)} V` : "L" : "M"} ${index && item.stepped ? "" : x(row.time)} ${y(row.values[column])}`).join(" ")} fill="none" stroke={item.color} strokeWidth={column === 0 ? 2.25 : 1.75} />)}
-            {visible.length === 1 ? series.map((item, column) => <circle key={item.label} cx={x(visible[0].time)} cy={y(visible[0].values[column])} r={3} fill={item.color} />) : null}
+            {series.map((item, column) => {
+              const scale = item.axis === "right" ? rightY : y;
+              const rows = visible[column];
+              if (item.render === "bar" || item.render === "lollipop") return <g key={item.label} data-series={item.label}>{rows.map((row, index) => row.value === null ? null : <g key={`${row.time}-${index}`} onPointerMove={(event) => {
+                if (selecting.current || pointers.current.size || gesturing) return;
+                event.stopPropagation();
+                setHover({ index: lowerBound(hoverTimes, row.time), start: range.start, end: range.end });
+              }}><line x1={x(row.time)} x2={x(row.time)} y1={scale(0)} y2={scale(row.value)} stroke={item.color} strokeWidth={item.render === "bar" ? 6 : 1.5} /><circle cx={x(row.time)} cy={scale(row.value)} r={10} fill="transparent" />{item.render === "lollipop" ? <circle cx={x(row.time)} cy={scale(row.value)} r={3.5} fill={item.color} /> : null}</g>)}</g>;
+              let connected = false;
+              const sampled = rows.some((row) => row.value === null) ? rows : decimate(rows, (row) => [row.value!], Math.max(400, width * 2));
+              const path = sampled.map((row) => {
+                if (row.value === null) { connected = false; return ""; }
+                const command = connected ? item.stepped ? `H ${x(row.time)} V ${scale(row.value)}` : `L ${x(row.time)} ${scale(row.value)}` : `M ${x(row.time)} ${scale(row.value)}`;
+                connected = true; return command;
+              }).join(" ");
+              return <g key={item.label} data-series={item.label}><path d={path} fill="none" stroke={item.color} strokeWidth={column === 0 ? 2.25 : 1.75} />{rows.length === 1 && rows[0].value !== null ? <circle cx={x(rows[0].time)} cy={scale(rows[0].value)} r={3} fill={item.color} /> : null}</g>;
+            })}
+            {selection?.range && selection.range.end >= range.start && selection.range.start <= range.end ? <g data-selection-overlay="true"><rect x={x(Math.max(range.start, selection.range.start))} y={top} width={Math.max(1, x(Math.min(range.end, selection.range.end)) - x(Math.max(range.start, selection.range.start)))} height={plotHeight} fill="hsl(var(--accent-brand)/.10)" pointerEvents="none" />{(["start", "end"] as const).map((edge) => selection.range![edge] >= range.start && selection.range![edge] <= range.end ? <g key={edge}><line x1={x(selection.range![edge])} x2={x(selection.range![edge])} y1={top} y2={height - bottom} stroke="hsl(var(--accent-brand))" strokeDasharray="4 3" />{selection.active ? <rect data-selection-edge={edge} x={x(selection.range![edge]) - 18} y={top} width={36} height={plotHeight} fill="transparent" className="cursor-ew-resize" /> : null}</g> : null)}</g> : null}
             {markers.filter((marker) => timestamp(marker.date) >= range.start && timestamp(marker.date) <= range.end).map((marker) => {
               const index = nearestIndex(pointTimes, timestamp(marker.date));
               if (index < 0) return null;
-              const mx = x(timestamp(marker.date)), my = Math.max(top + 7, Math.min(height - bottom - 7, y(series[0].value(points[index]))));
+              const mx = x(timestamp(marker.date)), my = Math.max(top + 7, Math.min(height - bottom - 7, y(series[0].value(points[index]) ?? min)));
               return <g key={marker.id} role="button" tabIndex={0} aria-label={`${marker.type} on ${formatDate(marker.date)}`} className="alpha-focus cursor-pointer" onClick={() => onMarker?.(marker)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onMarker?.(marker); } }}><circle cx={mx} cy={my} r={8} fill="hsl(var(--card))" stroke={colors[marker.type]} strokeWidth={2} /><text x={mx} y={my + 3} textAnchor="middle" fontSize={8} fill={colors[marker.type]}>{marker.type === "buy" ? "▲" : marker.type === "sell" ? "▼" : "◆"}</text></g>;
             })}
-            {hoverPoint ? <line x1={x(timestamp(hoverPoint.date))} x2={x(timestamp(hoverPoint.date))} y1={top} y2={height - bottom} stroke="hsl(var(--foreground)/.35)" strokeDasharray="4 4" pointerEvents="none" /> : null}
+            {hoverTime !== undefined ? <line x1={x(hoverTime)} x2={x(hoverTime)} y1={top} y2={height - bottom} stroke="hsl(var(--foreground)/.35)" strokeDasharray="4 4" pointerEvents="none" /> : null}
           </g>
-          {!visible.length ? <text x={left + plotWidth / 2} y={height / 2} textAnchor="middle" className="fill-muted-foreground text-xs">No observations in this period</text> : null}
+          {!visible.some((rows) => rows.length) ? <text x={left + plotWidth / 2} y={height / 2} textAnchor="middle" className="fill-muted-foreground text-xs">No observations in this period</text> : null}
           {tickTimes.map((time, index) => <text key={time} x={x(time)} y={height - 12} textAnchor={index === 0 ? "start" : index === tickTimes.length - 1 ? "end" : "middle"} className="fill-muted-foreground text-[11px]">{duplicateLabels ? new Intl.DateTimeFormat("en", { timeZone: "UTC", month: "short", year: "2-digit" }).format(time) : tickLabels[index]}</text>)}
         </svg>
-        {hoverPoint ? <div role="status" className="pointer-events-none absolute top-3 z-10 max-w-[calc(100%-16px)] rounded-md border border-border bg-card p-3 text-xs shadow-sm" style={{ left: Math.max(8, Math.min(width - Math.min(260, width - 16) - 8, x(timestamp(hoverPoint.date)) + 12)), width: Math.min(260, width - 16) }}><p className="mb-2 font-semibold">{formatDate(hoverPoint.date)}</p><dl className="space-y-1">{tooltip(hoverPoint).map((row) => <div key={row.label} className="flex justify-between gap-3"><dt className="text-muted-foreground">{row.label}</dt><dd className="text-right tabular-nums">{row.value}</dd></div>)}</dl></div> : null}
+        {hoverTime !== undefined && hoverRows.length ? <div role="status" className="pointer-events-none absolute top-3 z-10 max-w-[calc(100%-16px)] rounded-md border border-border bg-card p-3 text-xs shadow-sm" style={{ left: Math.max(8, Math.min(width - Math.min(260, width - 16) - 8, x(hoverTime) + 12)), width: Math.min(260, width - 16) }}><p className="mb-2 font-semibold">{formatDate(dateString(hoverTime))}</p><dl className="space-y-1">{hoverRows.map((row, index) => <div key={`${row.label}-${index}`} className="flex justify-between gap-3"><dt className="text-muted-foreground">{row.label}</dt><dd className="text-right tabular-nums">{row.value}</dd></div>)}</dl></div> : null}
       </div>
       {enabled ? <svg role="group" aria-label={`${label} overview navigator`} viewBox={`0 0 ${width} 48`} className="hidden h-12 w-full sm:block" style={{ touchAction: "none" }} onPointerDown={(event) => begin(event, true)} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
         <rect x={left} width={plotWidth} height={48} fill="hsl(var(--muted)/.5)" rx={4} /><path d={navPath} fill="none" stroke="hsl(var(--chart-portfolio)/.6)" strokeWidth={1} />

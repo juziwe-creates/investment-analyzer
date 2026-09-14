@@ -1,5 +1,5 @@
 import { upsertManualSecurityPrice } from "@/app/actions/prices";
-import { Button } from "@/components/ui/button";
+import { ProgressSubmit } from "@/components/alpha-progress";
 import { Input } from "@/components/ui/input";
 import type { Database } from "@/types/database";
 
@@ -45,10 +45,9 @@ export function SecurityPriceForm({ security, price }: SecurityPriceFormProps) {
         defaultValue={price?.price_date ?? today}
         required
       />
-      <Button type="submit" variant="outline">
+      <ProgressSubmit status="Saving price" variant="outline">
         Save
-      </Button>
+      </ProgressSubmit>
     </form>
   );
 }
-

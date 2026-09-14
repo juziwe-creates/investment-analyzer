@@ -6,21 +6,33 @@ import { TimeSeriesChart } from "@/components/time-series-chart";
 import { TimePresets, TimeViewportProvider } from "@/components/time-viewport";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { cumulativeDividendHistory, type PersonalDividendEvent } from "@/lib/analytics/dividends";
 
 export type InvestmentChartPoint = { date: string; price: number; shares: number; positionValue: number; deployedCapital: number; unrealizedReturnPercent: number | null; currency: string };
 export type InvestmentMarker = { id: string; date: string; type: "buy" | "sell" | "dividend"; label: string; subtitle: string; metrics: DecisionDrawerMetric[]; note?: string };
 
-export function InvestmentDetailChart({ points, markers }: { points: InvestmentChartPoint[]; markers: InvestmentMarker[] }) {
+export function InvestmentDetailChart({ points, markers, dividends = [] }: { points: InvestmentChartPoint[]; markers: InvestmentMarker[]; dividends?: PersonalDividendEvent[] }) {
   const [mode, setMode] = useState<"price" | "position">("price");
   const [showDividends, setShowDividends] = useState(false);
   const [selected, setSelected] = useState<InvestmentMarker | null>(null);
   const close = useCallback(() => setSelected(null), []);
-  return <TimeViewportProvider dates={points.map((point) => point.date)}><section className="space-y-4" aria-labelledby="investment-history-heading">
+  const dividendSeries = showDividends && dividends.some((event) => mode === "price" ? event.perShare !== null : event.cumulative !== null);
+  return <TimeViewportProvider dates={[...points, ...dividends].map((point) => point.date)}><section className="space-y-4" aria-labelledby="investment-history-heading">
     <div className="flex flex-wrap items-end justify-between gap-3"><h2 id="investment-history-heading" className="alpha-section-title">Investment history</h2><TimePresets /></div>
     <div className="flex flex-wrap items-center justify-between gap-3"><div className="inline-flex rounded-md border border-border bg-card p-1">{(["price", "position"] as const).map((value) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)} className={cn("alpha-focus rounded px-3 py-1.5 text-sm text-muted-foreground", mode === value && "bg-[hsl(var(--accent-subtle))] text-foreground")}>{value === "position" ? "Position Value" : "Price"}</button>)}</div><label className="flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={showDividends} onChange={(event) => setShowDividends(event.target.checked)} />Dividends</label></div>
     <div className="alpha-surface p-2 sm:p-4"><TimeSeriesChart points={points} label={mode === "price" ? "Security price" : "Position value"} emptyMessage="Historical prices are required for the investment timeline." series={[
       { label: mode === "price" ? "Price" : "Position value", color: "hsl(var(--chart-portfolio))", value: (point) => mode === "price" ? point.price : point.positionValue },
-      ...(mode === "position" ? [{ label: "Current deployed capital", color: "hsl(var(--chart-deployed))", value: (point: InvestmentChartPoint) => point.deployedCapital }] : [])
+      ...(mode === "position" ? [{ label: "Current deployed capital", color: "hsl(var(--chart-deployed))", value: (point: InvestmentChartPoint) => point.deployedCapital }] : []),
+      ...(dividendSeries ? [{ label: mode === "price" ? "Dividend / share (right axis)" : "Cumulative dividends (right axis)", color: "hsl(var(--chart-dividend))", axis: "right" as const,
+        value: () => null, stepped: mode === "position", render: mode === "price" ? "lollipop" as const : "line" as const,
+        format: (value: number) => `${formatCurrency(value, dividends[0].currency)}${mode === "price" ? "/sh" : ""}`,
+        observations: mode === "position" ? cumulativeDividendHistory(dividends, points[0]?.date) : dividends.map((event) => ({ date: event.date, value: event.perShare,
+          tooltip: [
+            { label: mode === "price" ? "Dividend / share" : "Cumulative dividends", value: formatCurrency(mode === "price" ? event.perShare : event.cumulative, event.currency) },
+            ...(event.eligibleShares !== null ? [{ label: "Shares held", value: formatNumber(event.eligibleShares) }] : []),
+            ...(event.gross !== null ? [{ label: "Gross dividend", value: formatCurrency(event.gross, event.currency) }] : []),
+            ...(event.net !== null ? [{ label: "Net received", value: formatCurrency(event.net, event.currency) }] : [])
+          ] })) }] : [])
     ]} markers={markers.filter((marker) => marker.type !== "dividend" || showDividends)} onMarker={(marker) => setSelected(markers.find((item) => item.id === marker.id) ?? null)} tooltip={(point) => [
       { label: "Price", value: formatCurrency(point.price, point.currency) },
       { label: "Your shares", value: formatNumber(point.shares) },
@@ -28,6 +40,7 @@ export function InvestmentDetailChart({ points, markers }: { points: InvestmentC
       { label: "Deployed", value: formatCurrency(point.deployedCapital, point.currency) },
       { label: "Unrealized", value: formatPercent(point.unrealizedReturnPercent) }
     ]} /></div>
+    {showDividends && dividends.some((event) => mode === "price" ? event.perShare === null : event.cumulative === null) ? <p className="text-xs text-muted-foreground">Some dividend values are unavailable: cash or eligible-share history is missing, or currencies differ.</p> : null}
     <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span>▲ Buy</span><span>▼ Sell</span>{showDividends ? <span>◆ Dividend</span> : null}</div>
     <DecisionDrawer modal={false} open={selected !== null} onClose={close} eyebrow={selected?.type.toUpperCase() ?? "Decision"} title={selected?.label ?? "Decision"} subtitle={selected?.subtitle} metrics={selected?.metrics ?? []} note={selected?.note} />
   </section></TimeViewportProvider>;

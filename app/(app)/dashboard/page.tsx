@@ -8,6 +8,7 @@ import { PortfolioMetrics } from "@/components/portfolio-metrics";
 import { TimePresets, TimeViewportProvider, ViewportFields } from "@/components/time-viewport";
 import { loadDashboardHistory } from "@/lib/analytics/dashboard-history";
 import { measureAnalytics } from "@/lib/performance";
+import { buildValuationPrices } from "@/lib/analytics/profitability";
 import { Button } from "@/components/ui/button";
 import { buildCurrentAnalytics, findSecuritiesWithoutBuyHistory, transactionSecurityKey } from "@/lib/analytics/portfolio";
 import { benchmarkOptions, parseBenchmark } from "@/lib/analytics/benchmarks";
@@ -48,7 +49,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const unpriced = holdings.filter((holding) => holding.marketValue === null);
   const missingBuyHistory = findSecuritiesWithoutBuyHistory(filteredTransactions);
   const errors = [transactionsError, latestError, manualError].filter(Boolean);
-  const history = loadDashboardHistory(filteredTransactions, params.portfolio, currencyReady);
+  const history = loadDashboardHistory(filteredTransactions, params.portfolio, currencyReady, buildValuationPrices(latest, manual));
   const clearParams = new URLSearchParams({ benchmark });
   if (params.portfolio) clearParams.set("portfolio", params.portfolio);
 

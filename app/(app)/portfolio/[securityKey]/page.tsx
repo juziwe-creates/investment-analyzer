@@ -15,6 +15,8 @@ import { createClient } from "@/lib/supabase/server";
 import { readMarketHistory } from "@/lib/market-data/history";
 import type { Database } from "@/types/database";
 import type { MarketHistoryPrice } from "@/types/market-history";
+import { investmentDividendEvents } from "@/lib/analytics/dividends";
+import { dividendAmount } from "@/lib/analytics/engine";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 type MarketPrice = MarketHistoryPrice;
@@ -94,7 +96,7 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
   const latestPoint = history.at(-1) ?? null;
   const previousPoint = history.at(-2) ?? null;
   const dailyMovement = latestPoint && previousPoint && previousPoint.price > 0 ? ((latestPoint.price / previousPoint.price) - 1) * 100 : null;
-  const dividends = transactions.filter((transaction) => transaction.type === "dividend").reduce((sum, transaction) => sum + cashAmount(transaction), 0);
+  const dividends = transactions.filter((transaction) => transaction.type === "dividend").reduce((sum, transaction) => sum + dividendAmount(transaction), 0);
   const markers: InvestmentMarker[] = transactions.filter((transaction) => ["buy", "sell", "dividend"].includes(transaction.type)).map((transaction) => {
     const lot = lotRows.find((row) => row.id === transaction.id);
     const baseMetrics = [{ label: "Quantity", value: formatNumber(transaction.quantity) }, { label: "Unit price", value: formatCurrency(transaction.unit_price, transaction.currency) }, { label: "Transaction amount", value: formatCurrency(cashAmount(transaction), transaction.currency) }];
@@ -109,7 +111,7 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
     <section aria-labelledby="investment-kpis"><p id="investment-kpis" className="alpha-kpi-label">Your investment</p><div className="mt-4 grid gap-x-8 gap-y-6 border-y border-border/70 py-6 sm:grid-cols-2 lg:grid-cols-5"><div className="sm:col-span-2"><p className="text-sm text-muted-foreground">Total Return</p><p className="mt-2 text-3xl font-medium text-muted-foreground">Pending definition</p></div>{[
       ["Annualized Return", stock?.accumulatedDividendsTaxFree ? "Pending dividend policy" : formatPercent(stock?.totalRawProfitabilityAnnualizedPercent ?? null)], ["Current Value", formatCurrency(holding?.marketValue ?? 0, holding?.currency ?? "EUR")], ["Current Deployed", formatCurrency(holding?.investedCapital ?? 0, holding?.currency ?? "EUR")], ["Realized Gain", "Pending definition"], ["Unrealized Gain", formatCurrency(holding?.investmentGain ?? null, holding?.currency ?? "EUR")], ["Dividends", formatCurrency(dividends, metadata.currency)], ["Yield on Cost", "Pending definition"], ["Average Purchase Price", holding && holding.quantity > 0 ? formatCurrency(holding.investedCapital / holding.quantity, holding.currency) : "-"], ["Quantity", formatNumber(holding?.quantity ?? 0)]
     ].map(([label, value]) => <div key={label}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-lg font-medium">{value}</p></div>)}</div></section>
-    <InvestmentDetailChart points={history} markers={markers} />
+    <InvestmentDetailChart points={history} markers={markers} dividends={investmentDividendEvents(transactions, { lotMatchingMethod: "lifo" })} />
     <PurchaseLotsTable lots={lots} />
     <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="alpha-kpi-label">Comparison context</p><p className="mt-1 text-sm text-muted-foreground">One benchmark applies to annual and future normalized comparisons.</p></div><Suspense fallback={<div className="h-9 w-72 animate-pulse rounded-md bg-muted" />}><BenchmarkSelector selected={benchmark} /></Suspense></div>
     <AnnualPerformanceGrid securityName={metadata.security_name} points={annualPerformance(prices ?? [])} benchmarkLabel={benchmarkLabel} />

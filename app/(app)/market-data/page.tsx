@@ -7,6 +7,7 @@ import {
 } from "@/lib/analytics/portfolio";
 import { configuredMarketDataProviderId } from "@/lib/market-data";
 import { createClient } from "@/lib/supabase/server";
+import { ProgressSubmit } from "@/components/alpha-progress";
 
 function isBulkRefreshAsset(assetType: string | null) {
   const normalized = assetType?.trim().toLowerCase();
@@ -175,13 +176,13 @@ export default async function MarketDataPage({
           </div>
           <form action={refreshSyncedMarketData}>
             <input type="hidden" name="return_to" value={portfolioId ? `/market-data?portfolio=${encodeURIComponent(portfolioId)}` : "/market-data"} />
-            <button
+            <ProgressSubmit status="Updating prices"
               type="submit"
               disabled={bulkRefreshCandidateCount === 0}
               className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-[hsl(var(--accent-hover))] disabled:pointer-events-none disabled:opacity-50"
             >
               Refresh synced securities
-            </button>
+            </ProgressSubmit>
           </form>
         </div>
       </section>

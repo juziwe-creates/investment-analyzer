@@ -212,15 +212,35 @@ export function dividendAmount(transaction: AnalyticsTransaction) {
     return 0;
   }
 
-  if (transaction.gross_amount !== null) {
-    return Math.abs(transaction.gross_amount);
-  }
+  return dividendFacts(transaction).cash ?? 0;
+}
 
-  if (transaction.net_amount !== null) {
-    return Math.abs(transaction.net_amount);
-  }
+export function dividendFacts(transaction: AnalyticsTransaction) {
+  const gross = transaction.gross_amount === null ? null : Math.abs(transaction.gross_amount);
+  const net = transaction.net_amount === null ? null : Math.abs(transaction.net_amount);
+  const cash = gross ?? net ?? (transaction.quantity !== null && transaction.unit_price !== null ? Math.abs(transaction.quantity * transaction.unit_price) : null);
+  return { gross, net, cash };
+}
 
-  return Math.abs(numeric(transaction.quantity) * numeric(transaction.unit_price));
+// Reuses the lot engine without valuation or XIRR work. Eligibility is captured
+// at the dividend event, before subsequent same-day transactions are applied.
+export function buildInvestmentLedger(transactions: AnalyticsTransaction[], options: LotCalculationOptions = {}) {
+  const lots: WorkingLot[] = [];
+  const incompleteKeys = new Set<string>();
+  return sortTransactionsChronologically(transactions).map((transaction) => {
+    const key = securityKey(transaction);
+    const eligible = lots.filter((lot) => lot.securityKey === key && lot.remainingQuantity > 0).reduce((sum, lot) => sum + lot.remainingQuantity, 0);
+    if (transaction.type === "buy" && (!(numeric(transaction.quantity) > 0) || (transaction.gross_amount === null && transaction.net_amount === null && transaction.unit_price === null))) incompleteKeys.add(key);
+    if (transaction.type === "sell" && (transaction.quantity === null || numeric(transaction.quantity) > eligible + 1e-8)) incompleteKeys.add(key);
+    if (transaction.type === "dividend" && eligible <= 0) incompleteKeys.add(key);
+    const dividend = transaction.type === "dividend" ? {
+      ...dividendFacts(transaction),
+      eligibleShares: incompleteKeys.has(key) ? null : eligible
+    } : null;
+    applyTransactionToLots(transaction, lots, options);
+    return { transaction, dividend, complete: incompleteKeys.size === 0,
+      activeCost: lots.reduce((sum, lot) => sum + (lot.remainingQuantity > 0 ? Math.max(0, lot.remainingAcquisitionCost) : 0), 0) };
+  });
 }
 
 function statusForLot(lot: WorkingLot): LotStatus {

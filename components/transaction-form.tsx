@@ -1,5 +1,5 @@
 import { createManualTransaction } from "@/app/actions/transactions";
-import { Button } from "@/components/ui/button";
+import { ProgressSubmit } from "@/components/alpha-progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,7 +116,7 @@ export function TransactionForm({ portfolioId }: { portfolioId?: string }) {
             </div>
           </div>
 
-          <Button type="submit">Save transaction</Button>
+          <ProgressSubmit status="Saving transaction">Save transaction</ProgressSubmit>
         </form>
       </CardContent>
     </Card>
