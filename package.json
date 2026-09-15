@@ -9,25 +9,29 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "bench:analytics": "tsc -p tsconfig.test.json && node .tmp-tests/lib/analytics/performance.bench.js",
-    "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/charts/series.test.js .tmp-tests/lib/analytics/dividends.test.js .tmp-tests/lib/charts/time-viewport.test.js .tmp-tests/lib/analytics/presentation.test.js .tmp-tests/lib/analytics/currency.test.js .tmp-tests/lib/analytics/engine.test.js .tmp-tests/lib/market-data/currency.test.js .tmp-tests/lib/market-data/symbols.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/analytics-3d/universe.test.js .tmp-tests/lib/charts/series.test.js .tmp-tests/lib/analytics/dividends.test.js .tmp-tests/lib/charts/time-viewport.test.js .tmp-tests/lib/analytics/presentation.test.js .tmp-tests/lib/analytics/currency.test.js .tmp-tests/lib/analytics/engine.test.js .tmp-tests/lib/market-data/currency.test.js .tmp-tests/lib/market-data/symbols.test.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "next": "^16.2.9",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.186.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.39.1",
     "eslint-config-next": "^16.2.9",

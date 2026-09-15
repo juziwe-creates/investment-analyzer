@@ -113,6 +113,8 @@ Use on login/onboarding/landing surfaces, not in normal analytical workspace:
 
 V1 is **light-first**.
 
+Approved exception: `/analytics` (αnalytics) uses a dark, immersive scientific-installation style with restrained cinematic movement. Other routes remain unchanged. Its detailed contract and staged delivery are in `docs/analytics-universe.md`.
+
 The implementation must use semantic design tokens so dark mode can be added cleanly later.
 
 Dark mode is **not required in V1**.
@@ -251,6 +253,7 @@ V1 top-level navigation:
 α Alpha
 
 Portfolio
+αnalytics
 Investments
 Dividends
 Transactions
@@ -1169,7 +1172,7 @@ Use bottom navigation.
 Suggested:
 
 ```text
-Portfolio   Investments   Dividends   More
+Portfolio   αnalytics   Investments   Dividends   More
 ```
 
 Under More:

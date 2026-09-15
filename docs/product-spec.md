@@ -45,6 +45,7 @@ Transactions remain the canonical source of truth.
 The intended top-level navigation is:
 
 - Portfolio
+- αnalytics
 - Investments
 - Dividends
 - Transactions
@@ -75,6 +76,10 @@ V1 includes:
 - account context that updates all portfolio calculations and views.
 
 Benchmark comparisons must use a common normalized basis. A benchmark-relative KPI may be labeled `α` only after its statistical definition has been approved.
+
+## Immersive Analytics Exception
+
+The approved `CODEX_MISSION_ALPHA_ANALYTICS.md` adds **αnalytics** at `/analytics`: an optional immersive Portfolio Core and holding Universe, with historical playback and received-dividend flows delivered in later checkpoints. This route alone may use dark cinematic styling and richer, reduced-motion-aware animation. Normal Alpha remains light-first. It preserves selected account context, existing analytics semantics, privacy, and the Portfolio -> Investment -> Decision drill-down. See `docs/analytics-universe.md` for the delivery contract and checkpoint status.
 
 ## Investments
 
