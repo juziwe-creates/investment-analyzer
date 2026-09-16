@@ -2,7 +2,7 @@
 
 ## Authority And Scope
 
-Implements the approved `CODEX_MISSION_ALPHA_ANALYTICS.md` as staged work. Product and UI specs explicitly allow this new primary destination and dark cinematic exception. Checkpoint 1 covers Core and current-state Universe (mission phases A-C), fullscreen, accessibility/fallback foundations and verification. History and dividends remain checkpoint 2, not simulated in this release.
+Implements the approved `CODEX_MISSION_ALPHA_ANALYTICS.md` as staged work. Product and UI specs explicitly allow this new primary destination and dark cinematic exception. Checkpoint 1 covers Core and current-state Universe (mission phases A-C), fullscreen and accessibility/fallback foundations. Checkpoint 2 adds historical playback and actual recorded-dividend flows.
 
 ## Data Boundary
 
@@ -24,6 +24,18 @@ Implements the approved `CODEX_MISSION_ALPHA_ANALYTICS.md` as staged work. Produ
 - Fullscreen uses the browser API with an in-page immersive fallback. Escape/exit controls remain available.
 - Under 640px, a purpose-designed non-WebGL holdings explorer is used. Tablet/desktop use capped DPR 1.5, reused geometry, procedural lighting, no postprocessing. Reduced motion skips camera interpolation and idle movement, rendering on demand instead of continuously. A short settling-frame allowance ensures HTML labels project updated world matrices.
 - WebGL creation errors, context loss and scene render errors are contained. Data errors do not break navigation.
+
+## Historical Playback
+
+- History loads only after **Load history**, through an authenticated server action with account ownership/RLS checks. The current scene does not wait for full price history. Failed loads are retryable. A presentation-cookie mismatch requires reload before any history is returned.
+- `buildPortfolioTimeline` optionally emits per-security inventory snapshots from its existing incremental FIFO lots and latest-at-or-before quote map. Existing chart output is unchanged without the optional projection. No per-date XIRR is calculated. The existing ledger supplies completeness and actual dividend facts.
+- Exact transaction dates, the last available price date per calendar month, and today's date are retained. All intervening quotes still feed the engine. Future transactions/quotes are excluded; invalid numeric/negative quotes are ignored. No price is invented or fetched from a provider.
+- History follows Portfolio development's stored market series (`adjusted_close_price ?? close_price`) and EUR normalization. It does not backfill manual current quotes into past history. **Today** restores the original current model, including existing manual-quote behavior; it may differ from the last historical snapshot. Missing prices remain null/neutral with warnings; old valid prices carry forward with their dates visible.
+- Identities are serialized once, with compact numeric rows for open holdings at each snapshot. Scaled presentation transactions enter the engine on the server; no raw quantities or cash are returned or persisted. Snapshots remain in component memory, not local storage or the database.
+- Play/Pause, date scrubber, 0.5x/1x/2x and Today are available on desktop and the mobile HTML fallback. Playback targets 30 seconds at 1x, suspends progression in hidden tabs, and caps financial UI updates at 12.5 Hz. The displayed date/amounts are the last sampled snapshot, never interpolated financial values. Scrubbing pauses playback and does not emit dividends.
+- Historical placement uses the union of historical holding identities and a fixed historical maximum valuation. Radius eases toward each snapshot target; closed positions shrink away and their labels/options disappear. Selection is cleared when the position closes. Camera framing does not restart on each price snapshot.
+- Gold pulses and curved flows use received transaction events, not provider/reference dividends. Amounts follow existing `dividendFacts`: absolute gross, else net, else recorded quantity times unit payment, otherwise unknown. This is explicitly not a new net-of-tax calculation. All crossed payments are grouped per security; each notice retains their count and amount (unknown propagates). Visuals cap at eight concurrent flows/24 particles. Events without a historical sphere or known positive cash have no fabricated flow. The Dividends toggle disables the effects.
+- Reduced motion has no moving particles or dividend-color accent and snaps sphere/camera changes. Optional cumulative gold memory is deferred.
 
 ## Dependency Isolation
 

@@ -16,6 +16,7 @@ export type UniverseHolding = {
 };
 
 export type UniverseModel = {
+  presentation?: boolean;
   asOfDate: string;
   account: string;
   portfolioHref: string;

@@ -33,8 +33,8 @@ export async function loadUniverse(portfolio?: string) {
     ...transactions.map((row) => row.currency), ...manual.map((row) => row.currency),
     ...latest.map((row) => marketDataCurrency({ fallbackCurrency: row.currency, providerId: row.provider, providerSymbol: row.provider_symbol }))
   ]).canAggregate;
-  return universeModel({ holdings, asOfDate, portfolio, currencyReady, inventoryComplete,
+  return { ...universeModel({ holdings, asOfDate, portfolio, currencyReady, inventoryComplete,
     account: portfolio ? presenting ? `Account ${accountIndex + 1}` : accounts[accountIndex].name : "All accounts",
     metadata: new Map(transactions.map((row) => [transactionSecurityKey(row), { ticker: row.ticker }]))
-  });
+  }), presentation: presenting };
 }

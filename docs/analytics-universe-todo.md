@@ -8,8 +8,8 @@ Branch: `codex/analytics-universe`, uploaded to GitHub. Current-state Core/Unive
 
 | Requested behavior | Reason / current substitute | Next step |
 | --- | --- | --- |
-| Historical timeline, play/scrub/speed/Today | Explicitly checkpoint 2; current state only | Adapt shared incremental inventory/history into compact snapshots retaining transaction/dividend dates; do not call per-lot XIRR per frame/date |
-| Gold dividend flows | Depends on playback; no provider events substituted | Project actual received canonical cash events and add bounded batching/curved particle paths |
+| Historical timeline, play/scrub/speed/Today | Implemented in checkpoint 2 | Reconcile preview history with actual account records; test long real-world histories |
+| Gold dividend flows | Implemented from actual recorded transactions, bounded to 8 concurrent flows | Optional cumulative Core memory remains deferred; further visual polish after user testing |
 | Sector enrichment | No sector fields in current schema/read model; all unknowns use Other | Add optional enrichment behind resolveSector using approved existing metadata, without a paid API or per-render network call |
 | Company logos | No reliable existing source; intentional ticker/name monograms | Add cached/local logo metadata only when source and licensing are agreed |
 | Precise particle-to-sphere morph, internal particles, parallax | Simplified to procedural materials/rings, scale/position interpolation and continuous camera reveal | Optional polish after timeline is correct |
@@ -30,4 +30,14 @@ Branch: `codex/analytics-universe`, uploaded to GitHub. Current-state Core/Unive
 
 ## Exact Next Step
 
-Review the uploaded checkpoint-1 branch/preview before merging. Historical work starts when the user requests checkpoint 2: adapt the shared history engine to compact snapshots, preserving exact transaction/dividend dates, then add bounded received-dividend flows. Address existing dependency security findings separately before production rollout.
+Review checkpoint 2 in the branch preview: open alpha analytics, choose Load history, enter Universe, play/scrub, inspect a partial/full sale, and use Today. No migration or provider sync is needed. Reconcile historical snapshot dates with Portfolio development and actual received dividends. Complete reduced-motion playback, fullscreen timeline keyboard, authenticated server-action error/presentation mismatch, and physical device QA before merging to production. Address existing dependency security findings separately before production rollout.
+
+## Checkpoint 2 Verification
+
+- Preserves checkpoint 1; adds lazy authenticated history, shared-engine compact inventory snapshots, timeline controls, stable historical placement, closed-position transitions, and bounded dividend flows. No database or provider writes and no new dependency.
+- 66 unit tests pass, including 7 new history tests: sampling/event dates, FIFO inventory versus full lot calculation, unchanged existing timeline results for FIFO/LIFO, missing/FX/incomplete-data handling, presentation scaling/future exclusion, playback bounds and event batching.
+- Typecheck, lint, 66 tests, production build and staged diff checks passed. Build required network access for the existing Geist font and removal of stale generated dev types referencing the deleted fixture. The final 19-route build excludes the fixture.
+- Synthetic browser QA: 1440x1000 desktop; earliest snapshot shows 20 shares, partial sale 10 shares with correct remaining cost, full sale removes the option and detail; Today restores current state. Forward playback progresses through dates; recorded dividend notices and warm-gold sphere pulses visible. A temporary WebGL readback measured 13,954 non-background pixels and up to 340 gold-colored pixels during early playback (not a particle-only count or performance benchmark). No captured browser errors; upstream Three.Clock deprecation remains.
+- Verified 2x selection and dividend toggle. At 390x844 the HTML timeline/explorer remains usable, no canvas is mounted, and document width equals scroll width (375 CSS pixels excluding scrollbar). A temporary test-output overflow was isolated to the fixture, not app controls.
+- Browser opening initially timed out due network IO suspension; a fresh test tab succeeded after the local route responded. Synthetic fixture removed and test server stopped before commit. No customer data used.
+- Remaining verification: full reduced-motion playback, dense-flow curve animation inspection, 0.5x wall-clock timing, physical devices, real authenticated history/presentation checks and live-account reconciliation. These are not claimed as completed. Usage checkpoint reached after browser testing; preserve this work on continuation.

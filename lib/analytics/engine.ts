@@ -675,10 +675,17 @@ export function calculateLifetimeDeployedCapital(transactions: AnalyticsTransact
     .reduce((sum, transaction) => sum + acquisitionCost(transaction), 0);
 }
 
+export type InventorySnapshotHolding = {
+  securityKey: string; securityName: string; quantity: number;
+  investedCapital: number; marketValue: number | null;
+  investmentGain: number | null; priceDate: string | null;
+};
+
 export function buildPortfolioTimeline(
   transactions: AnalyticsTransaction[],
   prices: AnalyticsPrice[],
-  options: LotCalculationOptions = {}
+  options: LotCalculationOptions = {},
+  snapshots?: { dates: ReadonlySet<string>; emit: (date: string, holdings: InventorySnapshotHolding[]) => void }
 ): PortfolioTimelinePoint[] {
   const chronologicalTransactions = sortTransactionsChronologically(transactions);
   // Canonical database dates are YYYY-MM-DD, so lexical order is chronological.
@@ -688,7 +695,8 @@ export function buildPortfolioTimeline(
   const dates = [
     ...new Set([
       ...chronologicalTransactions.map((transaction) => transaction.trade_date),
-      ...chronologicalPrices.map((price) => price.price_date)
+      ...chronologicalPrices.map((price) => price.price_date),
+      ...(snapshots?.dates ?? [])
     ])
   ].sort();
   const points: PortfolioTimelinePoint[] = [];
@@ -737,12 +745,27 @@ export function buildPortfolioTimeline(
     let openLotCount = 0;
     let firstPricedCurrency: string | undefined;
     const missingKeys = new Set<string>();
+    const snapshot = snapshots?.dates.has(date) ? new Map<string, InventorySnapshotHolding>() : null;
     for (const lot of lots) {
       if (lot.remainingQuantity <= 0) continue;
       openLotCount++;
       const cost = Math.max(lot.remainingAcquisitionCost, 0);
       currentDeployedCapital += cost;
       const price = latestPriceMap.get(lot.securityKey);
+      if (snapshot) {
+        const holding = snapshot.get(lot.securityKey) ?? {
+          securityKey: lot.securityKey, securityName: lot.securityName, quantity: 0,
+          investedCapital: 0, marketValue: price ? 0 : null,
+          investmentGain: price ? 0 : null, priceDate: price?.price_date ?? null
+        };
+        holding.quantity += lot.remainingQuantity;
+        holding.investedCapital += cost;
+        if (price) {
+          holding.marketValue! += lot.remainingQuantity * price.price;
+          holding.investmentGain! += lot.remainingQuantity * price.price - cost;
+        }
+        snapshot.set(lot.securityKey, holding);
+      }
       if (price) {
         pricedCurrentDeployedCapital += cost;
         portfolioMarketValue += lot.remainingQuantity * price.price;
@@ -754,6 +777,9 @@ export function buildPortfolioTimeline(
     const missingPriceSecurityKeys = [...missingKeys];
     const hasCompletePricing = missingPriceSecurityKeys.length === 0;
     const unrealizedGain = portfolioMarketValue - pricedCurrentDeployedCapital;
+
+    // Optional projection includes empty/fully sold dates without changing chart output.
+    if (snapshot) snapshots!.emit(date, [...snapshot.values()]);
 
     if (openLotCount === 0 && dividendsCollected === 0) {
       continue;
