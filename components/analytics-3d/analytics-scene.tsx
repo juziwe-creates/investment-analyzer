@@ -63,12 +63,14 @@ function Contents(props: Props) {
   const controls = useRef<OrbitControlsImpl>(null);
   const camera = useThree((state) => state.camera);
   const canvas = useThree((state) => state.gl.domElement);
+  const invalidate = useThree((state) => state.invalidate);
   const size = useThree((state) => state.size);
   const positions = useMemo(() => layoutHoldings(props.model.holdings), [props.model.holdings]);
   const bounds = useMemo(() => sceneBounds(positions.values()), [positions]);
   const sphere = useMemo(() => new SphereGeometry(1, 40, 24), []);
   const ring = useMemo(() => new TorusGeometry(1, 0.009, 6, 80), []);
   const animation = useRef<{ target: Vector3; camera: Vector3 } | null>(null);
+  const settlingFrames = useRef(0);
   const maxValue = Math.max(0, ...props.model.holdings.map((holding) => holding.value ?? 0));
   const clusters = useMemo(() => [...new Set(props.model.holdings.map((holding) => holding.sector))].map((sector) => {
     const points = props.model.holdings.filter((holding) => holding.sector === sector).map((holding) => positions.get(holding.key)!);
@@ -80,8 +82,12 @@ function Contents(props: Props) {
     const target = new Vector3(...(props.mode === "core" ? [0, -0.65, 0] as Position : point ?? bounds.center));
     const distance = props.mode === "core" ? 10.5 : point ? 14 : bounds.radius / Math.sin(Math.PI / 8) / Math.min(1, size.width / size.height) * 1.12;
     animation.current = { target, camera: target.clone().add(new Vector3(0, props.mode === "core" ? 0 : 2, distance)) };
-  }, [props.mode, props.selected, props.reset, props.reducedMotion, positions, bounds, size.width, size.height, camera]);
+    settlingFrames.current = 3;
+    invalidate();
+  }, [props.mode, props.selected, props.reset, props.reducedMotion, positions, bounds, size.width, size.height, camera, invalidate]);
   useFrame((_, delta) => {
+    // HTML labels need a following frame to project the updated world matrices.
+    if (settlingFrames.current > 0) { settlingFrames.current--; invalidate(); }
     if (!animation.current || !controls.current) return;
     const alpha = props.reducedMotion ? 1 : 1 - Math.exp(-delta * 2.4);
     camera.position.lerp(animation.current.camera, alpha);
@@ -107,5 +113,5 @@ function Contents(props: Props) {
 }
 
 export default function AnalyticsScene(props: Props) {
-  return <Canvas data-alpha-universe camera={{ position: [0, -0.65, 10.5], fov: 45, near: 0.1, far: 1000 }} dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: "high-performance" }} fallback={props.fallback} onPointerMissed={() => props.onSelect(null)}><Contents {...props} /></Canvas>;
+  return <Canvas data-alpha-universe frameloop={props.reducedMotion ? "demand" : "always"} camera={{ position: [0, -0.65, 10.5], fov: 45, near: 0.1, far: 1000 }} dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: "high-performance" }} fallback={props.fallback} onPointerMissed={() => props.onSelect(null)}><Contents {...props} /></Canvas>;
 }

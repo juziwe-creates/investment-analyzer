@@ -20,9 +20,9 @@ Implements the approved `CODEX_MISSION_ALPHA_ANALYTICS.md` as staged work. Produ
 - Sphere radius is cube-root relative to maximum value, clamped to 0.45-1.65 scene units. Missing value uses a neutral 0.65-unit placeholder, never a zero valuation. A common scaling factor leaves relative geometry unchanged.
 - Sector anchors are fixed; hashed grid slots with deterministic collision resolution prevent overlap within clusters. Unknown metadata resolves to Other. Adding a hash-colliding holding can move subsequent collided slots, but reordering input or changing value cannot reshuffle the universe.
 - Hover shows values and highlights; selection focuses the camera and opens an HTML detail pane. Empty canvas clears selection. Drag orbits, wheel zooms with bounds, Reset restores framing. User input cancels camera choreography.
-- An HTML select and expandable holdings list expose the same information to keyboard and assistive-technology users. Selection focuses the nonmodal detail; closing returns focus to the selector.
+- An HTML select and expandable holdings list expose the same information to keyboard and assistive-technology users. Selection focuses the nonmodal detail; closing (including Escape) returns focus to the selector. Fullscreen confines keyboard traversal to visible scene controls.
 - Fullscreen uses the browser API with an in-page immersive fallback. Escape/exit controls remain available.
-- Under 640px, a purpose-designed non-WebGL holdings explorer is used. Tablet/desktop use capped DPR 1.5, reused geometry, procedural lighting, no postprocessing. Reduced motion skips camera interpolation and idle movement.
+- Under 640px, a purpose-designed non-WebGL holdings explorer is used. Tablet/desktop use capped DPR 1.5, reused geometry, procedural lighting, no postprocessing. Reduced motion skips camera interpolation and idle movement, rendering on demand instead of continuously. A short settling-frame allowance ensures HTML labels project updated world matrices.
 - WebGL creation errors, context loss and scene render errors are contained. Data errors do not break navigation.
 
 ## Dependency Isolation

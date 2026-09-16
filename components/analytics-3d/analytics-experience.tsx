@@ -73,7 +73,19 @@ export function AnalyticsExperience({ model }: { model: UniverseModel }) {
   function changeMode(next: "core" | "universe") { setMode(next); setSelected(null); setHovered(null); }
 
   return <section ref={wrapper} className={`${styles.experience} ${immersive ? styles.immersive : ""}`} aria-label="Portfolio universe" onKeyDown={(event) => {
-    if (event.key === "Escape") { setInfo(false); setSelected(null); if (immersive && !document.fullscreenElement) setImmersive(false); }
+    if (event.key === "Escape") {
+      setInfo(false);
+      if (selected) closeDetail();
+      if (immersive && !document.fullscreenElement) setImmersive(false);
+    }
+    // The in-page fullscreen fallback must not tab into hidden application chrome.
+    if (event.key === "Tab" && immersive) {
+      const items = [...(wrapper.current?.querySelectorAll<HTMLElement>("button, a[href], select, summary, [tabindex='0']") ?? [])]
+        .filter((item) => !item.hasAttribute("disabled") && item.getClientRects().length > 0);
+      const first = items[0], last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
   }}>
     <header className={styles.toolbar}>
       <div><h1>αnalytics</h1><p>{model.account}</p></div>
