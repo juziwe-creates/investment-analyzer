@@ -39,7 +39,7 @@ function Holding({ holding, held, dividend, position, radius, sphere, ring, ...p
     if (halo.current && !props.reducedMotion) halo.current.rotation.z += delta * 0.025;
   });
   return <group ref={group} scale={0.001}>
-    <mesh geometry={sphere} onPointerOver={(event) => { if (props.mode !== "universe") return; event.stopPropagation(); props.onHover(holding.key); }} onPointerOut={() => props.onHover(null)} onClick={(event) => { if (props.mode !== "universe") return; event.stopPropagation(); props.onSelect(holding.key); }}>
+    <mesh geometry={sphere} onPointerOver={(event) => { if (props.mode !== "universe" || !held) return; event.stopPropagation(); props.onHover(holding.key); }} onPointerOut={() => props.onHover(null)} onClick={(event) => { if (props.mode !== "universe" || !held) return; event.stopPropagation(); props.onSelect(holding.key); }}>
       <meshStandardMaterial color={holding.value === null ? "#45515e" : "#193957"} roughness={0.23} metalness={0.75} emissive={tint} emissiveIntensity={dim ? 0.02 : active || (dividend && !props.reducedMotion) ? 0.3 : 0.08} />
     </mesh>
     <group ref={halo} rotation={[0.6, -0.3, 0.2]}><mesh geometry={ring} scale={1.14}><meshBasicMaterial color={tint} transparent opacity={dim ? 0.15 : 0.6} /></mesh></group>

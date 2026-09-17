@@ -6,7 +6,7 @@ import { Component, useEffect, useRef, useState, useSyncExternalStore, type Reac
 import { ArrowRight, Expand, Info, Minimize, RotateCcw, X } from "lucide-react";
 import { AlphaProgress } from "@/components/alpha-progress";
 import { formatCurrency, formatDate, formatNumber, formatPercent } from "@/lib/formatters";
-import type { UniverseModel } from "@/lib/analytics-3d/model";
+import { universeSessionKey, type UniverseModel } from "@/lib/analytics-3d/model";
 import type { UniverseHistory } from "@/lib/analytics-3d/history";
 import { usePlayback } from "./use-playback";
 import { AnalyticsTimeline } from "./analytics-timeline";
@@ -31,7 +31,14 @@ class SceneBoundary extends Component<{ children: ReactNode; fallback: ReactNode
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 
-export function AnalyticsExperience({ model: currentModel, portfolio, initialHistory }: { model: UniverseModel; portfolio?: string; initialHistory?: UniverseHistory }) {
+type ExperienceProps = { model: UniverseModel; portfolio?: string; initialHistory?: UniverseHistory };
+
+export function AnalyticsExperience(props: ExperienceProps) {
+  // Never retain actual-size history or pending loads across a presentation/account change.
+  return <ExperienceSession key={universeSessionKey(props.model, props.portfolio)} {...props} />;
+}
+
+function ExperienceSession({ model: currentModel, portfolio, initialHistory }: ExperienceProps) {
   const playback = usePlayback(currentModel, portfolio, initialHistory);
   const model = playback.model;
   const [mode, setMode] = useState<"core" | "universe">("core");
@@ -44,6 +51,7 @@ export function AnalyticsExperience({ model: currentModel, portfolio, initialHis
   const wrapper = useRef<HTMLElement>(null);
   const detail = useRef<HTMLDivElement>(null);
   const selector = useRef<HTMLSelectElement>(null);
+  const lastSelected = useRef<string | null>(null);
   const ready = useSyncExternalStore(subscribeReady, clientReady, serverReady);
   const small = useMedia("(max-width: 639px)");
   const reduced = useMedia("(prefers-reduced-motion: reduce)");
@@ -54,7 +62,11 @@ export function AnalyticsExperience({ model: currentModel, portfolio, initialHis
   const sectorCount = new Set(model.holdings.map((item) => item.sector)).size;
   const fallback = <div className={styles.fallback}><p>Immersive 3D is unavailable on this device.</p><p>Your holdings remain available below.</p><Link href={model.portfolioHref}>View portfolio <ArrowRight size={16} /></Link></div>;
 
-  useEffect(() => { if (selected) detail.current?.focus(); }, [selected]);
+  useEffect(() => {
+    if (selected) detail.current?.focus();
+    else if (lastSelected.current && document.activeElement === document.body) selector.current?.focus();
+    lastSelected.current = selected;
+  }, [selected]);
   useEffect(() => {
     const changed = () => setImmersive(document.fullscreenElement === wrapper.current);
     document.addEventListener("fullscreenchange", changed);
@@ -63,8 +75,13 @@ export function AnalyticsExperience({ model: currentModel, portfolio, initialHis
   useEffect(() => {
     if (!immersive) return;
     const old = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = old; };
+    wrapper.current?.focus();
+    return () => {
+      document.body.style.overflow = old;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
   }, [immersive]);
 
   function closeDetail() { setSelected(null); selector.current?.focus(); }
@@ -79,7 +96,7 @@ export function AnalyticsExperience({ model: currentModel, portfolio, initialHis
   }
   function changeMode(next: "core" | "universe") { setMode(next); setSelected(null); setHovered(null); }
 
-  return <section ref={wrapper} className={`${styles.experience} ${immersive ? styles.immersive : ""}`} aria-label="Portfolio universe" onKeyDown={(event) => {
+  return <section ref={wrapper} tabIndex={-1} className={`${styles.experience} ${immersive ? styles.immersive : ""}`} aria-label="Portfolio universe" onKeyDown={(event) => {
     if (event.key === "Escape") {
       setInfo(false);
       if (selected) closeDetail();
@@ -88,9 +105,14 @@ export function AnalyticsExperience({ model: currentModel, portfolio, initialHis
     // The in-page fullscreen fallback must not tab into hidden application chrome.
     if (event.key === "Tab" && immersive) {
       const items = [...(wrapper.current?.querySelectorAll<HTMLElement>("button, a[href], input, select, summary, [tabindex='0']") ?? [])]
-        .filter((item) => !item.hasAttribute("disabled") && item.getClientRects().length > 0);
+        .filter((item) => {
+          const closedDetails = item.closest("details:not([open])");
+          return !item.hasAttribute("disabled") && item.getClientRects().length > 0 &&
+            (!closedDetails || closedDetails.querySelector(":scope > summary") === item);
+        });
       const first = items[0], last = items.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      if (document.activeElement === wrapper.current) { event.preventDefault(); (event.shiftKey ? last : first)?.focus(); }
+      else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
   }}>

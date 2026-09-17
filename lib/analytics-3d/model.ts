@@ -26,6 +26,10 @@ export type UniverseModel = {
   warnings: string[];
 };
 
+export function universeSessionKey(model: UniverseModel, portfolio?: string) {
+  return JSON.stringify([portfolio ?? null, model.account, model.presentation ?? false]);
+}
+
 export function resolveSector(value?: string | null): Sector {
   return sectors.find((sector) => sector.toLowerCase() === value?.trim().toLowerCase()) ?? "Other";
 }

@@ -17,7 +17,7 @@ export function AnalyticsTimeline({ playback }: { playback: ReturnType<typeof us
   return <div className={styles.timeline} aria-label="Portfolio history controls">
     <div className={styles.timelineControls}>
       <button title={p.playing ? "Pause history" : "Play history"} aria-label={p.playing ? "Pause history" : "Play history"} onClick={p.toggle} disabled={p.start === p.end}>{p.playing ? <Pause size={18} /> : <Play size={18} />}</button>
-      <output className={styles.timelineDate}>{p.cursor === null ? "Today" : formatDate(p.model.asOfDate)}</output>
+      <output className={styles.timelineDate} aria-live={p.playing ? "off" : "polite"}>{p.cursor === null ? "Today" : formatDate(p.model.asOfDate)}</output>
       <input aria-label="Portfolio history date" aria-valuetext={p.cursor === null ? "Today" : formatDate(p.model.asOfDate)} type="range" min={p.start} max={p.end} step={86400000} value={p.cursor ?? p.end} onChange={(event) => p.seek(Number(event.target.value))} />
       <label className={styles.speed}>Speed<select aria-label="Playback speed" value={p.speed} onChange={(event) => p.setSpeed(Number(event.target.value))}><option value={0.5}>0.5x</option><option value={1}>1x</option><option value={2}>2x</option></select></label>
       <button onClick={() => p.seek(null)} aria-pressed={p.cursor === null}>Today</button>

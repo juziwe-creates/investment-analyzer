@@ -14,7 +14,7 @@ export function usePlayback(current: UniverseModel, portfolio?: string, initialH
   const [cursor, setCursor] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [events, setEvents] = useState(true);
+  const [events, setEventsEnabled] = useState(true);
   const [pulse, setPulse] = useState<DividendPulse | null>(null);
   const cursorRef = useRef<number | null>(null);
   const emittedTime = useRef<number | null>(null);
@@ -75,11 +75,16 @@ export function usePlayback(current: UniverseModel, portfolio?: string, initialH
     setPlaying(false); setPulse(null); cursorRef.current = next; emittedTime.current = next; setCursor(next);
   }
   function toggle() {
-    if (playing) { setPlaying(false); return; }
+    if (playing) { cursorRef.current = cursor; setPlaying(false); return; }
     if (cursorRef.current === null || cursorRef.current >= end) {
       cursorRef.current = start; emittedTime.current = start - 1; setCursor(start);
     }
     setPlaying(true);
+  }
+  function setEvents(enabled: boolean) {
+    setEventsEnabled(enabled);
+    setPulse(null);
+    emittedTime.current = cursorRef.current;
   }
   return { history, loading, error, load, model, cursor, start, end, playing, toggle, seek, speed, setSpeed,
     events, setEvents, pulse: events ? pulse : null };

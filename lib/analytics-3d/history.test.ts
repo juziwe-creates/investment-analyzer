@@ -92,3 +92,29 @@ test("dividend batches preserve every crossed payment, unknown cash, and exclude
   assert.deepEqual(dividendBatches(events, end, start), []);
   assert.deepEqual(dividendBatches(events, dateTime("2020-01-05"), end), [{ key: "B", amount: null, count: 1 }]);
 });
+
+test("playback speeds complete in 60/30/15 seconds at a regular frame cadence", () => {
+  for (const speed of [0.5, 1, 2]) {
+    let cursor = 0, elapsed = 0;
+    while (cursor < 1000) { cursor = advancePlayback(cursor, 20, 0, 1000, speed); elapsed += 20; }
+    assert.ok(Math.abs(elapsed - 30_000 / speed) <= 20, `${speed}x took ${elapsed}ms`);
+  }
+});
+
+test("20-year history stays compact and snapshot values reconcile to the shared timeline", () => {
+  const rows = Array.from({ length: 50 }, (_, i) => tx({ id: `buy${i}`, isin: `S${i}`, trade_date: "2006-01-01" }));
+  const prices = Array.from({ length: 7300 }, (_, day) => {
+    const date = new Date(Date.UTC(2006, 0, 1 + day)).toISOString().slice(0, 10);
+    return rows.map((row, i) => price({ security_key: row.isin!, price_date: date, price: 10 + i + day / 365 }));
+  }).flat();
+  const end = prices.at(-1)!.price_date;
+  const history = buildUniverseHistory({ transactions: rows, prices, today: end, currencyReady: true });
+  const timeline = new Map(buildPortfolioTimeline(rows, prices).map((point) => [point.date, point]));
+  assert.ok(history.snapshots.length <= 242);
+  assert.ok(Buffer.byteLength(JSON.stringify(history)) < 1_500_000);
+  for (const snapshot of history.snapshots) {
+    assert.ok(Math.abs(snapshot.value! - timeline.get(snapshot.date)!.portfolioMarketValue) < 1e-7);
+    assert.equal(snapshot.complete, true);
+    assert.equal(snapshot.states.length, 50);
+  }
+});

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { contextHref, resolveSector, universeModel, type Sector } from "./model";
+import { contextHref, resolveSector, universeModel, universeSessionKey, type Sector } from "./model";
 import { layoutHoldings, sceneBounds, sphereRadius } from "./layout";
 
 test("volume follows value, with explicit legibility clamps", () => {
@@ -68,4 +68,12 @@ test("presentation scaling preserves weights and geometry ratios", () => {
   const scaled = universeModel({ ...input, holdings: [{ ...holding, marketValue: 800, investedCapital: 600, investmentGain: 200, quantity: 8 }] });
   assert.equal(scaled.holdings[0].weight, universeModel(input).holdings[0].weight);
   assert.equal(sphereRadius(400, 800), sphereRadius(800, 1600));
+});
+
+test("account or presentation changes discard the old client history session", () => {
+  const model = universeModel(input);
+  assert.equal(universeSessionKey(model), universeSessionKey({ ...model, value: 999 }));
+  assert.notEqual(universeSessionKey(model), universeSessionKey({ ...model, presentation: true }));
+  assert.notEqual(universeSessionKey(model, "A"), universeSessionKey(model, "B"));
+  assert.notEqual(universeSessionKey(model), universeSessionKey({ ...model, account: "Another account" }));
 });

@@ -30,7 +30,7 @@ Branch: `codex/analytics-universe`, uploaded to GitHub. Current-state Core/Unive
 
 ## Exact Next Step
 
-Review checkpoint 2 in the branch preview: open alpha analytics, choose Load history, enter Universe, play/scrub, inspect a partial/full sale, and use Today. No migration or provider sync is needed. Reconcile historical snapshot dates with Portfolio development and actual received dividends. Complete reduced-motion playback, fullscreen timeline keyboard, authenticated server-action error/presentation mismatch, and physical device QA before merging to production. Address existing dependency security findings separately before production rollout.
+Review the stabilized branch preview: open alpha analytics, choose Load history, enter Universe, play/scrub, inspect a partial/full sale, and use Today. No migration or provider sync is needed. The remaining release checks are actual-account reconciliation, physical device/screen-reader testing, and the separately scoped dependency security update. Local testing does not have an authenticated real-portfolio session; no customer records were accessed or changed.
 
 ## Checkpoint 2 Verification
 
@@ -41,3 +41,16 @@ Review checkpoint 2 in the branch preview: open alpha analytics, choose Load his
 - Verified 2x selection and dividend toggle. At 390x844 the HTML timeline/explorer remains usable, no canvas is mounted, and document width equals scroll width (375 CSS pixels excluding scrollbar). A temporary test-output overflow was isolated to the fixture, not app controls.
 - Browser opening initially timed out due network IO suspension; a fresh test tab succeeded after the local route responded. Synthetic fixture removed and test server stopped before commit. No customer data used.
 - Remaining verification: full reduced-motion playback, dense-flow curve animation inspection, 0.5x wall-clock timing, physical devices, real authenticated history/presentation checks and live-account reconciliation. These are not claimed as completed. Usage checkpoint reached after browser testing; preserve this work on continuation.
+
+## Stabilization
+
+- Final checks: 74 tests, typecheck, lint, production build (19 routes, no test fixture), and staged diff validation passed. Build used network access for the existing Google Font; dev-mode visual checks used the font fallback when the sandbox could not download it.
+
+- Fixed stale history surviving presentation/account prop changes by remounting the client session; old asynchronous results cannot populate the replacement session. Added a regression test for the session identity.
+- Fixed fullscreen keyboard trapping targeting hidden buttons inside collapsed details. Browser reproduction showed those buttons had nonzero layout rectangles but could not receive focus. The corrected backward wrap reaches the summary. Entry focuses the immersive region, Escape exits the rejected-native-API fallback and restores the Fullscreen button.
+- Cleared obsolete dividend pulses on toggle, aligned pause with the displayed playhead, disabled selection of shrinking sold spheres, restored lost detail focus, and silenced automatic date announcements during playback.
+- Added tests against the actual server-action orchestration with mocked I/O: authentication before reads, presentation mismatch in both directions, denied account access, account-scoped reads, scaled data, future/unowned filtering, and read-error sanitization. This verifies application guards, not live Supabase RLS configuration.
+- Added deterministic 0.5x/1x/2x duration tests (60/30/15 seconds), and a 20-year/50-security/365,000-price reconciliation test. Every sampled valuation matches the shared timeline; at most 242 snapshots and less than 1.5 MB serialized. No new financial formula or dependency.
+- Browser QA at 1440x1000: reduced-motion scene screenshots were byte-identical while idle; 0.5x playback advanced to later historical states and pause held its date. Presentation toggle discarded the loaded timeline and showed only the replacement model. A real unauthenticated server-action request displayed the contextual error and re-enabled retry.
+- Ordinary-motion dense-event playback displayed the exact EUR 250 / 10-payment notice and warm sphere pulses. Framebuffer sampling observed 9,491 non-background pixels and 6,602 gold-colored pixels. These include sphere pulses and are not proof of individual particle trajectories; fine curve inspection remains visual polish, not financial validation. One automated notice-wait timed out despite diagnostics reporting a visible matching notice, so the browser toggle-replay assertion is not claimed as completed.
+- Mobile 390x844: no WebGL canvas, functional HTML timeline/explorer, document width equals scroll width (375 CSS pixels). No captured browser errors. The temporary synthetic route was removed; server and browser test resources were stopped/reset. Physical phone, touch and screen-reader checks remain manual.
