@@ -1,7 +1,7 @@
 import { DAY, lowerBound, type TimeRange } from "./time-viewport";
 
 export type SeriesSample = { time: number; value: number | null };
-export function visibleSamples(samples: SeriesSample[], range: TimeRange, stepped = false, discrete = false): SeriesSample[] {
+export function visibleSamples(samples: SeriesSample[], range: TimeRange, stepped = false, discrete = false, extendLast = true): SeriesSample[] {
   const times = samples.map((row) => row.time);
   const first = lowerBound(times, range.start), after = lowerBound(times, range.end + 1);
   const result = samples.slice(first, after);
@@ -9,7 +9,7 @@ export function visibleSamples(samples: SeriesSample[], range: TimeRange, steppe
   function boundary(time: number, index: number) {
     const before = samples[index - 1], next = samples[index];
     if (!before || before.value === null) return null;
-    if (stepped) return { time, value: before.value };
+    if (stepped) return next || extendLast ? { time, value: before.value } : null;
     if (!next || next.value === null) return null;
     return { time, value: before.value + (next.value - before.value) * (time - before.time) / (next.time - before.time || 1) };
   }

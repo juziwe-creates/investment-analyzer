@@ -619,7 +619,18 @@ Deferrable until after MVP:
 - `broker_accounts`
 - `fx_rates`
 - `corporate_actions`
-- `benchmark_prices`
+
+# Existing Shared Benchmark History
+
+`public.benchmark_prices` is already provisioned and populated externally. The application reads it; it does not create or import it. Schema verified against the supplied `supabase_alpha_benchmark_history_upload (1).sql` definition:
+
+- Primary key: `(benchmark_id text, price_date date)`.
+- Required text columns: `benchmark_name`, `series_type`, `currency`, `frequency`, `provider`, `provider_symbol`, `source_type`.
+- Required values: `observation_date date`, `close_price numeric > 0`, `is_derived boolean`, `is_partial_period boolean`, `created_at timestamptz`, `updated_at timestamptz`.
+- Optional: `source_notes text`.
+- `price_date` is the period-ending chart date; `observation_date` records the actual source date.
+- Existing RLS allows authenticated SELECT only; anonymous access and authenticated writes are denied. Keep these permissions unchanged.
+- Application IDs remain `msci-world`, `sp-500`, `dax`. Missing history is an unavailable state.
 
 # Open Database Questions
 

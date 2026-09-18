@@ -450,6 +450,17 @@ Current behavior:
 - Portfolio charts report incomplete pricing rather than treating missing value as a loss.
 - User-facing aggregate analytics are withheld when non-EUR transaction or valuation currencies are present and no approved FX conversion is available. The UI reports the unsupported currencies instead of adding unlike currencies or changing only the symbol.
 
+# Stored Benchmark Comparison (2026-09-18)
+
+- Read shared `public.benchmark_prices` through the authenticated Supabase session, ordered and paginated by `price_date`. Never use security-specific `market_prices` for benchmarks. Missing S&P 500 history is unavailable, with no substitute index.
+- Dashboard comparison uses the existing shared time viewport. For each visible range, choose the first benchmark period date on or after the start that overlaps positive, fully priced portfolio history. Both levels start at 100 on that same date: `100 * current value / starting value`.
+- The opening portfolio valuation is the latest known valuation on or before that benchmark date, never a future valuation. Weekly benchmark levels carry forward only within the overlapping histories; comparison stops at the earlier final date. Incomplete portfolio valuations create gaps. Zero or incomplete opening values cannot be normalized.
+- This is normalized portfolio **value**, not cash-flow-adjusted investment return. Purchases and sales affect it; paid portfolio dividends are excluded. DAX is a performance index, and MSCI World is a derived EUR net-total-return series. These benchmark levels include reinvested dividends. The comparison must disclose that difference, not imply like-for-like total-return or alpha measurement.
+- The EUR view remains available by disabling comparison. Shared zoom, pan, presets, navigator and URL date range also control rebasing; viewport interactions perform no database reads.
+- Annual security and benchmark returns share the existing method: last stored level in a calendar year divided by the last stored level in the immediately preceding calendar year, minus one. Security levels prefer adjusted close; benchmark levels use stored close. The current year is labeled YTD. This is observation-based, not a claim that an exact December 31 close exists; YTD series can have different latest observation dates.
+- Annual difference = security percentage return minus benchmark percentage return, displayed in percentage points. Missing prior-year data produces Unavailable, never a zero or a multi-year return labeled annual.
+- No alpha metric, TWR, XIRR, FX transformation, data import or benchmark writes are introduced by this feature.
+
 # Current Open Decisions
 
 The following are unresolved and must not be silently decided during UI implementation:

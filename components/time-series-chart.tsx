@@ -9,7 +9,7 @@ import { selectionRange, seriesExtent, seriesPath, visibleSamples } from "@/lib/
 import { AlphaProgress } from "@/components/alpha-progress";
 
 export type ChartObservation = { id?: string; date: string; value: number | null; tooltip?: { label: string; value: string }[] };
-export type ChartSeries<T> = { label: string; color: string; value: (point: T) => number | null; stepped?: boolean; axis?: "left" | "right" | "right2"; format?: (value: number) => string; axisFormat?: (value: number) => string; render?: "line" | "bar" | "lollipop"; observations?: ChartObservation[]; maxPlotHeightRatio?: number; onObservationClick?: (observation: ChartObservation) => void };
+export type ChartSeries<T> = { label: string; color: string; value: (point: T) => number | null; stepped?: boolean; extendLast?: boolean; axis?: "left" | "right" | "right2"; format?: (value: number) => string; axisFormat?: (value: number) => string; render?: "line" | "bar" | "lollipop"; observations?: ChartObservation[]; maxPlotHeightRatio?: number; onObservationClick?: (observation: ChartObservation) => void };
 export type ChartMarker = { id: string; date: string; type: "buy" | "sell" | "dividend" };
 type Point = { date: string; currency: string };
 type Drag = { x: number; y: number; range: TimeRange; direction?: "horizontal" | "vertical"; mode: "pan" | "start" | "end"; navigator: boolean };
@@ -79,7 +79,7 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
   // Each axis uses only its visible samples. Event series never interpolate.
   const visible = useMemo(() => series.map((item) => visibleSamples(
     item.observations ? item.observations.map((row) => ({ time: timestamp(row.date), value: row.value })) : points.map((point, index) => ({ time: pointTimes[index], value: item.value(point) })),
-    range, item.stepped, item.render === "bar" || item.render === "lollipop"
+    range, item.stepped, item.render === "bar" || item.render === "lollipop", item.extendLast
   )), [series, points, pointTimes, range]);
   const extentFor = (axis: "left" | "right" | "right2") => {
     const items = series.filter((item) => (item.axis ?? "left") === axis);
@@ -96,6 +96,8 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
   const barSpace = new Map(barTimes.map((time, index) => [time, Math.min(index ? x(time) - x(barTimes[index - 1]) : Infinity, index < barTimes.length - 1 ? x(barTimes[index + 1]) - x(time) : Infinity, plotWidth) * .9]));
   const narrowAxis = max - min < Math.max(Math.abs(max), 1) * .08;
   const axisLabel = (value: number) => {
+    const customFormat = series.find((item) => (item.axis ?? "left") === "left")?.axisFormat;
+    if (customFormat) return customFormat(value);
     const divisor = narrowAxis ? 1 : Math.abs(value) >= 1_000_000 ? 1_000_000 : Math.abs(value) >= 1000 ? 1000 : 1;
     const digits = narrowAxis ? max - min < 10 ? 2 : max - min < 100 ? 1 : 0 : 1;
     // Explicit decimals avoid server/browser ICU differences in compact currency notation.
@@ -113,6 +115,7 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
       const exact = item.observations?.filter((row) => timestamp(row.date) === hoverTime) ?? [];
       if (exact.length) return exact.flatMap((row) => row.tooltip ?? [{ label: item.label, value: row.value === null ? "Unavailable" : (item.format ?? axisLabel)(row.value) }]);
       if (!item.stepped || !item.observations) return [];
+      if (item.extendLast === false && hoverTime > timestamp(item.observations.at(-1)?.date ?? "9999-12-31")) return [];
       const index = lowerBound(item.observations.map((row) => timestamp(row.date)), hoverTime + 1) - 1;
       const value = item.observations[index]?.value;
       return value === undefined ? [] : [{ label: item.label, value: value === null ? "Unavailable" : (item.format ?? axisLabel)(value) }];

@@ -2,9 +2,10 @@ import { Suspense } from "react";
 import { presentationTransactions } from "@/lib/presentation";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AnnualPerformanceGrid, type AnnualPerformancePoint } from "@/components/annual-performance-grid";
+import { AnnualPerformanceGrid } from "@/components/annual-performance-grid";
 import { BenchmarkSelector } from "@/components/benchmark-selector";
-import { benchmarkOptions, parseBenchmark } from "@/lib/analytics/benchmarks";
+import { annualPriceReturns, benchmarkOptions, parseBenchmark } from "@/lib/analytics/benchmarks";
+import { readBenchmarkHistory } from "@/lib/market-data/benchmark-history";
 import { type InvestmentMarker } from "@/components/investment-detail-chart";
 import { InvestmentHistoryPanel } from "@/components/investment-history-panel";
 import { investmentHistory } from "@/lib/analytics/investment-history";
@@ -15,30 +16,13 @@ import { marketDataCurrency } from "@/lib/market-data/currency";
 import { createClient } from "@/lib/supabase/server";
 import { readMarketHistory } from "@/lib/market-data/history";
 import type { Database } from "@/types/database";
-import type { MarketHistoryPrice } from "@/types/market-history";
 import { calculateYieldOnCost, investmentDividendEvents } from "@/lib/analytics/dividends";
 import { dividendAmount } from "@/lib/analytics/engine";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
-type MarketPrice = MarketHistoryPrice;
 
 function cashAmount(transaction: Transaction) {
   return Math.abs(transaction.gross_amount ?? transaction.net_amount ?? ((transaction.quantity ?? 0) * (transaction.unit_price ?? 0)));
-}
-
-function annualPerformance(prices: MarketPrice[]): AnnualPerformancePoint[] {
-  const latestByYear = new Map<number, MarketPrice>();
-  for (const price of [...prices].sort((a, b) => a.price_date.localeCompare(b.price_date))) latestByYear.set(Number(price.price_date.slice(0, 4)), price);
-  const years = [...latestByYear.keys()].sort((a, b) => a - b);
-  const currentYear = new Date().getUTCFullYear();
-  return years.slice(1).map((year) => {
-    const previous = latestByYear.get(year - 1);
-    const current = latestByYear.get(year)!;
-    if (!previous) return null;
-    const previousClose = previous.adjusted_close_price ?? previous.close_price;
-    const currentClose = current.adjusted_close_price ?? current.close_price;
-    return { year: year === currentYear ? `${year} YTD` : String(year), returnPercent: ((currentClose / previousClose) - 1) * 100 };
-  }).filter((point): point is AnnualPerformancePoint => point !== null);
 }
 
 export default async function InvestmentDetailPage({ params, searchParams }: { params: Promise<{ securityKey: string }>; searchParams: Promise<{ portfolio?: string; benchmark?: string }> }) {
@@ -53,7 +37,7 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
   const manualPricesQuery = supabase.from("manual_security_prices").select("*");
   const marketPricesQuery = readMarketHistory(portfolioId, securityKey);
   if (portfolioId) { latestPricesQuery.eq("portfolio_id", portfolioId); manualPricesQuery.eq("portfolio_id", portfolioId); }
-  const [{ data: allTransactions, error: transactionError }, { data: latestPrices, error: latestError }, { data: manualPrices, error: manualError }, { data: prices, error: priceError }] = await Promise.all([transactionsQuery, latestPricesQuery, manualPricesQuery, marketPricesQuery]);
+  const [{ data: allTransactions, error: transactionError }, { data: latestPrices, error: latestError }, { data: manualPrices, error: manualError }, { data: prices, error: priceError }, reference] = await Promise.all([transactionsQuery, latestPricesQuery, manualPricesQuery, marketPricesQuery, readBenchmarkHistory(benchmark)]);
   const transactions = (allTransactions ?? []).filter((transaction) => transactionSecurityKey(transaction) === securityKey);
   if (transactions.length === 0) notFound();
   const errors = [transactionError, latestError, manualError, priceError].filter(Boolean);
@@ -87,7 +71,7 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
     ].map(([label, value]) => <div key={label}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-lg font-medium">{value}</p></div>)}</div></section>
     <InvestmentHistoryPanel points={history} markers={markers} dividends={investmentDividendEvents(transactions, { lotMatchingMethod: "lifo" })} lots={lots} />
     <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="alpha-kpi-label">Comparison context</p><p className="mt-1 text-sm text-muted-foreground">One benchmark applies to annual and future normalized comparisons.</p></div><Suspense fallback={<div className="h-9 w-72 animate-pulse rounded-md bg-muted" />}><BenchmarkSelector selected={benchmark} /></Suspense></div>
-    <AnnualPerformanceGrid securityName={metadata.security_name} points={annualPerformance(prices ?? [])} benchmarkLabel={benchmarkLabel} />
+    <AnnualPerformanceGrid securityName={metadata.security_name} points={annualPriceReturns((prices ?? []).map((price) => ({ date: price.price_date, value: price.adjusted_close_price ?? price.close_price })))} benchmarkLabel={benchmarkLabel} benchmarkPoints={annualPriceReturns(reference.data.filter((price) => price.currency === "EUR").map((price) => ({ date: price.price_date, value: price.close_price })))} benchmarkError={reference.error} />
     <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">How is this calculated?</summary><div className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground"><p>Transactions are the source of truth. Price history provides dated valuation points; holdings and lots are derived at read time.</p><p>Annual performance is year-end security price divided by the previous year-end price minus one. It is not your personal investment return.</p><p>Metrics marked pending depend on unresolved definitions recorded in the authoritative analytics rules.</p></div></details>
   </div>;
 }
