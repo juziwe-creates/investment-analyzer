@@ -411,9 +411,7 @@ export function calculatePortfolioDevelopment(
   )
     .map((point): PortfolioDevelopmentPoint => ({
       date: point.date,
-      investedCapital: point.hasCompletePricing
-        ? point.currentDeployedCapital
-        : point.pricedCurrentDeployedCapital,
+      investedCapital: point.currentDeployedCapital,
       investmentGain: point.unrealizedGain,
       portfolioValue: point.portfolioMarketValue,
       unpricedInvestedCapital: point.unpricedCurrentDeployedCapital,
@@ -421,8 +419,7 @@ export function calculatePortfolioDevelopment(
       hasCompletePricing: point.hasCompletePricing,
       dividendsReceived: point.dividendsCollected,
       currency: point.currency
-    }))
-    .filter((point) => point.investedCapital > 0 || point.portfolioValue > 0);
+    }));
 
   const intervalPoints = new Map<string, PortfolioDevelopmentPoint>();
 

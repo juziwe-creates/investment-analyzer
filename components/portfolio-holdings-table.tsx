@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowUpDown, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/formatters";
+import type { YieldOnCost } from "@/lib/analytics/dividends";
 import type { PortfolioHolding } from "@/lib/analytics/portfolio";
 
 type SortKey = "name" | "value" | "deployed" | "annualized" | "weight";
@@ -18,7 +19,7 @@ function SortButton({ label, value, onSort }: { label: string; value: SortKey; o
   return <button type="button" className="alpha-focus inline-flex items-center gap-1" onClick={() => onSort(value)}>{label}<ArrowUpDown className="h-3 w-3" aria-hidden="true" /></button>;
 }
 
-export function PortfolioHoldingsTable({ holdings }: { holdings: PortfolioHolding[] }) {
+export function PortfolioHoldingsTable({ holdings, yields = {} }: { holdings: PortfolioHolding[]; yields?: Record<string, YieldOnCost> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const portfolio = searchParams.get("portfolio");
@@ -78,13 +79,13 @@ export function PortfolioHoldingsTable({ holdings }: { holdings: PortfolioHoldin
                 return <tr key={holding.securityKey} role="link" tabIndex={0} className="cursor-pointer" onClick={() => router.push(href)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(href); } }}>
                   <td><p className="font-medium">{holding.securityName}</p><p className="mt-0.5 text-xs text-muted-foreground">{formatNumber(holding.quantity)} shares</p></td>
                   <td className="text-right">{formatCurrency(holding.marketValue, holding.currency)}</td><td className="text-right">{formatCurrency(holding.investedCapital, holding.currency)}</td>
-                  <td className="text-right text-muted-foreground" title="Total Return definition is pending approval">Pending</td><td className="text-right">{formatPercent(holding.annualizedReturnPercent)}</td><td className="text-right text-muted-foreground" title="Yield on Cost definition is pending approval">Pending</td><td className="text-right">{formatPercent(weight)}</td>
+                  <td className="text-right text-muted-foreground" title="Total Return definition is pending approval">Pending</td><td className="text-right">{formatPercent(holding.annualizedReturnPercent)}</td><td className="text-right text-muted-foreground" title={yields[holding.securityKey]?.reason ?? `Investment Yield on Cost (${yields[holding.securityKey]?.year})`}>{formatPercent(yields[holding.securityKey]?.yieldPercent ?? null)}</td><td className="text-right">{formatPercent(weight)}</td>
                 </tr>;
               })}</tbody></table>
           </div>
           <div className="space-y-2 md:hidden">{rows.map((holding) => {
             const weight = totalValue > 0 && holding.marketValue !== null ? (holding.marketValue / totalValue) * 100 : null;
-            return <button key={holding.securityKey} type="button" onClick={() => router.push(detailHref(holding.securityKey, portfolio))} className="alpha-focus alpha-surface w-full p-4 text-left"><div className="flex items-start justify-between gap-4"><div><p className="font-medium">{holding.securityName}</p><p className="mt-1 text-lg font-medium">{formatCurrency(holding.marketValue, holding.currency)}</p></div><span className="text-sm font-medium">{formatPercent(weight)}</span></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-border/70 pt-3 text-sm"><div><span className="text-muted-foreground">Deployed</span><p>{formatCurrency(holding.investedCapital, holding.currency)}</p></div><div><span className="text-muted-foreground">Annualized</span><p>{formatPercent(holding.annualizedReturnPercent)}</p></div></div></button>;
+            return <button key={holding.securityKey} type="button" onClick={() => router.push(detailHref(holding.securityKey, portfolio))} className="alpha-focus alpha-surface w-full p-4 text-left"><div className="flex items-start justify-between gap-4"><div><p className="font-medium">{holding.securityName}</p><p className="mt-1 text-lg font-medium">{formatCurrency(holding.marketValue, holding.currency)}</p></div><span className="text-sm font-medium">{formatPercent(weight)}</span></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-border/70 pt-3 text-sm"><div><span className="text-muted-foreground">Deployed</span><p>{formatCurrency(holding.investedCapital, holding.currency)}</p></div><div><span className="text-muted-foreground">Annualized</span><p>{formatPercent(holding.annualizedReturnPercent)}</p></div><div><span className="text-muted-foreground">Yield on Cost ({yields[holding.securityKey]?.year})</span><p>{formatPercent(yields[holding.securityKey]?.yieldPercent ?? null)}</p></div></div></button>;
           })}</div>
         </>
       )}

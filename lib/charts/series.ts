@@ -18,13 +18,33 @@ export function visibleSamples(samples: SeriesSample[], range: TimeRange, steppe
   return result;
 }
 
-export function seriesExtent(rows: SeriesSample[][], includeZero = false) {
+export function seriesExtent(rows: SeriesSample[][], includeZero = false, maxPlotHeightRatio?: number) {
   let min = Infinity, max = -Infinity;
   for (const samples of rows) for (const row of samples) if (row.value !== null && Number.isFinite(row.value)) { min = Math.min(min, row.value); max = Math.max(max, row.value); }
   if (!Number.isFinite(min)) return { min: 0, max: 1 };
+  if (maxPlotHeightRatio !== undefined && maxPlotHeightRatio > 0 && maxPlotHeightRatio <= 1 && min >= 0) {
+    return { min: 0, max: max > 0 ? max / maxPlotHeightRatio : 1 };
+  }
   if (includeZero) { min = Math.min(0, min); max = Math.max(0, max); }
   const padding = (max - min || Math.abs(max) || 1) * .05;
   return { min: min - padding, max: max + padding };
+}
+
+export function seriesPath(rows: SeriesSample[], x: (time: number) => number, y: (value: number) => number, stepped = false) {
+  let connected = false;
+  return rows.map((row) => {
+    if (row.value === null) { connected = false; return ""; }
+    const command = connected ? stepped ? `H ${x(row.time)} V ${y(row.value)}` : `L ${x(row.time)} ${y(row.value)}` : `M ${x(row.time)} ${y(row.value)}`;
+    connected = true;
+    return command;
+  }).join(" ");
+}
+
+export function lotsInViewport<T extends { tradeDate: string; remainingQuantity: number }>(lots: T[], range: TimeRange, status: "open" | "closed" | "all") {
+  return lots.filter((lot) => {
+    const time = Date.parse(`${lot.tradeDate}T00:00:00Z`);
+    return time >= range.start && time <= range.end && (status === "all" || (status === "open" ? lot.remainingQuantity > 0 : lot.remainingQuantity <= 0));
+  });
 }
 
 export function selectionRange(start: number, end: number, full: TimeRange): TimeRange {

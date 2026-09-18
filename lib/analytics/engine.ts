@@ -755,7 +755,7 @@ export function buildPortfolioTimeline(
     const hasCompletePricing = missingPriceSecurityKeys.length === 0;
     const unrealizedGain = portfolioMarketValue - pricedCurrentDeployedCapital;
 
-    if (openLotCount === 0 && dividendsCollected === 0) {
+    if (openLotCount === 0 && dividendsCollected === 0 && lifetimeDeployedCapital === 0) {
       continue;
     }
 

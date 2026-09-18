@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 export type DecisionDrawerMetric = { label: string; value: string };
@@ -13,7 +13,8 @@ export function DecisionDrawer({
   subtitle,
   metrics,
   note,
-  modal = true
+  modal = true,
+  children
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,6 +24,7 @@ export function DecisionDrawer({
   metrics: DecisionDrawerMetric[];
   note?: string;
   modal?: boolean;
+  children?: ReactNode;
 }) {
   const drawerRef = useRef<HTMLElement>(null);
 
@@ -30,7 +32,7 @@ export function DecisionDrawer({
     if (!open) return;
     const drawer = drawerRef.current;
     const previousFocus = document.activeElement as HTMLElement | null;
-    const focusable = () => Array.from(drawer?.querySelectorAll<HTMLElement>('button,[href],[tabindex]:not([tabindex="-1"])') ?? []);
+    const focusable = () => Array.from(drawer?.querySelectorAll<HTMLElement>('button:not(:disabled),[href],[tabindex]:not([tabindex="-1"])') ?? []);
     focusable()[0]?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
@@ -70,6 +72,7 @@ export function DecisionDrawer({
           {metrics.map((metric) => <div key={metric.label} className="flex items-baseline justify-between gap-6 py-3"><dt className="text-sm text-muted-foreground">{metric.label}</dt><dd className="text-right font-medium tabular-nums">{metric.value}</dd></div>)}
         </dl>
         {note ? <p className="mt-5 text-xs leading-5 text-muted-foreground">{note}</p> : null}
+        {children}
       </aside>
     </div>
   );

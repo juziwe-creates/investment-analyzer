@@ -12,6 +12,7 @@
     "incremental": false
   },
   "include": [
+    "lib/transactions/delete.test.ts",
     "lib/analytics/dividends.test.ts",
     "lib/charts/series.test.ts",
     "lib/analytics/performance.bench.ts",

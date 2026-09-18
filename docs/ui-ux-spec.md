@@ -6,6 +6,14 @@
 **Primary viewport:** 1920×1080 laptop
 **Product tagline:** *Analyze every investment. Measure every decision.*
 
+## Approved CR-01 Through CR-06 Refinements
+
+- Transactions expose a secondary Delete action inside the existing Decision Drawer. Require explicit confirmation, server-side authentication, transaction and portfolio ownership, RLS, and actual-data mode. On success close the drawer, refresh all derived views, retain URL/account context, and announce success. Components cascade; original source documents remain. Existing imports have no deletion-suppression mechanism; no new one is introduced.
+- Investment History Price shows adjacent canonical dividend/share and payment-date personal-yield bars, with separate right axes. Bars open the existing canonical Decision Drawer by transaction ID, support keyboard activation and enlarged touch targets. Buy/sell markers remain; dividend icons are removed in both chart modes. Dividends OFF hides both series and their axes.
+- The visible dividend/share maximum and Position Value cumulative-dividend maximum occupy at most 50% of plot height. This is viewport-dependent visual scaling only. Cumulative dividends and every capital-deployment series are stepped; market prices/values remain linear. Transaction dates remain explicit, including final zero-capital sale events.
+- Investment-level Yield on Cost uses the approved last-full-year definition in Analytics Rules; no portfolio-wide or per-lot percentage is inferred.
+- Investment History and Purchase Lots share one TimeViewportProvider. Presets, navigator, zoom and pan filter lot purchase dates inclusively before Open/Closed/All. Lot valuation and returns are not recalculated as of the viewport. Changing chart mode preserves period, dividend visibility, and lot status. Empty states identify the current period.
+
 ---
 
 ## 1. Purpose

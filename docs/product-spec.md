@@ -149,7 +149,7 @@ The following require explicit product decisions before affected implementation 
 2. Realized Gain at portfolio and investment level.
 3. One deliberate lot-matching policy, because current views use differing FIFO/LIFO behavior.
 4. Dividend semantics, including gross versus after-tax treatment and tax assumptions in performance.
-5. Yield on Cost definition, because current views use inconsistent concepts.
+5. Portfolio-wide and per-lot Yield on Cost aggregation. Investment-level Yield on Cost is now approved by CR-05: last completed calendar-year dividends divided by remaining acquisition cost at that year's final dividend (see Analytics Rules).
 6. EUR/FX valuation methodology for multi-currency assets.
 7. Return Current Year and Return Last 365 Days methodology.
 

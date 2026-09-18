@@ -220,7 +220,7 @@ This is an MVP assumption, not personalized tax advice.
 
 # Personal Dividend Yield (Approved UI Refinement)
 
-The 2026-09 UI refinement specification adds a separate calendar-year metric named **Personal Dividend Yield**. It does not replace the existing lot yield, canonical Total Return, or unresolved general Yield on Cost definitions.
+The 2026-09 UI refinement specification adds a separate calendar-year metric named **Personal Dividend Yield**. It does not replace the existing lot yield or canonical Total Return. The subsequent CR-02 payment-date yield and CR-05 investment Yield on Cost below have different denominators; the calendar-year chart retains this approved average-cost definition.
 
 `Personal Dividend Yield (%) = 100 * actual gross dividends in the year / time-weighted average active acquisition cost`.
 
@@ -236,6 +236,26 @@ Investment History's Price mode uses factual gross dividend cash divided by elig
 These functions operate on the already account/security-filtered and, when enabled, presentation-scaled input. They persist no derived values. Scaling multiplies cost and cash together, preserving yield percentages and per-share dividends.
 
 # Current Dividend Yield
+
+## Approved CR-02 Payment-Date Yield
+
+Investment History Price shows adjacent, independent dividend/share and personal-yield bars. At each canonical payment, personal yield is `100 * calendar-year-to-date dividend cash / active remaining acquisition cost at that payment`. The numerator resets each January 1. Cost comes from the shared ledger with Investment Detail's existing LIFO matching and event ordering, not lifetime purchases or sale proceeds. Missing cash, incomplete buy history, zero cost, and mixed currencies produce unavailable values. No tax conversion is invented.
+
+Dividend cash follows the existing factual convention: absolute gross amount, otherwise absolute net amount, otherwise known quantity times known unit price. Tooltips distinguish gross/net facts; this is not a claim that gross equals after-tax receipts. Dividend/share requires factual gross cash and eligible held shares. Canonical transaction IDs connect both bars to the existing Decision Drawer.
+
+The tallest visible dividend/share bar and cumulative-dividend value use at most half the plot height. This changes axis domains only, recalculated from the viewport, not cash or analytical results. Price uses two independent right axes (cash/share and percentage); Position Value uses one (cumulative cash). Neither mode also renders dividend markers.
+
+## Approved CR-05 Investment Yield on Cost
+
+`calculateYieldOnCost` is authoritative for investment-level Yield on Cost. For an as-of date in year Y, use all factual dividend cash in Y-1 divided by remaining acquisition cost at the final dividend event in Y-1, multiplied by 100. Sales before that event reduce cost using LIFO, consistent with Investment Detail. Later purchases or sales, including later events on the same date, do not change that denominator. Each investment is calculated separately from its complete account-filtered history.
+
+Example: EUR120 dividends with EUR2,000 active cost at September's final payment gives 6%, even after a EUR1,000 December purchase. EUR100 dividends after a sale leaves EUR1,000 acquisition cost gives 10%.
+
+With no payment in Y-1, return 0% only when the complete history has positive valid acquisition cost at year end. A zero/missing denominator, unknown cash, incomplete inventory, or mixed currencies returns null. No Infinity/NaN or estimated tax values. Presentation scaling changes cash and costs together, preserving ratios; nothing derived is stored.
+
+Investment Detail, Dashboard holdings, Transactions' investment-context metric, and Dividends use this same investment-level result and label its reference year. It is not a payment yield or per-lot allocation. Portfolio-wide and per-lot aggregation remain undefined and are not fabricated.
+
+## Existing Lot Current Dividend Yield
 
 Transaction Analytics currently uses the latest dividend allocation for the buy lot.
 
@@ -404,6 +424,8 @@ missing price securities are reported
 
 This avoids showing missing prices as fake losses.
 
+CR-04 clarification: the chart's Current Deployed Capital series always shows full remaining acquisition cost, including unpriced lots, so price arrival cannot create a false capital deployment event. Priced acquisition cost still underlies the separately calculated unrealized gain. The chart discloses that its value/capital gap is incomplete when prices are missing. Fully closed positions retain their zero-capital event. Capital and cumulative dividends step at exact transaction dates, without event-dropping decimation.
+
 # Capital Deployment
 
 Capital Deployment is based on transaction cash movements:
@@ -436,7 +458,7 @@ The following are unresolved and must not be silently decided during UI implemen
 2. **Realized Gain** - exact portfolio and investment-level definition.
 3. **Lot matching policy** - current behavior differs between the FIFO engine default and LIFO analytical views; one deliberate rule, or explicitly approved context-specific rules, is required.
 4. **Dividend semantics** - gross versus after-tax treatment and whether tax assumptions belong in investment-performance metrics.
-5. **Yield on Cost** - exact definition; current calculations and older proposals use inconsistent concepts and time windows.
+5. **Yield on Cost aggregation** - investment-level is approved above; portfolio-wide and per-lot variants still need definitions.
 6. **EUR / FX** - user-facing V1 analytics require EUR, so multi-currency valuation requires a defined methodology rather than currency relabeling.
 7. **YTD and last-365-day return** - exact return methodology.
 

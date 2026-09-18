@@ -204,3 +204,23 @@ export async function createManualTransaction(formData: FormData) {
     : "";
   redirect(`/transactions?message=Transaction saved${portfolioQuery}`);
 }
+
+export async function deleteTransaction(transactionId: string, portfolioId?: string): Promise<{ error?: string }> {
+  await requireActualDataMode();
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { error: "Sign in before deleting a transaction." };
+  if (!/^[0-9a-f-]{36}$/i.test(transactionId)) return { error: "Transaction unavailable." };
+  const query = supabase.from("transactions").select("id,portfolio_id").eq("id", transactionId).eq("user_id", user.id);
+  if (portfolioId) query.eq("portfolio_id", portfolioId);
+  const { data: transaction, error } = await query.maybeSingle();
+  if (error || !transaction) return { error: "Transaction unavailable." };
+  const { data: portfolio, error: portfolioError } = await supabase.from("portfolios").select("id").eq("id", transaction.portfolio_id).eq("user_id", user.id).maybeSingle();
+  if (portfolioError || !portfolio) return { error: "Transaction unavailable." };
+  // FK cascade removes components atomically; import rows retain their source with a null transaction_id.
+  const { data: deleted, error: deleteError } = await supabase.from("transactions").delete()
+    .eq("id", transaction.id).eq("user_id", user.id).eq("portfolio_id", portfolio.id).select("id").maybeSingle();
+  if (deleteError || !deleted) return { error: "Transaction could not be deleted. Refresh and try again." };
+  revalidatePath("/", "layout");
+  return {};
+}

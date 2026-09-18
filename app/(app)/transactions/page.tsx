@@ -1,5 +1,6 @@
 import { presentationEnabled, presentationTransactions } from "@/lib/presentation";
 import { TransactionForm } from "@/components/transaction-form";
+import { investmentYieldsOnCost } from "@/lib/analytics/dividends";
 import { TransactionList } from "@/components/transaction-list";
 import { buildCurrentAnalytics } from "@/lib/analytics/portfolio";
 import { calculateTransactionAnalytics } from "@/lib/analytics/transaction-analytics";
@@ -23,6 +24,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const pageCount = Math.max(1, Math.ceil((count ?? 0) / pageSize));
   const { lots } = buildCurrentAnalytics(analyticsTransactions ?? [], latestPrices ?? [], manualPrices ?? [], { lotMatchingMethod: "lifo" });
   const analyticsRows = calculateTransactionAnalytics(lots);
+  const yields = investmentYieldsOnCost(analyticsTransactions ?? [], new Date().toISOString().slice(0, 10));
   const errors = [ledgerError, analyticsError, latestError, manualError].filter(Boolean);
 
   return <div className="space-y-10">
@@ -30,6 +32,6 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     {message && !presenting ? <div className="alpha-surface px-4 py-3 text-sm text-muted-foreground">{message}</div> : null}
     {errors.length ? <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errors[0]?.message}</div> : null}
     {!presenting && <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">Add a transaction</summary><div className="mt-5"><TransactionForm portfolioId={portfolioId} /></div></details>}
-    <TransactionList transactions={ledger ?? []} analyticsRows={analyticsRows} page={Math.min(page, pageCount)} pageCount={pageCount} previousHref={page > 1 ? pageHref(page - 1, portfolioId) : null} nextHref={page < pageCount ? pageHref(page + 1, portfolioId) : null} />
+    <TransactionList canDelete={!presenting} portfolioId={portfolioId} yields={yields} transactions={ledger ?? []} analyticsRows={analyticsRows} page={Math.min(page, pageCount)} pageCount={pageCount} previousHref={page > 1 ? pageHref(page - 1, portfolioId) : null} nextHref={page < pageCount ? pageHref(page + 1, portfolioId) : null} />
   </div>;
 }

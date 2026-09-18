@@ -5,11 +5,11 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useTimeViewport } from "@/components/time-viewport";
 import { dateString, DAY, decimate, lowerBound, nearestIndex, timestamp, zoomRange, type TimeRange } from "@/lib/charts/time-viewport";
 import { formatDate } from "@/lib/formatters";
-import { selectionRange, seriesExtent, visibleSamples } from "@/lib/charts/series";
+import { selectionRange, seriesExtent, seriesPath, visibleSamples } from "@/lib/charts/series";
 import { AlphaProgress } from "@/components/alpha-progress";
 
-export type ChartObservation = { date: string; value: number | null; tooltip?: { label: string; value: string }[] };
-export type ChartSeries<T> = { label: string; color: string; value: (point: T) => number | null; stepped?: boolean; axis?: "left" | "right"; format?: (value: number) => string; render?: "line" | "bar" | "lollipop"; observations?: ChartObservation[] };
+export type ChartObservation = { id?: string; date: string; value: number | null; tooltip?: { label: string; value: string }[] };
+export type ChartSeries<T> = { label: string; color: string; value: (point: T) => number | null; stepped?: boolean; axis?: "left" | "right" | "right2"; format?: (value: number) => string; axisFormat?: (value: number) => string; render?: "line" | "bar" | "lollipop"; observations?: ChartObservation[]; maxPlotHeightRatio?: number; onObservationClick?: (observation: ChartObservation) => void };
 export type ChartMarker = { id: string; date: string; type: "buy" | "sell" | "dividend" };
 type Point = { date: string; currency: string };
 type Drag = { x: number; y: number; range: TimeRange; direction?: "horizontal" | "vertical"; mode: "pan" | "start" | "end"; navigator: boolean };
@@ -36,7 +36,9 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
   const latest = useRef(viewport);
   const clipId = useId().replaceAll(":", "");
   const hasRight = series.some((item) => item.axis === "right");
-  const left = width < 500 ? 66 : 88, right = hasRight ? (width < 500 ? 70 : 88) : 18, top = 20, bottom = 42, height = 320;
+  const hasRight2 = series.some((item) => item.axis === "right2");
+  const axisSpacing = width < 500 ? 54 : 86;
+  const left = width < 500 ? 58 : 88, right = hasRight || hasRight2 ? axisSpacing * (Number(hasRight) + Number(hasRight2)) + 8 : 18, top = 20, bottom = 42, height = 320;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
   const duration = range.end - range.start || DAY;
   const fullDuration = full.end - full.start || DAY;
@@ -79,10 +81,19 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     item.observations ? item.observations.map((row) => ({ time: timestamp(row.date), value: row.value })) : points.map((point, index) => ({ time: pointTimes[index], value: item.value(point) })),
     range, item.stepped, item.render === "bar" || item.render === "lollipop"
   )), [series, points, pointTimes, range]);
-  const { min, max } = seriesExtent(visible.filter((_, index) => series[index].axis !== "right"));
-  const rightExtent = seriesExtent(visible.filter((_, index) => series[index].axis === "right"), series.some((item) => item.axis === "right" && (item.render === "bar" || item.render === "lollipop")));
+  const extentFor = (axis: "left" | "right" | "right2") => {
+    const items = series.filter((item) => (item.axis ?? "left") === axis);
+    const ratios = items.flatMap((item) => item.maxPlotHeightRatio === undefined ? [] : [item.maxPlotHeightRatio]);
+    return seriesExtent(visible.filter((_, index) => (series[index].axis ?? "left") === axis), items.some((item) => item.render === "bar" || item.render === "lollipop"), ratios.length ? Math.min(...ratios) : undefined);
+  };
+  const { min, max } = extentFor("left");
+  const rightExtent = extentFor("right"), right2Extent = extentFor("right2");
   const y = (value: number) => top + plotHeight - (value - min) / (max - min) * plotHeight;
   const rightY = (value: number) => top + plotHeight - (value - rightExtent.min) / (rightExtent.max - rightExtent.min) * plotHeight;
+  const right2Y = (value: number) => top + plotHeight - (value - right2Extent.min) / (right2Extent.max - right2Extent.min) * plotHeight;
+  const barColumns = series.flatMap((item, index) => item.render === "bar" ? [index] : []);
+  const barTimes = [...new Set(barColumns.flatMap((column) => visible[column].map((row) => row.time)))].sort((a, b) => a - b);
+  const barSpace = new Map(barTimes.map((time, index) => [time, Math.min(index ? x(time) - x(barTimes[index - 1]) : Infinity, index < barTimes.length - 1 ? x(barTimes[index + 1]) - x(time) : Infinity, plotWidth) * .9]));
   const narrowAxis = max - min < Math.max(Math.abs(max), 1) * .08;
   const axisLabel = (value: number) => {
     const divisor = narrowAxis ? 1 : Math.abs(value) >= 1_000_000 ? 1_000_000 : Math.abs(value) >= 1000 ? 1000 : 1;
@@ -231,23 +242,48 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
           }}>
           <defs><clipPath id={clipId}><rect x={left} y={top} width={plotWidth} height={plotHeight} /></clipPath></defs>
           {[0, .25, .5, .75, 1].map((fraction) => { const value = min + (max - min) * fraction; return <g key={fraction}><line x1={left} x2={width - right} y1={y(value)} y2={y(value)} stroke="hsl(var(--border-subtle))" strokeDasharray="3 6" /><text x={left - 8} y={y(value)} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground text-[11px]">{axisLabel(value)}</text></g>; })}
-          {hasRight ? [0, .25, .5, .75, 1].map((fraction) => { const value = rightExtent.min + (rightExtent.max - rightExtent.min) * fraction; return <text key={fraction} x={width - right + 8} y={rightY(value)} dominantBaseline="middle" className="fill-muted-foreground text-[11px]">{(series.find((item) => item.axis === "right")?.format ?? axisLabel)(value)}</text>; }) : null}
+          {(["right", "right2"] as const).filter((axis) => series.some((item) => item.axis === axis)).map((axis, index) => {
+            const item = series.find((item) => item.axis === axis)!;
+            const extent = axis === "right" ? rightExtent : right2Extent;
+            const scale = axis === "right" ? rightY : right2Y;
+            return <g key={axis} data-axis={axis} aria-label={item.label}>{[0, .5, 1].map((fraction) => {
+              const value = extent.min + (extent.max - extent.min) * fraction;
+              return <text key={fraction} x={width - right + 8 + index * axisSpacing} y={scale(value)} dominantBaseline="middle" fill={item.color} className="text-[10px]">{(item.axisFormat ?? item.format ?? axisLabel)(value)}</text>;
+            })}</g>;
+          })}
           <g clipPath={`url(#${clipId})`}>
             {series.map((item, column) => {
-              const scale = item.axis === "right" ? rightY : y;
+              const scale = item.axis === "right" ? rightY : item.axis === "right2" ? right2Y : y;
               const rows = visible[column];
-              if (item.render === "bar" || item.render === "lollipop") return <g key={item.label} data-series={item.label}>{rows.map((row, index) => row.value === null ? null : <g key={`${row.time}-${index}`} onPointerMove={(event) => {
+              if (item.render === "bar" || item.render === "lollipop") {
+                const observations = item.observations?.filter((observation) => timestamp(observation.date) >= range.start && timestamp(observation.date) <= range.end);
+                const groups = new Map<number, { first: number; count: number }>();
+                rows.forEach((row, index) => { const group = groups.get(row.time); if (group) group.count++; else groups.set(row.time, { first: index, count: 1 }); });
+                return <g key={item.label} data-series={item.label}>{rows.map((row, index) => {
+                if (row.value === null) return null;
+                const observation = observations?.[index];
+                const group = groups.get(row.time)!;
+                const spacing = Math.min(28, (barSpace.get(row.time) ?? plotWidth) / group.count / Math.max(1, barColumns.length));
+                const groupWidth = Math.max(1, barColumns.length) * spacing;
+                const offset = item.render === "bar" ? (index - group.first - (group.count - 1) / 2) * groupWidth + (barColumns.indexOf(column) - (barColumns.length - 1) / 2) * spacing : 0;
+                const inset = item.render === "bar" ? group.count * groupWidth / 2 : 14;
+                const bx = Math.max(left + inset, Math.min(width - right - inset, x(row.time))) + offset;
+                const activate = observation && item.onObservationClick ? () => item.onObservationClick!(observation) : undefined;
+                return <g key={observation?.id ?? `${row.time}-${index}`} role={activate ? "button" : undefined} tabIndex={activate ? 0 : undefined} className={activate ? "alpha-focus cursor-pointer" : undefined}
+                  aria-label={`${item.label}: ${(item.format ?? axisLabel)(row.value)} on ${formatDate(dateString(row.time))}`}
+                  onClick={activate} onKeyDown={(event) => { if (activate && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); activate(); } }}
+                  onFocus={() => setHover({ index: lowerBound(hoverTimes, row.time), start: range.start, end: range.end })} onBlur={() => setHover(null)} onPointerMove={(event) => {
                 if (selecting.current || pointers.current.size || gesturing) return;
                 event.stopPropagation();
                 setHover({ index: lowerBound(hoverTimes, row.time), start: range.start, end: range.end });
-              }}><line x1={x(row.time)} x2={x(row.time)} y1={scale(0)} y2={scale(row.value)} stroke={item.color} strokeWidth={item.render === "bar" ? 6 : 1.5} /><circle cx={x(row.time)} cy={scale(row.value)} r={10} fill="transparent" />{item.render === "lollipop" ? <circle cx={x(row.time)} cy={scale(row.value)} r={3.5} fill={item.color} /> : null}</g>)}</g>;
-              let connected = false;
-              const sampled = rows.some((row) => row.value === null) ? rows : decimate(rows, (row) => [row.value!], Math.max(400, width * 2));
-              const path = sampled.map((row) => {
-                if (row.value === null) { connected = false; return ""; }
-                const command = connected ? item.stepped ? `H ${x(row.time)} V ${scale(row.value)}` : `L ${x(row.time)} ${scale(row.value)}` : `M ${x(row.time)} ${scale(row.value)}`;
-                connected = true; return command;
-              }).join(" ");
+              }}><line x1={bx} x2={bx} y1={scale(0)} y2={scale(row.value)} stroke={item.color} strokeWidth={item.render === "bar" ? Math.min(10, spacing * .65) : 1.5} />
+                <rect x={bx - spacing / 2} y={Math.min(scale(0), scale(row.value)) - 8} width={spacing} height={Math.max(28, Math.abs(scale(0) - scale(row.value)) + 16)} fill="transparent" />
+                {item.render === "lollipop" ? <circle cx={bx} cy={scale(row.value)} r={3.5} fill={item.color} /> : null}</g>;
+              })}</g>;
+              }
+              // Decimating step states could move a capital change to a later observation.
+              const sampled = item.stepped || rows.some((row) => row.value === null) ? rows : decimate(rows, (row) => [row.value!], Math.max(400, width * 2));
+              const path = seriesPath(sampled, x, scale, item.stepped);
               return <g key={item.label} data-series={item.label}><path d={path} fill="none" stroke={item.color} strokeWidth={column === 0 ? 2.25 : 1.75} />{rows.length === 1 && rows[0].value !== null ? <circle cx={x(rows[0].time)} cy={scale(rows[0].value)} r={3} fill={item.color} /> : null}</g>;
             })}
             {selection?.range && selection.range.end >= range.start && selection.range.start <= range.end ? <g data-selection-overlay="true"><rect x={x(Math.max(range.start, selection.range.start))} y={top} width={Math.max(1, x(Math.min(range.end, selection.range.end)) - x(Math.max(range.start, selection.range.start)))} height={plotHeight} fill="hsl(var(--accent-brand)/.10)" pointerEvents="none" />{(["start", "end"] as const).map((edge) => selection.range![edge] >= range.start && selection.range![edge] <= range.end ? <g key={edge}><line x1={x(selection.range![edge])} x2={x(selection.range![edge])} y1={top} y2={height - bottom} stroke="hsl(var(--accent-brand))" strokeDasharray="4 3" />{selection.active ? <rect data-selection-edge={edge} x={x(selection.range![edge]) - 18} y={top} width={36} height={plotHeight} fill="transparent" className="cursor-ew-resize" /> : null}</g> : null)}</g> : null}
