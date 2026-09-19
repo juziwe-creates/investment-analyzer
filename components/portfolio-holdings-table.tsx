@@ -7,22 +7,24 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/formatters";
 import type { YieldOnCost } from "@/lib/analytics/dividends";
 import type { PortfolioHolding } from "@/lib/analytics/portfolio";
+import type { BenchmarkView } from "@/lib/analytics/benchmark-portfolio";
+import { parseBenchmark } from "@/lib/analytics/benchmarks";
+import { investmentDetailHref } from "@/lib/analytics/benchmark-navigation";
+import { BenchmarkMethodology, ComparisonViewControl, DecisionComparisonRows } from "@/components/benchmark-comparison";
 
 type SortKey = "name" | "value" | "deployed" | "annualized" | "weight";
-
-function detailHref(securityKey: string, portfolio: string | null) {
-  const path = `/portfolio/${encodeURIComponent(securityKey)}`;
-  return portfolio ? `${path}?portfolio=${encodeURIComponent(portfolio)}` : path;
-}
 
 function SortButton({ label, value, onSort }: { label: string; value: SortKey; onSort: (value: SortKey) => void }) {
   return <button type="button" className="alpha-focus inline-flex items-center gap-1" onClick={() => onSort(value)}>{label}<ArrowUpDown className="h-3 w-3" aria-hidden="true" /></button>;
 }
 
-export function PortfolioHoldingsTable({ holdings, yields = {} }: { holdings: PortfolioHolding[]; yields?: Record<string, YieldOnCost> }) {
+export function PortfolioHoldingsTable({ holdings, yields = {}, comparison }: { holdings: PortfolioHolding[]; yields?: Record<string, YieldOnCost>; comparison?: BenchmarkView }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const portfolio = searchParams.get("portfolio");
+  const benchmark = parseBenchmark(searchParams.get("benchmark") ?? undefined);
+  const detailHref = (key: string) => investmentDetailHref(key, portfolio, benchmark);
+  const [compare, setCompare] = useState(false);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("weight");
   const [ascending, setAscending] = useState(false);
@@ -69,13 +71,14 @@ export function PortfolioHoldingsTable({ holdings, yields = {} }: { holdings: Po
         <div><h2 id="holdings-heading" className="alpha-section-title">Current holdings</h2><p className="mt-1 text-sm text-muted-foreground">{rows.length} of {holdings.length} investments</p></div>
         <label className="relative block w-full sm:w-72"><span className="sr-only">Filter holdings</span><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter investments" className="pl-9" /></label>
       </div>
-      {rows.length === 0 ? <div className="alpha-surface flex h-40 items-center justify-center text-sm text-muted-foreground">No holdings match this filter.</div> : (
+      {comparison ? <ComparisonViewControl active={compare} onChange={setCompare} /> : null}
+      {compare && comparison ? <><DecisionComparisonRows rows={rows.flatMap((row) => comparison.holdings[row.securityKey] ? [comparison.holdings[row.securityKey]] : [])} label={comparison.label} holding href={(row) => detailHref(row.securityKey)} /><BenchmarkMethodology comparison={comparison} /></> : rows.length === 0 ? <div className="alpha-surface flex h-40 items-center justify-center text-sm text-muted-foreground">No holdings match this filter.</div> : (
         <>
           <div className="hidden overflow-clip rounded-lg border border-border/80 bg-card md:block">
             <table className="alpha-table"><thead><tr><th><SortButton label="Investment" value="name" onSort={changeSort} /></th><th className="text-right"><SortButton label="Value" value="value" onSort={changeSort} /></th><th className="text-right"><SortButton label="Deployed" value="deployed" onSort={changeSort} /></th><th className="text-right">Return</th><th className="text-right"><SortButton label="Ann. Return" value="annualized" onSort={changeSort} /></th><th className="text-right">Yield on Cost</th><th className="text-right"><SortButton label="Ptf Weight" value="weight" onSort={changeSort} /></th></tr></thead>
               <tbody>{rows.map((holding) => {
                 const weight = totalValue > 0 && holding.marketValue !== null ? (holding.marketValue / totalValue) * 100 : null;
-                const href = detailHref(holding.securityKey, portfolio);
+                const href = detailHref(holding.securityKey);
                 return <tr key={holding.securityKey} role="link" tabIndex={0} className="cursor-pointer" onClick={() => router.push(href)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(href); } }}>
                   <td><p className="font-medium">{holding.securityName}</p><p className="mt-0.5 text-xs text-muted-foreground">{formatNumber(holding.quantity)} shares</p></td>
                   <td className="text-right">{formatCurrency(holding.marketValue, holding.currency)}</td><td className="text-right">{formatCurrency(holding.investedCapital, holding.currency)}</td>
@@ -85,7 +88,7 @@ export function PortfolioHoldingsTable({ holdings, yields = {} }: { holdings: Po
           </div>
           <div className="space-y-2 md:hidden">{rows.map((holding) => {
             const weight = totalValue > 0 && holding.marketValue !== null ? (holding.marketValue / totalValue) * 100 : null;
-            return <button key={holding.securityKey} type="button" onClick={() => router.push(detailHref(holding.securityKey, portfolio))} className="alpha-focus alpha-surface w-full p-4 text-left"><div className="flex items-start justify-between gap-4"><div><p className="font-medium">{holding.securityName}</p><p className="mt-1 text-lg font-medium">{formatCurrency(holding.marketValue, holding.currency)}</p></div><span className="text-sm font-medium">{formatPercent(weight)}</span></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-border/70 pt-3 text-sm"><div><span className="text-muted-foreground">Deployed</span><p>{formatCurrency(holding.investedCapital, holding.currency)}</p></div><div><span className="text-muted-foreground">Annualized</span><p>{formatPercent(holding.annualizedReturnPercent)}</p></div><div><span className="text-muted-foreground">Yield on Cost ({yields[holding.securityKey]?.year})</span><p>{formatPercent(yields[holding.securityKey]?.yieldPercent ?? null)}</p></div></div></button>;
+            return <button key={holding.securityKey} type="button" onClick={() => router.push(detailHref(holding.securityKey))} className="alpha-focus alpha-surface w-full p-4 text-left"><div className="flex items-start justify-between gap-4"><div><p className="font-medium">{holding.securityName}</p><p className="mt-1 text-lg font-medium">{formatCurrency(holding.marketValue, holding.currency)}</p></div><span className="text-sm font-medium">{formatPercent(weight)}</span></div><div className="mt-4 grid grid-cols-2 gap-3 border-t border-border/70 pt-3 text-sm"><div><span className="text-muted-foreground">Deployed</span><p>{formatCurrency(holding.investedCapital, holding.currency)}</p></div><div><span className="text-muted-foreground">Annualized</span><p>{formatPercent(holding.annualizedReturnPercent)}</p></div><div><span className="text-muted-foreground">Yield on Cost ({yields[holding.securityKey]?.year})</span><p>{formatPercent(yields[holding.securityKey]?.yieldPercent ?? null)}</p></div></div></button>;
           })}</div>
         </>
       )}

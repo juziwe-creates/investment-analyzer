@@ -8,6 +8,8 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { annualBenchmarkComparison, annualPriceReturns, benchmarkOptions, normalizeBenchmarkComparison, parseBenchmark, type BenchmarkId, type BenchmarkObservation } from "./benchmarks";
 import { visibleSamples } from "../charts/series";
+import { buildBenchmarkComparison, benchmarkView, calculateVirtualBenchmarkTimeline } from "./benchmark-portfolio";
+import { sourceLots, transaction } from "./benchmark-test-fixtures";
 
 const requireModule = createRequire(__filename);
 function loadModule<T>(path: string, mocks: Record<string, unknown>): T {
@@ -130,6 +132,7 @@ test("selector URLs load different histories and the chart renders that benchmar
   const { PortfolioDevelopmentChart } = loadModule<{ PortfolioDevelopmentChart: React.ComponentType<Record<string, unknown>> }>("components/portfolio-development-chart.tsx", {
     react: React, "@/components/time-viewport": { useTimeViewport: () => ({ range }) },
     "@/components/time-series-chart": { TimeSeriesChart: ({ series }: { series: Series[] }) => { renderedSeries = series; return React.createElement("div"); } },
+    "@/components/benchmark-comparison": { BenchmarkMethodology: ({ comparison }: { comparison: { error: string | null } }) => React.createElement("p", null, comparison.error) },
     "@/lib/analytics/benchmarks": options, "@/lib/formatters": { formatCurrency: String }
   });
   const endingValues = new Set<number | null>();
@@ -139,10 +142,13 @@ test("selector URLs load different histories and the chart renders that benchmar
     assert.equal(url.searchParams.get("security"), "stock");
     const id = parseBenchmark(url.searchParams.get("benchmark") ?? undefined);
     const reference = await historyHarness().readBenchmarkHistory(id);
-    const markup = renderToStaticMarkup(React.createElement(PortfolioDevelopmentChart, { points: portfolio, benchmark: id, benchmarkHistory: reference.data }));
-    assert.equal(renderedSeries[1].label, benchmarkOptions.find((option) => option.id === id)!.label);
-    assert.equal(renderedSeries[0].axisFormat!(100), "100");
-    assert.equal(renderedSeries[1].observations.length > 0, id !== "sp-500");
+    const comparison = buildBenchmarkComparison(sourceLots([transaction("buy", "2024-01-01", "buy", 10, 1000)], "fifo", "2024-01-31"), reference.data, id, "fifo");
+    const timeline = calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, id, portfolio.map((point) => point.date));
+    const markup = renderToStaticMarkup(React.createElement(PortfolioDevelopmentChart, { points: portfolio, comparison: benchmarkView(comparison), benchmarkTimeline: timeline }));
+    assert.equal(renderedSeries[1].label, benchmarkOptions.find((option) => option.id === id)!.label + " Benchmark Portfolio");
+    assert.equal(renderedSeries[0].axisFormat, undefined);
+    assert.equal(renderedSeries[2].label, "Current Deployed Capital");
+    assert.equal(renderedSeries[1].observations.some((point) => point.value !== null), id !== "sp-500");
     if (id === "sp-500") assert.match(markup, /history is unavailable/);
     else endingValues.add(renderedSeries[1].observations.at(-1)!.value);
   }

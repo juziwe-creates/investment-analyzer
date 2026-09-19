@@ -8,10 +8,12 @@ import { formatCurrency, formatNumber, formatPercent } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { cumulativeDividendHistory, type PersonalDividendEvent } from "@/lib/analytics/dividends";
 import type { InvestmentChartPoint } from "@/lib/analytics/investment-history";
+import type { BenchmarkView, BenchmarkTimelinePoint } from "@/lib/analytics/benchmark-portfolio";
+import { BenchmarkMethodology } from "@/components/benchmark-comparison";
 
 export type InvestmentMarker = { id: string; date: string; type: "buy" | "sell" | "dividend"; label: string; subtitle: string; metrics: DecisionDrawerMetric[]; note?: string };
 
-export function InvestmentDetailChart({ points, markers, dividends = [] }: { points: InvestmentChartPoint[]; markers: InvestmentMarker[]; dividends?: PersonalDividendEvent[] }) {
+export function InvestmentDetailChart({ points, markers, dividends = [], comparison, benchmarkTimeline = [] }: { points: InvestmentChartPoint[]; markers: InvestmentMarker[]; dividends?: PersonalDividendEvent[]; comparison?: BenchmarkView; benchmarkTimeline?: BenchmarkTimelinePoint[] }) {
   const [mode, setMode] = useState<"price" | "position">("price");
   const [showDividends, setShowDividends] = useState(false);
   const [selected, setSelected] = useState<InvestmentMarker | null>(null);
@@ -31,6 +33,11 @@ export function InvestmentDetailChart({ points, markers, dividends = [] }: { poi
   ];
   const series: ChartSeries<InvestmentChartPoint>[] = [
     { label: mode === "price" ? "Price" : "Position value", color: "hsl(var(--chart-portfolio))", value: (point) => mode === "price" ? point.price : point.positionValue },
+    ...(mode === "position" && comparison ? [{ label: `${comparison.label} Counterfactual Position`, color: "hsl(var(--chart-benchmark))", value: () => null, stepped: true,
+      observations: benchmarkTimeline.map((point) => ({ date: point.date, value: point.value, tooltip: [
+        { label: comparison.label, value: point.value === null ? "Unavailable" : formatCurrency(point.value, "EUR") },
+        { label: "Benchmark observation", value: point.observationDate ?? "Unavailable" }
+      ] })) }] : []),
     ...(mode === "position" ? [{ label: "Current deployed capital", color: "hsl(var(--chart-deployed))", value: (point: InvestmentChartPoint) => point.deployedCapital, stepped: true }] : [])
   ];
   if (showDividends) {
@@ -58,6 +65,7 @@ export function InvestmentDetailChart({ points, markers, dividends = [] }: { poi
         { label: "Unrealized", value: formatPercent(point.unrealizedReturnPercent) }
       ]} /></div>
     {showDividends && dividends.some((event) => mode === "price" ? event.perShare === null || event.yieldPercent === null : event.cumulative === null) ? <p className="text-xs text-muted-foreground">Some dividend values are unavailable: cash or eligible-share history is missing, or currencies differ.</p> : null}
+    {mode === "position" && comparison ? <BenchmarkMethodology comparison={comparison} /> : null}
     <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span>▲ Buy</span><span>▼ Sell</span></div>
     <DecisionDrawer modal={false} open={selected !== null} onClose={close} eyebrow={selected?.type.toUpperCase() ?? "Decision"} title={selected?.label ?? "Decision"} subtitle={selected?.subtitle} metrics={selected?.metrics ?? []} note={selected?.note} />
   </section>;

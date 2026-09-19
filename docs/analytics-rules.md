@@ -450,16 +450,31 @@ Current behavior:
 - Portfolio charts report incomplete pricing rather than treating missing value as a loss.
 - User-facing aggregate analytics are withheld when non-EUR transaction or valuation currencies are present and no approved FX conversion is available. The UI reports the unsupported currencies instead of adding unlike currencies or changing only the symbol.
 
-# Stored Benchmark Comparison (2026-09-18)
+# Stored Benchmark History and Annual Comparison
 
 - Read shared `public.benchmark_prices` through the authenticated Supabase session, ordered and paginated by `price_date`. Never use security-specific `market_prices` for benchmarks. Missing S&P 500 history is unavailable, with no substitute index.
-- Dashboard comparison uses the existing shared time viewport. For each visible range, choose the first benchmark period date on or after the start that overlaps positive, fully priced portfolio history. Both levels start at 100 on that same date: `100 * current value / starting value`.
-- The opening portfolio valuation is the latest known valuation on or before that benchmark date, never a future valuation. Weekly benchmark levels carry forward only within the overlapping histories; comparison stops at the earlier final date. Incomplete portfolio valuations create gaps. Zero or incomplete opening values cannot be normalized.
-- This is normalized portfolio **value**, not cash-flow-adjusted investment return. Purchases and sales affect it; paid portfolio dividends are excluded. DAX is a performance index, and MSCI World is a derived EUR net-total-return series. These benchmark levels include reinvested dividends. The comparison must disclose that difference, not imply like-for-like total-return or alpha measurement.
-- The EUR view remains available by disabling comparison. Shared zoom, pan, presets, navigator and URL date range also control rebasing; viewport interactions perform no database reads.
+- The initial normalized-value chart is superseded by the approved counterfactual EUR portfolio below. Annual benchmark comparison remains unchanged.
 - Annual security and benchmark returns share the existing method: last stored level in a calendar year divided by the last stored level in the immediately preceding calendar year, minus one. Security levels prefer adjusted close; benchmark levels use stored close. The current year is labeled YTD. This is observation-based, not a claim that an exact December 31 close exists; YTD series can have different latest observation dates.
 - Annual difference = security percentage return minus benchmark percentage return, displayed in percentage points. Missing prior-year data produces Unavailable, never a zero or a multi-year return labeled annual.
-- No alpha metric, TWR, XIRR, FX transformation, data import or benchmark writes are introduced by this feature.
+- No alpha metric, TWR, FX transformation, data import or benchmark writes are introduced.
+
+# Counterfactual Benchmark V2 (Approved 2026-09-19)
+
+The user approved retaining each view's current lot matching and using the existing recorded-dividend return model for new comparison views. These decisions authorize labeled current-model comparisons; the final portfolio headline Total Return and alpha remain separate open definitions.
+
+- Every source purchase lot creates benchmark units equal to its authoritative original acquisition cost divided by the last stored benchmark level on or before the purchase date. The source transaction ID stays attached. Exact dated sale quantities come from the shared engine's allocation trace.
+- Every partial or full sale closes original benchmark units multiplied by allocated sale quantity / original quantity. Actual sale proceeds never determine benchmark withdrawals. Multiple exits retain their own dates and benchmark proceeds.
+- Dashboard and Current Holdings retain FIFO; Investment Detail, its Position Value chart and Purchase Lots retain LIFO. The methodology disclosure names the active rule. Comparisons across these views can differ after sales.
+- Entry, exit and valuation levels use the latest prior-or-same period date; the actual source observation date must also not be in the future. EUR benchmark levels carry forward between observations and after the latest stored point, with observation dates disclosed. No rebase occurs during zoom or pan.
+- Charts show remaining benchmark units times the dated level, in EUR. They include exact purchase/exit dates and weekly observations. Withdrawn proceeds are excluded from position charts. Price mode retains its existing price and dividend overlays.
+- Lot comparison Value / Reference includes remaining value plus all exit proceeds on both sides. This explicit label differs from the unchanged Actual tab's remaining-value display for partially open lots.
+- Current Holdings current values include remaining positions; gain and returns include all historical lots for each still-held security, including earlier closed lots. Gain = remaining value + sale proceeds + recorded dividends - original acquisition costs. Return = gain / original acquisition costs. Benchmark gain uses counterfactual exit proceeds and no invented dividend cash.
+- Actual dividends retain the existing gross-first, otherwise net, otherwise factual quantity-times-price convention, with no additional 0.71575 multiplier. The new comparison does not alter the separate legacy after-tax analytics.
+- XIRR reuses the shared 365.25-day solver. Benchmark flows are negative original cost, positive dated counterfactual exits, and remaining value at the actual current valuation date. Closed lots have no terminal flow. Holding XIRR combines lot cash flows, never averages rates.
+- Differences are actual minus benchmark. Monetary differences are EUR; rate differences are percentage points. Both original acquisition cost and remaining cost are shown, separately from current value and total reference value.
+- Series metadata distinguishes net total return, total return/performance index and price index. Benchmark Yield on Cost remains unavailable without factual dividend cash. No synthetic cash dividends are added to total-return levels.
+- Missing entry history remains unavailable permanently for that purchase; future observations cannot repair its entry. Valid lots remain visible. Aggregates with incomplete lot coverage are withheld and disclosed, never shown as complete partial sums. Non-EUR comparisons are withheld.
+- New models are calculated server-side in memory. The dashboard shares its comparison calculation within the request; viewport gestures reuse the generated timeline and make no database or provider calls. Presentation-scaled inputs scale benchmark units and money consistently while preserving return percentages.
 
 # Current Open Decisions
 

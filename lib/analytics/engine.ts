@@ -52,7 +52,10 @@ export type LotCashFlow = {
   transactionId?: string;
 };
 
+export type SaleAllocation = { date: string; quantity: number; proceeds: number; transactionId: string };
+
 export type PurchaseLotAnalytics = {
+  saleAllocations: SaleAllocation[];
   buyTransactionId: string;
   securityKey: string;
   securityName: string;
@@ -644,6 +647,7 @@ function buildPurchaseLotAnalytics(
       status: statusForLot(lot),
       currency: price?.currency ?? lot.currency,
       cashFlows,
+      saleAllocations: lot.saleAllocations.map((allocation) => ({ ...allocation })),
       trace: {
         buyTransactionId: lot.buyTransactionId,
         sellTransactionIds: [...new Set(lot.saleTransactionIds)],

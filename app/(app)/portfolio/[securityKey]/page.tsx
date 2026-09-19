@@ -18,6 +18,7 @@ import { readMarketHistory } from "@/lib/market-data/history";
 import type { Database } from "@/types/database";
 import { calculateYieldOnCost, investmentDividendEvents } from "@/lib/analytics/dividends";
 import { dividendAmount } from "@/lib/analytics/engine";
+import { benchmarkView, buildBenchmarkComparison, calculateVirtualBenchmarkTimeline } from "@/lib/analytics/benchmark-portfolio";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 
@@ -49,6 +50,9 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
   const history = investmentHistory(transactions, (prices ?? []).map((price) => ({ security_key: securityKey, price_date: price.price_date,
     price: price.adjusted_close_price ?? price.close_price, currency: marketDataCurrency({ fallbackCurrency: price.currency, providerId: price.provider, providerSymbol: price.provider_symbol }) })));
   const priceDates = new Set((prices ?? []).map((price) => price.price_date));
+  const comparison = buildBenchmarkComparison(lots, reference.data, benchmark, "lifo");
+  if (reference.error) comparison.error = reference.error;
+  const benchmarkTimeline = calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, benchmark, history.map((point) => point.date));
   const quotedPoints = history.filter((point) => point.price !== null && priceDates.has(point.date));
   const latestPoint = quotedPoints.at(-1) ?? null;
   const previousPoint = quotedPoints.at(-2) ?? null;
@@ -69,7 +73,7 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
     <section aria-labelledby="investment-kpis"><p id="investment-kpis" className="alpha-kpi-label">Your investment</p><div className="mt-4 grid gap-x-8 gap-y-6 border-y border-border/70 py-6 sm:grid-cols-2 lg:grid-cols-5"><div className="sm:col-span-2"><p className="text-sm text-muted-foreground">Total Return</p><p className="mt-2 text-3xl font-medium text-muted-foreground">Pending definition</p></div>{[
       ["Annualized Return", stock?.accumulatedDividendsTaxFree ? "Pending dividend policy" : formatPercent(stock?.totalRawProfitabilityAnnualizedPercent ?? null)], ["Current Value", formatCurrency(holding?.marketValue ?? 0, holding?.currency ?? "EUR")], ["Current Deployed", formatCurrency(holding?.investedCapital ?? 0, holding?.currency ?? "EUR")], ["Realized Gain", "Pending definition"], ["Unrealized Gain", formatCurrency(holding?.investmentGain ?? null, holding?.currency ?? "EUR")], ["Dividends", formatCurrency(dividends, metadata.currency)], [`Yield on Cost (${yieldOnCost.year})`, formatPercent(yieldOnCost.yieldPercent)], ["Average Purchase Price", holding && holding.quantity > 0 ? formatCurrency(holding.investedCapital / holding.quantity, holding.currency) : "-"], ["Quantity", formatNumber(holding?.quantity ?? 0)]
     ].map(([label, value]) => <div key={label}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-lg font-medium">{value}</p></div>)}</div></section>
-    <InvestmentHistoryPanel points={history} markers={markers} dividends={investmentDividendEvents(transactions, { lotMatchingMethod: "lifo" })} lots={lots} />
+    <InvestmentHistoryPanel points={history} markers={markers} dividends={investmentDividendEvents(transactions, { lotMatchingMethod: "lifo" })} lots={lots} comparison={benchmarkView(comparison)} benchmarkTimeline={benchmarkTimeline} />
     <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="alpha-kpi-label">Comparison context</p><p className="mt-1 text-sm text-muted-foreground">One benchmark applies to annual and future normalized comparisons.</p></div><Suspense fallback={<div className="h-9 w-72 animate-pulse rounded-md bg-muted" />}><BenchmarkSelector selected={benchmark} /></Suspense></div>
     <AnnualPerformanceGrid securityName={metadata.security_name} points={annualPriceReturns((prices ?? []).map((price) => ({ date: price.price_date, value: price.adjusted_close_price ?? price.close_price })))} benchmarkLabel={benchmarkLabel} benchmarkPoints={annualPriceReturns(reference.data.filter((price) => price.currency === "EUR").map((price) => ({ date: price.price_date, value: price.close_price })))} benchmarkError={reference.error} />
     <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">How is this calculated?</summary><div className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground"><p>Transactions are the source of truth. Price history provides dated valuation points; holdings and lots are derived at read time.</p><p>Annual performance is year-end security price divided by the previous year-end price minus one. It is not your personal investment return.</p><p>Metrics marked pending depend on unresolved definitions recorded in the authoritative analytics rules.</p></div></details>

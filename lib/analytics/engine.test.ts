@@ -138,7 +138,8 @@ function lotProfitabilityFromAnalytics(
     annualizedReturnPercent: lot.annualizedReturnPercent,
     annualizedReturnStatus: lot.annualizedReturnStatus,
     currency: lot.currency,
-    cashFlows: lot.cashFlows
+    cashFlows: lot.cashFlows,
+    saleAllocations: lot.saleAllocations
   };
 }
 

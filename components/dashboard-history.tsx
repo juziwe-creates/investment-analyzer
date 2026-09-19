@@ -1,20 +1,42 @@
 import { PortfolioDevelopmentChart } from "@/components/portfolio-development-chart";
+import { cache } from "react";
 import { CapitalDeploymentChart } from "@/components/capital-deployment-chart";
 import { TimeViewportData } from "@/components/time-viewport";
 import type { loadDashboardHistory } from "@/lib/analytics/dashboard-history";
 import { AlphaProgress } from "@/components/alpha-progress";
 import type { readBenchmarkHistory } from "@/lib/market-data/benchmark-history";
 import type { BenchmarkId } from "@/lib/analytics/benchmarks";
+import { benchmarkView, buildBenchmarkComparison, calculateVirtualBenchmarkTimeline } from "@/lib/analytics/benchmark-portfolio";
+import type { LotProfitability } from "@/lib/analytics/profitability";
+import type { PortfolioHolding } from "@/lib/analytics/portfolio";
+import type { YieldOnCost } from "@/lib/analytics/dividends";
+import { PortfolioHoldingsTable } from "@/components/portfolio-holdings-table";
 
 type Props = { history: ReturnType<typeof loadDashboardHistory> };
+const loadComparison = cache(async (lots: LotProfitability[], benchmark: BenchmarkId, history: ReturnType<typeof readBenchmarkHistory>) => {
+  const reference = await history;
+  const comparison = buildBenchmarkComparison(lots, reference.data, benchmark, "fifo");
+  if (reference.error) comparison.error = reference.error;
+  return { comparison, reference };
+});
 
 export function HistoryLoading({ label }: { label: string }) {
   return <div className="flex h-[440px] items-center justify-center rounded-md bg-muted/40"><AlphaProgress size="large" status={`Loading ${label}`} /></div>;
 }
 
-export async function DashboardPerformance({ history, benchmark, benchmarkHistory }: Props & { benchmark: BenchmarkId; benchmarkHistory: ReturnType<typeof readBenchmarkHistory> }) {
-  const [{ development, deployment, annual, error }, reference] = await Promise.all([history, benchmarkHistory]);
-  return <><TimeViewportData dates={[...development, ...deployment, ...annual].map((point) => point.date)} />{error ? <p role="alert" className="flex h-[440px] items-center justify-center text-sm text-muted-foreground">{error}</p> : <PortfolioDevelopmentChart points={development} benchmark={benchmark} benchmarkHistory={reference.data} benchmarkError={reference.error} />}</>;
+export async function DashboardPerformance({ history, benchmark, benchmarkHistory, lots }: Props & { benchmark: BenchmarkId; benchmarkHistory: ReturnType<typeof readBenchmarkHistory>; lots: LotProfitability[] }) {
+  const [{ development, deployment, annual, error }, { comparison, reference }] = await Promise.all([history, loadComparison(lots, benchmark, benchmarkHistory)]);
+  const dates = [...development, ...deployment, ...annual].map((point) => point.date);
+  const timeline = calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, benchmark, dates);
+  return <><TimeViewportData dates={[...dates, ...timeline.map((point) => point.date)]} />{error ? <p role="alert" className="flex h-[440px] items-center justify-center text-sm text-muted-foreground">{error}</p> : <PortfolioDevelopmentChart points={development} comparison={benchmarkView(comparison)} benchmarkTimeline={timeline} />}</>;
+}
+
+export async function DashboardHoldings({ holdings, lots, yields, benchmark, benchmarkHistory }: {
+  holdings: PortfolioHolding[]; lots: LotProfitability[]; yields: Record<string, YieldOnCost>;
+  benchmark: BenchmarkId; benchmarkHistory: ReturnType<typeof readBenchmarkHistory>;
+}) {
+  const { comparison } = await loadComparison(lots, benchmark, benchmarkHistory);
+  return <PortfolioHoldingsTable holdings={holdings} yields={yields} comparison={benchmarkView(comparison)} />;
 }
 
 export async function DashboardCapitalDeployment({ history }: Props) {

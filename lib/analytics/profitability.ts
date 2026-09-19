@@ -4,6 +4,7 @@ import {
   type AnalyticsTransaction,
   type LotCalculationOptions,
   type LotCashFlow,
+  type SaleAllocation,
   type XirrStatus
 } from "@/lib/analytics/engine";
 import { marketDataCurrency } from "@/lib/market-data/currency";
@@ -18,6 +19,7 @@ export type ValuationPrice = AnalyticsPrice & {
 };
 
 export type LotProfitability = {
+  saleAllocations: SaleAllocation[];
   id: string;
   tradeDate: string;
   securityKey: string;
@@ -112,7 +114,8 @@ export function calculateLotProfitability(
       annualizedReturnPercent: lot.annualizedReturnPercent,
       annualizedReturnStatus: lot.annualizedReturnStatus,
       currency: lot.currency,
-      cashFlows: lot.cashFlows
+      cashFlows: lot.cashFlows,
+      saleAllocations: lot.saleAllocations
     }))
     .sort((a, b) => b.tradeDate.localeCompare(a.tradeDate));
 }
