@@ -631,6 +631,8 @@ Deferrable until after MVP:
 - `price_date` is the period-ending chart date; `observation_date` records the actual source date.
 - Existing RLS allows authenticated SELECT only; anonymous access and authenticated writes are denied. Keep these permissions unchanged.
 - Application IDs remain `msci-world`, `sp-500`, `dax`. Missing history is an unavailable state.
+- The primary key permits one authoritative row per benchmark and date. Daily MSCI World and DAX history belongs in this same table. An ingestion/upsert must replace a conflicting weekly value for the same `(benchmark_id, price_date)` rather than preserve two competing observations.
+- The application reads all available rows for calculations and does not downsample them. Existing weekly rows remain valid until daily history is installed; no second benchmark table or application-side benchmark write path is introduced.
 
 # Open Database Questions
 

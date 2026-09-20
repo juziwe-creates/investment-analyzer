@@ -105,6 +105,16 @@ function assertClose(actual: number | null, expected: number, message?: string) 
   assert.ok(Math.abs((actual ?? 0) - expected) < 0.000001, message);
 }
 
+test("acquisition cost uses explicit fees and a safe all-in debit fallback without inferring tax", () => {
+  const base = transaction({ id: "fee-buy", type: "buy", trade_date: "2025-01-01", quantity: 10, unit_price: 100, gross_amount: 1000, net_amount: 1012 });
+  assert.equal(acquisitionCost({ ...base, components: [{ component_type: "fee", amount: 12, currency: "EUR" }] }), 1012);
+  assert.equal(acquisitionCost(base), 1012);
+  assert.equal(acquisitionCost({ ...base, components: [{ component_type: "tax", amount: 12, currency: "EUR" }] }), 1000);
+  const lot = calculatePurchaseLots([{ ...base, components: [{ component_type: "fee", amount: 12, currency: "EUR" }] }])[0];
+  assert.equal(lot.actualPurchasePrice, 100);
+  assert.equal(lot.originalAcquisitionCost, 1012);
+});
+
 function lotProfitabilityFromAnalytics(
   lot: ReturnType<typeof calculatePurchaseLots>[number]
 ): LotProfitability {
@@ -115,6 +125,7 @@ function lotProfitabilityFromAnalytics(
     securityName: lot.securityName,
     type: "buy",
     quantity: lot.originalQuantity,
+    actualPurchasePrice: lot.actualPurchasePrice,
     remainingQuantity: lot.remainingQuantity,
     buyPrice: lot.acquisitionCostPerShare || null,
     costBasis: lot.originalAcquisitionCost,

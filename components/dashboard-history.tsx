@@ -28,7 +28,7 @@ export async function DashboardPerformance({ history, benchmark, benchmarkHistor
   const [{ development, deployment, annual, error }, { comparison, reference }] = await Promise.all([history, loadComparison(lots, benchmark, benchmarkHistory)]);
   const dates = [...development, ...deployment, ...annual].map((point) => point.date);
   const timeline = calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, benchmark, dates);
-  return <><TimeViewportData dates={[...dates, ...timeline.map((point) => point.date)]} />{error ? <p role="alert" className="flex h-[440px] items-center justify-center text-sm text-muted-foreground">{error}</p> : <PortfolioDevelopmentChart points={development} comparison={benchmarkView(comparison)} benchmarkTimeline={timeline} />}</>;
+  return <><TimeViewportData dates={dates} />{error ? <p role="alert" className="flex h-[440px] items-center justify-center text-sm text-muted-foreground">{error}</p> : <PortfolioDevelopmentChart points={development} comparison={benchmarkView(comparison)} benchmarkTimeline={timeline} />}</>;
 }
 
 export async function DashboardHoldings({ holdings, lots, yields, benchmark, benchmarkHistory }: {

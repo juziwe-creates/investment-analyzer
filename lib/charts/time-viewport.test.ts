@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { constrainRange, DAY, decimate, fullRange, parseDate, presetRange, rangeFromSearch, timestamp, zoomRange } from "./time-viewport";
 
 const daily = Array.from({ length: 7000 }, (_, index) => timestamp("2008-01-01") + index * DAY);
@@ -61,4 +62,30 @@ test("visual decimation preserves first, last and extrema in all series without 
   assert.ok(sampled.includes(rows[1250]) && sampled.includes(rows[4321]));
   assert.ok(sampled.length <= 300);
   assert.equal(rows.length, 7000);
+});
+
+test("benchmark overlays are excluded from dashboard and investment navigation dates", () => {
+  const dashboard = readFileSync("components/dashboard-history.tsx", "utf8");
+  const investment = readFileSync("components/investment-history-panel.tsx", "utf8");
+  assert.match(dashboard, /<TimeViewportData dates=\{dates\}/);
+  assert.doesNotMatch(dashboard, /TimeViewportData dates=\{\[\.\.\.dates, \.\.\.timeline/);
+  assert.doesNotMatch(investment, /benchmarkTimeline\.map\(\(point\) => point\.date\)/);
+  assert.match(investment, /<TimeViewportProvider dates=\{dates\}>/);
+});
+
+test("benchmark switching cannot alter full range, minimum zoom, presets, pan or navigator width", () => {
+  const primary = Array.from({ length: 40 }, (_, index) => timestamp("2024-01-05") + index * 7 * DAY);
+  const benchmarkA = Array.from({ length: 280 }, (_, index) => primary[0] + index * DAY);
+  const benchmarkB = Array.from({ length: 56 }, (_, index) => primary[0] + index * 5 * DAY);
+  assert.notEqual(benchmarkA.length, benchmarkB.length);
+  const outcomes = [benchmarkA, benchmarkB].map(() => {
+    let minimum = fullRange(primary);
+    for (let index = 0; index < 50; index++) minimum = zoomRange(minimum, .7, .5, primary);
+    const preset = Object.fromEntries((["1M", "3M", "YTD", "1Y", "MAX"] as const).map((name) => [name, presetRange(name, primary)]));
+    const zoom = zoomRange(fullRange(primary), .4, .5, primary);
+    const pan = constrainRange({ start: zoom.start + 30 * DAY, end: zoom.end + 30 * DAY }, primary);
+    const full = fullRange(primary);
+    return { full, minimum, preset, pan, navigatorWidth: (pan.end - pan.start) / (full.end - full.start) };
+  });
+  assert.deepEqual(outcomes[0], outcomes[1]);
 });

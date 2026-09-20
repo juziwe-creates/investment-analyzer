@@ -81,6 +81,59 @@ test("weekly levels never look ahead and zoom between observations still has a s
   assert.ok(samples.every((point) => point.value === 1000));
   near(timeline.at(-1)!.value, 1100);
 });
+test("daily history uses an exact trading-day entry and a weekend uses the last prior observation", () => {
+  const daily = [
+    { ...quote("2025-04-04", 100), frequency: "daily" },
+    { ...quote("2025-04-07", 125), frequency: "daily" },
+    { ...quote("2025-04-08", 130), frequency: "daily" }
+  ];
+  const monday = buildBenchmarkComparison(sourceLots([
+    { ...transaction("monday", "2025-04-07", "buy", 10, 1000), unit_price: 98 }
+  ], "fifo", "2025-04-08"), daily, "msci-world", "fifo").lots[0];
+  assert.equal(monday.trace.benchmarkEntryObservationDate, "2025-04-07");
+  assert.equal(monday.trace.benchmarkEntryLagDays, 0);
+  near(monday.trace.virtualBenchmarkUnitsPurchased, 8);
+  assert.equal(monday.trace.actualPurchasePrice, 98);
+  const weekend = buildBenchmarkComparison(sourceLots([
+    transaction("weekend", "2025-04-06", "buy", 10, 1000)
+  ], "fifo", "2025-04-08"), daily, "msci-world", "fifo").lots[0];
+  assert.equal(weekend.trace.benchmarkEntryObservationDate, "2025-04-04");
+  assert.equal(weekend.trace.benchmarkEntryLagDays, 2);
+  near(weekend.trace.virtualBenchmarkUnitsPurchased, 10);
+});
+test("daily precision changes volatile Friday-to-Monday entry without changing prior-only matching", () => {
+  const weekly = [{ ...quote("2025-04-04", 100), frequency: "weekly" }, { ...quote("2025-04-11", 140), frequency: "weekly" }];
+  const daily = [...weekly, { ...quote("2025-04-07", 125), frequency: "daily" }].sort((a, b) => a.price_date.localeCompare(b.price_date));
+  const source = sourceLots([transaction("decision", "2025-04-07", "buy", 10, 1000)], "fifo", "2025-04-11");
+  const weeklyResult = buildBenchmarkComparison(source, weekly, "msci-world", "fifo").lots[0];
+  const dailyResult = buildBenchmarkComparison(source, daily, "msci-world", "fifo").lots[0];
+  near(weeklyResult.trace.virtualBenchmarkUnitsPurchased, 10);
+  near(dailyResult.trace.virtualBenchmarkUnitsPurchased, 8);
+  assert.equal(benchmarkLevelAtDate(daily, "2025-04-06")?.price_date, "2025-04-04");
+  assert.equal(benchmarkLevelAtDate([{ ...quote("2025-04-07", 125), frequency: "daily" }], "2025-04-06"), null);
+});
+test("calculation trace reconciles Berkshire-style multi-purchase lots without live data", () => {
+  const levels = [
+    { ...quote("2025-04-04", 100), frequency: "daily" },
+    { ...quote("2025-04-07", 125), frequency: "daily" },
+    { ...quote("2025-04-08", 150), frequency: "daily" },
+    { ...quote("2025-04-09", 160), frequency: "daily" }
+  ];
+  const source = sourceLots([
+    { ...transaction("lot-a", "2025-04-07", "buy", 4, 1000), unit_price: 248 },
+    { ...transaction("lot-b", "2025-04-08", "buy", 5, 1500), unit_price: 298 }
+  ], "lifo", "2025-04-09");
+  const result = buildBenchmarkComparison(source, levels, "msci-world", "lifo");
+  assert.equal(result.lots.length, 2);
+  for (const row of result.lots) {
+    const trace = row.trace;
+    near(trace.virtualBenchmarkUnitsPurchased, trace.acquisitionCost / trace.benchmarkEntryLevel!);
+    near(row.benchmark.currentValue, trace.remainingVirtualBenchmarkUnits! * trace.benchmarkValuationLevel!);
+    assert.equal(trace.exits.length, 0);
+    assert.equal(trace.sourceTransactionId, row.id);
+    assert.equal(trace.benchmarkFrequency, "daily");
+  }
+});
 test("portfolio timeline follows buys and exits; investment timeline contains only that security", () => {
   const source = sourceLots([buy, transaction("b2", "2021-01-01", "buy", 10, 2400, "B"),
     transaction("sale", "2022-01-01", "sell", 10, 2000)]);

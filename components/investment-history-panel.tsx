@@ -10,6 +10,6 @@ import type { LotProfitability } from "@/lib/analytics/profitability";
 import type { BenchmarkView, BenchmarkTimelinePoint } from "@/lib/analytics/benchmark-portfolio";
 
 export function InvestmentHistoryPanel({ points, markers, dividends, lots, comparison, benchmarkTimeline = [] }: { points: InvestmentChartPoint[]; markers: InvestmentMarker[]; dividends: PersonalDividendEvent[]; lots: LotProfitability[]; comparison?: BenchmarkView; benchmarkTimeline?: BenchmarkTimelinePoint[] }) {
-  const dates = useMemo(() => [...points.map((point) => point.date), ...markers.map((marker) => marker.date), ...lots.map((lot) => lot.tradeDate), ...benchmarkTimeline.map((point) => point.date)], [points, markers, lots, benchmarkTimeline]);
+  const dates = useMemo(() => [...points.map((point) => point.date), ...markers.map((marker) => marker.date), ...lots.map((lot) => lot.tradeDate)], [points, markers, lots]);
   return <TimeViewportProvider dates={dates}><InvestmentDetailChart points={points} markers={markers} dividends={dividends} comparison={comparison} benchmarkTimeline={benchmarkTimeline} /><PurchaseLotsTable lots={lots} comparison={comparison} /></TimeViewportProvider>;
 }

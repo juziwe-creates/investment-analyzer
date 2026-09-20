@@ -19,6 +19,7 @@ export type BenchmarkObservation = {
   observation_date: string;
   close_price: number;
   currency: string;
+  frequency?: string;
   series_type: string;
   is_derived: boolean;
   is_partial_period: boolean;

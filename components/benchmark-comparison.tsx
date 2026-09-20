@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatCurrency, formatDate, formatPercent } from "@/lib/formatters";
+import { formatCurrency, formatDate, formatNumber, formatPercent } from "@/lib/formatters";
 import type { BenchmarkView, DecisionComparison } from "@/lib/analytics/benchmark-portfolio";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,48 @@ const differenceClass = (value: number | null) => value === null ? "text-muted-f
 const cash = (value: number | null) => value === null ? "Unavailable" : formatCurrency(value, "EUR");
 const percent = (value: number | null) => value === null ? "Unavailable" : formatPercent(value);
 const pp = (value: number | null) => value === null ? "Unavailable" : `${value > 0 ? "+" : ""}${value.toFixed(2)} pp`;
+const date = (value: string | null) => value ? formatDate(value) : "Unavailable";
+
+function CalculationTrace({ row, label }: { row: DecisionComparison; label: string }) {
+  const trace = row.trace;
+  const stale = trace.benchmarkEntryLagDays !== null && trace.benchmarkEntryLagDays > 3;
+  const fields = [
+    ["Source transaction ID", trace.sourceTransactionId], ["Security", trace.security],
+    ["Purchase date", date(trace.purchaseDate)], ["Quantity", formatNumber(trace.quantity)],
+    ["Actual purchase price", cash(trace.actualPurchasePrice)], ["Acquisition cost used by α", cash(trace.acquisitionCost)],
+    ["Benchmark ID", trace.benchmarkId], ["Benchmark series type", trace.benchmarkSeriesType ?? "Unavailable"],
+    ["Benchmark frequency", trace.benchmarkFrequency ?? "Unavailable"],
+    ["Entry observation", date(trace.benchmarkEntryObservationDate)],
+    ["Entry observation lag", trace.benchmarkEntryLagDays === null ? "Unavailable" : `${trace.benchmarkEntryLagDays} calendar day${trace.benchmarkEntryLagDays === 1 ? "" : "s"}`],
+    ["Benchmark entry level", formatNumber(trace.benchmarkEntryLevel)],
+    ["Virtual benchmark units purchased", formatNumber(trace.virtualBenchmarkUnitsPurchased)],
+    ["Valuation date", date(trace.valuationDate)], ["Valuation observation", date(trace.benchmarkValuationObservationDate)],
+    ["Benchmark valuation level", formatNumber(trace.benchmarkValuationLevel)],
+    ["Remaining virtual benchmark units", formatNumber(trace.remainingVirtualBenchmarkUnits)],
+    ["Counterfactual value / reference", cash(trace.counterfactualReferenceValue)]
+  ];
+  return <details className="rounded-md border border-border/70 bg-background/40 p-3">
+    <summary className="alpha-focus cursor-pointer text-sm font-medium">Calculation trace</summary>
+    {stale ? <p role="status" className="mt-3 rounded-md border border-[hsl(var(--negative))]/30 bg-[hsl(var(--negative-subtle))] px-3 py-2 text-xs">Benchmark observation {trace.benchmarkEntryLagDays} days before purchase.</p> : null}
+    <dl className="mt-3 grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2">{fields.map(([name, value]) => <div key={name} className="min-w-0"><dt className="text-xs text-muted-foreground">{name}</dt><dd className="break-words tabular-nums">{value}</dd></div>)}</dl>
+    <div className="mt-4 border-t border-border/70 pt-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Benchmark exits</p>
+      {trace.exits.length ? <div className="mt-2 space-y-3">{trace.exits.map((exit, index) => <dl key={`${exit.transactionId}-${index}`} className="grid gap-x-4 gap-y-2 rounded-md bg-muted/40 p-3 text-sm sm:grid-cols-2">
+        {[["Actual stock sale", date(exit.actualSaleDate)], ["Fraction closed", formatPercent(exit.fractionClosed * 100)],
+          ["Benchmark observation", date(exit.benchmarkObservationDate)], ["Benchmark level", formatNumber(exit.benchmarkLevel)],
+          ["Benchmark units closed", formatNumber(exit.benchmarkUnitsClosed)], ["Benchmark proceeds", cash(exit.benchmarkProceeds)]].map(([name, value]) => <div key={name}><dt className="text-xs text-muted-foreground">{name}</dt><dd className="tabular-nums">{value}</dd></div>)}
+      </dl>)}</div> : <p className="mt-2 text-sm text-muted-foreground">No benchmark exits. The source lot remains open.</p>}
+    </div>
+    <div className="mt-4 grid gap-3 border-t border-border/70 pt-3 text-sm sm:grid-cols-3">
+      <div><p className="text-xs text-muted-foreground">Actual total return</p><p>{percent(trace.actualTotalReturnPercent)}</p></div>
+      <div><p className="text-xs text-muted-foreground">{label} total return</p><p>{percent(trace.benchmarkTotalReturnPercent)}</p></div>
+      <div><p className="text-xs text-muted-foreground">Difference</p><p className={differenceClass(trace.returnDifferencePercentPoints)}>{pp(trace.returnDifferencePercentPoints)}</p></div>
+      <div><p className="text-xs text-muted-foreground">Actual annualized / XIRR</p><p>{percent(trace.actualAnnualizedPercent)}</p></div>
+      <div><p className="text-xs text-muted-foreground">{label} annualized / XIRR</p><p>{percent(trace.benchmarkAnnualizedPercent)}</p></div>
+      <div><p className="text-xs text-muted-foreground">Difference</p><p className={differenceClass(trace.annualizedDifferencePercentPoints)}>{pp(trace.annualizedDifferencePercentPoints)}</p></div>
+    </div>
+    <p className="mt-3 text-xs text-muted-foreground">Units = acquisition cost ÷ entry level. Counterfactual value = remaining units × valuation level, plus benchmark proceeds for the reference value.</p>
+  </details>;
+}
 
 export function DecisionComparisonRows({ rows, label, holding = false, href }: {
   rows: DecisionComparison[]; label: string; holding?: boolean; href?: (row: DecisionComparison) => string;
@@ -58,6 +100,7 @@ export function DecisionComparisonRows({ rows, label, holding = false, href }: {
         <p className="col-span-3 text-muted-foreground sm:col-span-1">{metric.name}</p>
         {[["Actual", metric.actual], [label, metric.benchmark], ["Difference", metric.difference]].map(([heading, value]) => <div key={heading} className="min-w-0 break-words tabular-nums"><span className="block text-[10px] text-muted-foreground">{heading}</span>{value}</div>)}
       </div>)}</div>
+      {!holding ? <div className="mt-4"><CalculationTrace row={row} label={label} /></div> : null}
       <p className="mt-3 text-xs text-muted-foreground">Valuation: {row.valuationDate ?? "Unavailable"} · Benchmark observation: {row.observationDate ?? "Unavailable"}. Value / reference includes proceeds from partial and full exits. Benchmark Yield on Cost: Unavailable.</p>
       {href ? <Link className="alpha-focus mt-3 inline-block text-sm underline" href={href(row)}>Open investment</Link> : null}
     </details>;

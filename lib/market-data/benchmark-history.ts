@@ -12,7 +12,7 @@ export const readBenchmarkHistory = cache(async (benchmark: BenchmarkId): Promis
   try {
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await supabase.from("benchmark_prices")
-        .select("benchmark_id,price_date,observation_date,close_price,currency,series_type,is_derived,is_partial_period")
+        .select("benchmark_id,price_date,observation_date,close_price,currency,frequency,series_type,is_derived,is_partial_period")
         .eq("benchmark_id", benchmark).order("price_date").range(offset, offset + 999);
       if (error) return { data: [], error: "Benchmark history could not be loaded. Please try again." };
       rows.push(...(data ?? []));

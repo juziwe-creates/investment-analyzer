@@ -10,7 +10,7 @@ import {
 import { marketDataCurrency } from "@/lib/market-data/currency";
 import type { Database } from "@/types/database";
 
-type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
+type Transaction = Database["public"]["Tables"]["transactions"]["Row"] & Pick<AnalyticsTransaction, "components">;
 type ManualSecurityPrice = Database["public"]["Tables"]["manual_security_prices"]["Row"];
 type LatestMarketPrice = Database["public"]["Views"]["latest_market_prices"]["Row"];
 
@@ -26,6 +26,7 @@ export type LotProfitability = {
   securityName: string;
   type: "buy";
   quantity: number;
+  actualPurchasePrice: number | null;
   remainingQuantity: number;
   buyPrice: number | null;
   costBasis: number;
@@ -66,7 +67,8 @@ function toAnalyticsTransaction(transaction: Transaction): AnalyticsTransaction 
     gross_amount: transaction.gross_amount,
     net_amount: transaction.net_amount,
     currency: transaction.currency,
-    created_at: transaction.created_at
+    created_at: transaction.created_at,
+    components: transaction.components
   };
 }
 
@@ -91,6 +93,7 @@ export function calculateLotProfitability(
       securityName: lot.securityName,
       type: "buy",
       quantity: lot.originalQuantity,
+      actualPurchasePrice: lot.actualPurchasePrice,
       remainingQuantity: lot.remainingQuantity,
       buyPrice: lot.acquisitionCostPerShare || null,
       costBasis: lot.originalAcquisitionCost,

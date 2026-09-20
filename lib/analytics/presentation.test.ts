@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { presentationFactor, scaleTransaction } from "./presentation";
 import { calculatePurchaseLots } from "./engine";
 import type { Database } from "../../types/database";
@@ -36,6 +37,17 @@ test("scaling copies source facts, preserves nulls and removes private text", ()
   assert.equal(scaled.notes, null);
   assert.equal(scaled.external_id, null);
   assert.deepEqual(source, before);
+});
+
+test("presentation data loads fee components and scales them with transaction cash", () => {
+  const source = { ...transaction({ gross_amount: 10000, net_amount: 10010 }),
+    components: [{ component_type: "fee" as const, amount: 10, currency: "EUR" }] };
+  const scaled = scaleTransaction(source, 2);
+  assert.equal(scaled.components[0].amount, 20);
+  assert.equal(calculatePurchaseLots([source])[0].originalAcquisitionCost, 10010);
+  assert.equal(calculatePurchaseLots([scaled])[0].originalAcquisitionCost, 20020);
+  const reader = readFileSync("lib/presentation.ts", "utf8");
+  assert.match(reader, /components:transaction_components\(component_type,amount,currency\)/);
 });
 
 test("multiple lots, dividends and partial/full sales retain economics at both scales", () => {

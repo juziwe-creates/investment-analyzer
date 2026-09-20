@@ -7,18 +7,37 @@ export type ComparisonMetrics = {
   referenceValue: number | null; gain: number | null; returnPercent: number | null;
   annualizedPercent: number | null;
 };
+export type BenchmarkExitTrace = {
+  transactionId: string; actualSaleDate: string; fractionClosed: number;
+  benchmarkObservationDate: string | null; benchmarkLevel: number | null;
+  benchmarkUnitsClosed: number | null; benchmarkProceeds: number | null;
+};
+export type BenchmarkCalculationTrace = {
+  sourceTransactionId: string; security: string; purchaseDate: string; quantity: number;
+  actualPurchasePrice: number | null; acquisitionCost: number;
+  benchmarkId: BenchmarkId; benchmarkSeriesType: string | null; benchmarkFrequency: string | null;
+  benchmarkEntryObservationDate: string | null; benchmarkEntryLagDays: number | null;
+  benchmarkEntryLevel: number | null; virtualBenchmarkUnitsPurchased: number | null;
+  exits: BenchmarkExitTrace[]; valuationDate: string | null;
+  benchmarkValuationObservationDate: string | null; benchmarkValuationLevel: number | null;
+  remainingVirtualBenchmarkUnits: number | null; counterfactualReferenceValue: number | null;
+  actualTotalReturnPercent: number | null; benchmarkTotalReturnPercent: number | null;
+  returnDifferencePercentPoints: number | null; actualAnnualizedPercent: number | null;
+  benchmarkAnnualizedPercent: number | null; annualizedDifferencePercentPoints: number | null;
+};
 export type DecisionComparison = {
   id: string; securityKey: string; name: string; buyDate: string; currency: string;
   actual: ComparisonMetrics; benchmark: ComparisonMetrics;
   difference: { value: number | null; currentValue: number | null; referenceValue: number | null; gain: number | null; returnPercent: number | null; annualizedPercent: number | null };
   reason: string | null; valuationDate: string | null; observationDate: string | null;
+  trace: BenchmarkCalculationTrace;
 };
 export type VirtualBenchmarkLot = {
   sourceBuyTransactionId: string; sourceSecurityKey: string; buyDate: string;
   originalCapital: number; remainingCapital: number; benchmarkId: BenchmarkId;
   benchmarkEntryLevel: number | null; originalBenchmarkUnits: number | null; remainingBenchmarkUnits: number | null;
   closedBenchmarkValue: number | null; closeDate: string | null; cashFlows: LotCashFlow[];
-  exits: { date: string; units: number | null; value: number | null; fraction: number }[];
+  exits: { date: string; transactionId: string; observationDate: string | null; level: number | null; units: number | null; value: number | null; fraction: number }[];
 };
 export type BenchmarkTimelinePoint = { date: string; value: number | null; missingLots: number; observationDate: string | null };
 export type BenchmarkComparison = {
@@ -65,6 +84,9 @@ function metrics(deployed: number, remainingCapital: number, currentValue: numbe
     annualizedPercent: referenceValue === null ? null : calculateXirr(flows).value };
 }
 function total(values: (number | null)[]) { return values.some((value) => value === null) ? null : values.reduce<number>((sum, value) => sum + value!, 0); }
+function calendarDaysBetween(start: string, end: string) {
+  return Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000);
+}
 
 export function buildBenchmarkComparison(
   source: LotProfitability[], history: BenchmarkObservation[], id: BenchmarkId, matching: LotMatchingMethod
@@ -89,7 +111,9 @@ export function buildBenchmarkComparison(
       const level = benchmarkLevelAtDate(levels, sale.date);
       const fraction = sale.quantity / lot.quantity;
       const closedUnits = units === null ? null : units * fraction;
-      return { date: sale.date, units: closedUnits, fraction, value: closedUnits === null || !level ? null : closedUnits * Number(level.close_price) };
+      return { date: sale.date, transactionId: sale.transactionId, observationDate: level?.observation_date ?? null,
+        level: level ? Number(level.close_price) : null, units: closedUnits, fraction,
+        value: closedUnits === null || !level ? null : closedUnits * Number(level.close_price) };
     });
     const remainingUnits = units === null ? null : units * lot.remainingQuantity / lot.quantity;
     const current = valuationDate ? benchmarkLevelAtDate(levels, valuationDate) : null;
@@ -108,8 +132,27 @@ export function buildBenchmarkComparison(
       gain: lot.totalProfitability, returnPercent: lot.totalReturnPercent,
       annualizedPercent: lot.currentValue === null && lot.remainingQuantity > 0 ? null : lot.annualizedReturnPercent };
     const benchmark = metrics(lot.costBasis, lot.remainingCostBasis, reason ? null : currentValue, reason ? null : proceeds, flows);
+    const difference = differences(actual, benchmark);
+    const trace: BenchmarkCalculationTrace = {
+      sourceTransactionId: lot.id, security: lot.securityName, purchaseDate: lot.tradeDate, quantity: lot.quantity,
+      actualPurchasePrice: lot.actualPurchasePrice, acquisitionCost: lot.costBasis, benchmarkId: id,
+      benchmarkSeriesType: entry?.series_type ?? kind ?? null, benchmarkFrequency: entry?.frequency ?? levels[0]?.frequency ?? null,
+      benchmarkEntryObservationDate: entry?.observation_date ?? null,
+      benchmarkEntryLagDays: entry ? calendarDaysBetween(entry.observation_date, lot.tradeDate) : null,
+      benchmarkEntryLevel: entry ? Number(entry.close_price) : null, virtualBenchmarkUnitsPurchased: units,
+      exits: exits.map((sale) => ({ transactionId: sale.transactionId, actualSaleDate: sale.date,
+        fractionClosed: sale.fraction, benchmarkObservationDate: sale.observationDate,
+        benchmarkLevel: sale.level, benchmarkUnitsClosed: sale.units, benchmarkProceeds: sale.value })),
+      valuationDate, benchmarkValuationObservationDate: current?.observation_date ?? null,
+      benchmarkValuationLevel: current ? Number(current.close_price) : null,
+      remainingVirtualBenchmarkUnits: remainingUnits, counterfactualReferenceValue: benchmark.referenceValue,
+      actualTotalReturnPercent: actual.returnPercent, benchmarkTotalReturnPercent: benchmark.returnPercent,
+      returnDifferencePercentPoints: difference.returnPercent, actualAnnualizedPercent: actual.annualizedPercent,
+      benchmarkAnnualizedPercent: benchmark.annualizedPercent,
+      annualizedDifferencePercentPoints: difference.annualizedPercent
+    };
     return { id: lot.id, securityKey: lot.securityKey, name: lot.securityName, buyDate: lot.tradeDate, currency: lot.currency,
-      actual, benchmark, difference: differences(actual, benchmark), reason, valuationDate, observationDate: current?.price_date ?? null };
+      actual, benchmark, difference, reason, valuationDate, observationDate: current?.observation_date ?? null, trace };
   });
   const groups = new Map<string, number[]>();
   source.forEach((lot, index) => { const group = groups.get(lot.securityKey); if (group) group.push(index); else groups.set(lot.securityKey, [index]); });

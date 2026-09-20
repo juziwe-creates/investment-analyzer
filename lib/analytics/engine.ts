@@ -63,6 +63,7 @@ export type PurchaseLotAnalytics = {
   ticker: string | null;
   buyDate: string;
   originalQuantity: number;
+  actualPurchasePrice: number | null;
   remainingQuantity: number;
   acquisitionCostPerShare: number;
   originalAcquisitionCost: number;
@@ -119,6 +120,7 @@ type WorkingLot = {
   ticker: string | null;
   buyDate: string;
   originalQuantity: number;
+  actualPurchasePrice: number | null;
   remainingQuantity: number;
   acquisitionCostPerShare: number;
   originalAcquisitionCost: number;
@@ -180,10 +182,20 @@ export function acquisitionCost(transaction: AnalyticsTransaction) {
 
   const gross = transaction.gross_amount ?? numeric(transaction.quantity) * numeric(transaction.unit_price);
   const fees = componentAmount(transaction, ["fee", "broker_fee", "exchange_fee"]);
+  const hasComponents = (transaction.components?.length ?? 0) > 0;
+  const hasExplicitFees = transaction.components?.some((component) =>
+    ["fee", "broker_fee", "exchange_fee"].includes(component.component_type)) ?? false;
 
-  if (fees > 0 || transaction.gross_amount !== null) {
+  if (hasExplicitFees) {
     return Math.abs(gross) + fees;
   }
+
+  // Imported documents can preserve the all-in debit even when fee detail is absent.
+  if (!hasComponents && transaction.net_amount !== null && Math.abs(transaction.net_amount) >= Math.abs(gross)) {
+    return Math.abs(transaction.net_amount);
+  }
+
+  if (transaction.gross_amount !== null) return Math.abs(gross);
 
   if (transaction.net_amount !== null) {
     return Math.abs(transaction.net_amount);
@@ -433,6 +445,8 @@ function applyTransactionToLots(
       ticker: transaction.ticker,
       buyDate: transaction.trade_date,
       originalQuantity,
+      actualPurchasePrice: transaction.unit_price !== null ? Math.abs(transaction.unit_price)
+        : originalQuantity > 0 && transaction.gross_amount !== null ? Math.abs(transaction.gross_amount) / originalQuantity : null,
       remainingQuantity: originalQuantity,
       acquisitionCostPerShare,
       originalAcquisitionCost,
@@ -615,6 +629,7 @@ function buildPurchaseLotAnalytics(
       ticker: lot.ticker,
       buyDate: lot.buyDate,
       originalQuantity: lot.originalQuantity,
+      actualPurchasePrice: lot.actualPurchasePrice,
       remainingQuantity: lot.remainingQuantity,
       acquisitionCostPerShare: lot.acquisitionCostPerShare,
       originalAcquisitionCost: lot.originalAcquisitionCost,

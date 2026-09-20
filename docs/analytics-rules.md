@@ -75,13 +75,19 @@ fees = absolute sum of fee, broker_fee, and exchange_fee components
 Current formula:
 
 ```text
-if fees exist or gross_amount exists:
+if explicit fee components exist:
   acquisition cost = abs(gross) + fees
+else if no components exist and net_amount is an all-in debit at least as large as gross:
+  acquisition cost = abs(net_amount)
+else if gross_amount exists:
+  acquisition cost = abs(gross)
 else if net_amount exists:
   acquisition cost = abs(net_amount)
 else:
   acquisition cost = abs(gross)
 ```
+
+Transaction reads include the RLS-protected `transaction_components` relation. The net-debit fallback exists for historical imports that preserved an all-in purchase debit but no component detail. It is not used when any components exist, so a tax component is not silently reclassified as a fee. Presentation mode scales component cash in memory with the transaction.
 
 Cost basis per share:
 
@@ -475,6 +481,14 @@ The user approved retaining each view's current lot matching and using the exist
 - Series metadata distinguishes net total return, total return/performance index and price index. Benchmark Yield on Cost remains unavailable without factual dividend cash. No synthetic cash dividends are added to total-return levels.
 - Missing entry history remains unavailable permanently for that purchase; future observations cannot repair its entry. Valid lots remain visible. Aggregates with incomplete lot coverage are withheld and disclosed, never shown as complete partial sums. Non-EUR comparisons are withheld.
 - New models are calculated server-side in memory. The dashboard shares its comparison calculation within the request; viewport gestures reuse the generated timeline and make no database or provider calls. Presentation-scaled inputs scale benchmark units and money consistently while preserving return percentages.
+
+# Benchmark Navigation And Fidelity Fix (Approved 2026-09-20)
+
+- Benchmark observations are secondary rendering samples. Dashboard navigation dates come only from portfolio development, deployment and annual primary data. Investment Detail navigation dates come only from investment prices, transaction markers and purchase dates. Benchmark selection cannot change full range, presets, minimum zoom, pan constraints or navigator width.
+- Counterfactual entry, exit and valuation calculations consume every canonical benchmark row loaded from `benchmark_prices`. Daily history therefore takes effect automatically where installed. Matching remains the latest observation on or before the decision date, and `observation_date` must never be later than the decision date. Weekly-only history retains the same prior-observation behavior.
+- Rendering may decimate dense daily history, but calculation history is not downsampled. Benchmark overlay points retain their own observation resolution and never rebase during viewport gestures.
+- Purchase Lots → Benchmark Comparison exposes a calculation trace for each source lot: transaction identity, purchase quantity and price, acquisition cost, benchmark metadata, entry observation and lag, virtual units, proportional exits, valuation, remaining units, reference value, Total Return and XIRR differences. Entry observations more than three calendar days before purchase are flagged as stale.
+- The trace is diagnostic and derived in memory. It is not persisted and does not alter the approved economic methodology, actual analytics, taxes, FIFO/LIFO policies or final α definition.
 
 # Current Open Decisions
 

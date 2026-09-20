@@ -157,3 +157,21 @@ test("selector URLs load different histories and the chart renders that benchmar
   assert.match(page, /readBenchmarkHistory\(benchmark\)/);
   assert.match(page, /<DashboardPerformance history=\{history\} benchmark=\{benchmark\} benchmarkHistory=\{benchmarkHistory\}/);
 });
+
+test("purchase-lot comparison renders an auditable trace and stale-entry warning", () => {
+  const { DecisionComparisonRows } = loadModule<{ DecisionComparisonRows: React.ComponentType<Record<string, unknown>> }>("components/benchmark-comparison.tsx", {
+    "next/link": { default: ({ href, children }: { href: string; children: React.ReactNode }) => React.createElement("a", { href }, children) },
+    "@/lib/formatters": { formatCurrency: (value: number | null) => value === null ? "-" : `EUR ${value}`,
+      formatDate: String, formatNumber: String, formatPercent: (value: number | null) => value === null ? "-" : `${value}%` },
+    "@/lib/utils": { cn: (...values: unknown[]) => values.filter(Boolean).join(" ") }
+  });
+  const source = sourceLots([{ ...transaction("anonymous-buy", "2025-04-07", "buy", 4, 1000), unit_price: 248 }], "lifo", "2025-04-10");
+  const weekly = [{ ...observation("2025-04-01", 100), frequency: "weekly" }, { ...observation("2025-04-10", 120), frequency: "weekly" }];
+  const row = buildBenchmarkComparison(source, weekly, "msci-world", "lifo").lots[0];
+  const markup = renderToStaticMarkup(React.createElement(DecisionComparisonRows, { rows: [row], label: "MSCI World" }));
+  assert.match(markup, /Calculation trace/);
+  assert.match(markup, /Benchmark observation 6 days before purchase/);
+  assert.match(markup, /anonymous-buy/);
+  assert.match(markup, /Virtual benchmark units purchased/);
+  assert.match(markup, /Units = acquisition cost/);
+});

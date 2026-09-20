@@ -16,6 +16,8 @@ Portfolio metrics and holdings render before the historical query completes. Por
 
 The shared viewport receives complete dates when the streamed chart data arrives; presets remain disabled until then. URL `from`/`to` values survive early filter submissions and initialize the loaded viewport. Changing account/security context resets the deferred provider so previous context dates are not reused. Investment Detail continues supplying dates directly. Zoom and pan remain client-side and do not trigger provider requests.
 
+Secondary benchmark observations are intentionally excluded from the viewport date universe. Portfolio Performance registers only dashboard primary-history dates; Investment Detail registers price/history points, transaction markers and purchase-lot dates. Benchmark series retain daily or weekly samples for rendering through the existing per-series visibility and decimation path, but switching benchmarks cannot change navigation resolution, range constraints, presets, pan results or navigator geometry.
+
 The performance package passed an HTTP streaming fixture check: current content arrived at approximately 218 ms and deliberately delayed history at 6,298 ms. This is a synthetic local development check, not a production latency measurement. Interactive browser re-verification of deferred loading is outstanding because the automatic approval review system rejected the browser tool with a compatibility error. Earlier browser checks below predate this loading change.
 
 ## Controls
