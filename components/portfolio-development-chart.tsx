@@ -29,7 +29,7 @@ export function PortfolioDevelopmentChart({ points, emptyMessage, comparison, be
       ...(showDividends ? [{ label: "Dividends", value: formatCurrency(point.dividendsReceived, point.currency) }] : [])
     ]} />
     {benchmarkTimeline.some((point) => point.missingLots > 0) ? <p className="text-xs text-muted-foreground">Some benchmark entry history is missing. Incomplete portfolio benchmark totals are unavailable; covered purchase lots remain available in their comparison view.</p> : null}
-    {points.some((point) => !point.hasCompletePricing) ? <p className="text-xs text-muted-foreground">Some market values exclude holdings without a historical price. Deployed capital includes their recorded acquisition cost, so the gap is not a complete gain/loss figure.</p> : null}
+    {points.some((point) => !point.hasCompletePricing) ? <p className="text-xs text-muted-foreground">Portfolio Value is hidden for periods where one or more open holdings have no historical price. Current Deployed Capital remains complete.</p> : null}
     {comparison ? <BenchmarkMethodology comparison={comparison} /> : null}
   </div>;
 }

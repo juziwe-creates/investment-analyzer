@@ -77,8 +77,8 @@ export type SecurityInventoryItem = {
 export type PortfolioDevelopmentPoint = {
   date: string;
   investedCapital: number;
-  investmentGain: number;
-  portfolioValue: number;
+  investmentGain: number | null;
+  portfolioValue: number | null;
   unpricedInvestedCapital: number;
   unpricedOpenLots: number;
   hasCompletePricing: boolean;
@@ -413,8 +413,8 @@ export function calculatePortfolioDevelopment(
     .map((point): PortfolioDevelopmentPoint => ({
       date: point.date,
       investedCapital: point.currentDeployedCapital,
-      investmentGain: point.unrealizedGain,
-      portfolioValue: point.portfolioMarketValue,
+      investmentGain: point.hasCompletePricing ? point.unrealizedGain : null,
+      portfolioValue: point.hasCompletePricing ? point.portfolioMarketValue : null,
       unpricedInvestedCapital: point.unpricedCurrentDeployedCapital,
       unpricedOpenLots: point.missingPriceSecurityKeys.length,
       hasCompletePricing: point.hasCompletePricing,

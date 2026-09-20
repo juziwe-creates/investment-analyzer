@@ -36,7 +36,7 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
   const transactionsQuery = presentationTransactions(portfolioId);
   const latestPricesQuery = supabase.from("latest_market_prices").select("*");
   const manualPricesQuery = supabase.from("manual_security_prices").select("*");
-  const marketPricesQuery = readMarketHistory(portfolioId, securityKey);
+  const marketPricesQuery = readMarketHistory(undefined, securityKey);
   if (portfolioId) { latestPricesQuery.eq("portfolio_id", portfolioId); manualPricesQuery.eq("portfolio_id", portfolioId); }
   const [{ data: allTransactions, error: transactionError }, { data: latestPrices, error: latestError }, { data: manualPrices, error: manualError }, { data: prices, error: priceError }, reference] = await Promise.all([transactionsQuery, latestPricesQuery, manualPricesQuery, marketPricesQuery, readBenchmarkHistory(benchmark)]);
   const transactions = (allTransactions ?? []).filter((transaction) => transactionSecurityKey(transaction) === securityKey);

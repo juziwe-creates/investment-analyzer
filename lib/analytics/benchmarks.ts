@@ -25,7 +25,7 @@ export type BenchmarkObservation = {
   is_partial_period: boolean;
 };
 
-type PortfolioObservation = { date: string; portfolioValue: number; hasCompletePricing: boolean };
+type PortfolioObservation = { date: string; portfolioValue: number | null; hasCompletePricing: boolean };
 export type BenchmarkComparisonPoint = { date: string; portfolio: number | null; benchmark: number };
 export type AnnualReturn = { year: string; returnPercent: number | null };
 
@@ -37,7 +37,7 @@ export function normalizeBenchmarkComparison(
   const holdings = [...portfolio].sort((a, b) => a.date.localeCompare(b.date));
   const levels = benchmark.filter((row) => row.currency === "EUR" && Number.isFinite(Number(row.close_price)) && Number(row.close_price) > 0)
     .sort((a, b) => a.price_date.localeCompare(b.price_date));
-  const firstHolding = holdings.find((row) => row.hasCompletePricing && row.portfolioValue > 0);
+  const firstHolding = holdings.find((row) => row.hasCompletePricing && row.portfolioValue !== null && row.portfolioValue > 0);
   if (!firstHolding || !levels.length) return [];
   const time = (date: string) => Date.parse(date + "T00:00:00Z");
   const start = Math.max(range.start, time(firstHolding.date));
@@ -47,7 +47,8 @@ export function normalizeBenchmarkComparison(
   let holdingIndex = 0;
   while (holdingIndex + 1 < holdings.length && holdings[holdingIndex + 1].date <= base.price_date) holdingIndex++;
   const opening = holdings[holdingIndex];
-  if (!opening.hasCompletePricing || !Number.isFinite(opening.portfolioValue) || opening.portfolioValue <= 0) return [];
+  if (!opening.hasCompletePricing || opening.portfolioValue === null || !Number.isFinite(opening.portfolioValue) || opening.portfolioValue <= 0) return [];
+  const openingValue = opening.portfolioValue;
   let levelIndex = levels.indexOf(base);
   const dates = [...new Set([
     ...holdings.map((row) => row.date), ...levels.map((row) => row.price_date)
@@ -59,7 +60,7 @@ export function normalizeBenchmarkComparison(
     const holding = holdings[holdingIndex];
     return {
       date,
-      portfolio: holding.hasCompletePricing && Number.isFinite(holding.portfolioValue) ? 100 * holding.portfolioValue / opening.portfolioValue : null,
+      portfolio: holding.hasCompletePricing && holding.portfolioValue !== null && Number.isFinite(holding.portfolioValue) ? 100 * holding.portfolioValue / openingValue : null,
       benchmark: 100 * Number(levels[levelIndex].close_price) / Number(base.close_price)
     };
   });
