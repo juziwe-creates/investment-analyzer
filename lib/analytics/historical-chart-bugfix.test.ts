@@ -16,6 +16,7 @@ type PortfolioPoint = {
   investedCapital: number;
   investmentGain: number | null;
   portfolioValue: number | null;
+  pricedPortfolioValue: number | null;
   hasCompletePricing: boolean;
 };
 
@@ -87,20 +88,24 @@ test("portfolio development hides partial market value until every open holding 
     portfolioBuy("1", "SEC-A", 10, 1000),
     portfolioBuy("2", "SEC-B", 5, 500)
   ];
+  const entirelyUnpriced = calculatePortfolioDevelopment(transactions, [], "daily");
   const points = calculatePortfolioDevelopment(transactions, [
     marketPrice("a-1", "SEC-A", "2020-01-01", 100),
     marketPrice("a-2", "SEC-A", "2020-02-01", 110),
     marketPrice("b-1", "SEC-B", "2020-02-01", 120)
   ], "daily");
 
+  assert.equal(entirelyUnpriced[0].pricedPortfolioValue, null);
   assert.equal(points[0].hasCompletePricing, false);
   assert.equal(points[0].investedCapital, 1500);
   assert.equal(points[0].portfolioValue, null);
   assert.equal(points[0].investmentGain, null);
+  assert.equal(points[0].pricedPortfolioValue, 1000);
   assert.notEqual(points[0].portfolioValue, 0);
 
   assert.equal(points[1].hasCompletePricing, true);
   assert.equal(points[1].portfolioValue, 1700);
+  assert.equal(points[1].pricedPortfolioValue, 1700);
   assert.equal(points[1].investmentGain, 200);
 });
 

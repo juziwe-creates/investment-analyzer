@@ -79,6 +79,7 @@ export type PortfolioDevelopmentPoint = {
   investedCapital: number;
   investmentGain: number | null;
   portfolioValue: number | null;
+  pricedPortfolioValue: number | null;
   unpricedInvestedCapital: number;
   unpricedOpenLots: number;
   hasCompletePricing: boolean;
@@ -415,6 +416,7 @@ export function calculatePortfolioDevelopment(
       investedCapital: point.currentDeployedCapital,
       investmentGain: point.hasCompletePricing ? point.unrealizedGain : null,
       portfolioValue: point.hasCompletePricing ? point.portfolioMarketValue : null,
+      pricedPortfolioValue: point.hasCompletePricing || point.pricedCurrentDeployedCapital > 0 ? point.portfolioMarketValue : null,
       unpricedInvestedCapital: point.unpricedCurrentDeployedCapital,
       unpricedOpenLots: point.missingPriceSecurityKeys.length,
       hasCompletePricing: point.hasCompletePricing,
