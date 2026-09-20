@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateXirr } from "./engine";
-import { benchmarkLevelAtDate, buildBenchmarkComparison, calculateVirtualBenchmarkTimeline } from "./benchmark-portfolio";
+import { benchmarkCounterfactualLabel, benchmarkDividendTreatment, benchmarkLevelAtDate, buildBenchmarkComparison, calculateVirtualBenchmarkTimeline } from "./benchmark-portfolio";
 import { investmentDetailHref } from "./benchmark-navigation";
 import type { BenchmarkId } from "./benchmarks";
 import { visibleSamples } from "../charts/series";
@@ -27,17 +27,17 @@ test("partial exit follows quantity, not actual sale proceeds; reference include
   const result = buildBenchmarkComparison(sources, history, "msci-world", "fifo");
   near(result.virtualLots[0].exits[0].units, 3);
   near(result.lots[0].benchmark.currentValue, 1050);
-  near(result.lots[0].benchmark.referenceValue, 1410);
+  near(result.lots[0].benchmark.economicReferenceValue, 1410);
   near(result.lots[0].benchmark.gain, 410);
-  near(result.lots[0].actual.referenceValue, 1850);
+  near(result.lots[0].actual.economicReferenceValue, 1850);
   const changedSale = sourceLots([buy, transaction("sale", "2021-01-01", "sell", 3, 9000)]);
-  near(buildBenchmarkComparison(changedSale, history, "msci-world", "fifo").lots[0].benchmark.referenceValue, 1410);
+  near(buildBenchmarkComparison(changedSale, history, "msci-world", "fifo").lots[0].benchmark.economicReferenceValue, 1410);
 });
 test("multiple exits and fully closed lots use actual exit dates for benchmark XIRR", () => {
   const result = buildBenchmarkComparison(sourceLots([buy,
     transaction("s1", "2021-01-01", "sell", 3, 450), transaction("s2", "2022-01-01", "sell", 7, 1400)
   ]), history, "msci-world", "fifo");
-  near(result.lots[0].benchmark.referenceValue, 1410);
+  near(result.lots[0].benchmark.economicReferenceValue, 1410);
   assert.equal(result.virtualLots[0].closeDate, "2022-01-01");
   assert.equal(result.virtualLots[0].cashFlows.some((flow) => flow.kind === "terminal_value"), false);
   near(result.lots[0].benchmark.annualizedPercent, calculateXirr([
@@ -63,9 +63,10 @@ test("holding aggregates all linked lots, including past exits and recorded divi
   near(holding.actual.currentValue, 2000);
   near(holding.actual.gain, 1400);
   near(holding.benchmark.currentValue, 1500);
-  near(holding.benchmark.referenceValue, 2700);
+  near(holding.benchmark.economicReferenceValue, 2700);
   near(holding.benchmark.gain, 500);
-  near(holding.difference.value, 500);
+  near(holding.actual.economicReferenceValue, 3600);
+  near(holding.difference.value, 900);
   near(holding.actual.annualizedPercent, calculateXirr(source.flatMap((lot) => lot.cashFlows)).value!);
   assert.equal(result.virtualLots.some((lot) => lot.cashFlows.some((flow) => flow.kind === "dividend")), false);
 });
@@ -176,12 +177,72 @@ test("DAX changes values and returns; price-index metadata does not add dividend
   near(result.lots[0].benchmark.currentValue, 1800);
   assert.match(result.description, /Price index; dividends excluded/);
   assert.equal(result.virtualLots[0].cashFlows.length, 2);
+  assert.equal(result.dividendTreatment, "excluded");
+});
+test("actual dividends create economic value without changing market value or acquisition cost", () => {
+  const transactions = [
+    transaction("buy-dividend", "2020-01-01", "buy", 10, 10000),
+    transaction("dividend", "2021-06-01", "dividend", 10, 2000)
+  ];
+  const levels = [quote("2019-12-31", 100), quote("2022-01-03", 130)];
+  const result = buildBenchmarkComparison(sourceLots(transactions, "fifo", "2022-01-03", 1100), levels, "msci-world", "fifo");
+  const row = result.lots[0];
+
+  near(row.actual.deployed, 10000);
+  near(row.actual.remainingCapital, 10000);
+  near(row.actual.currentValue, 11000);
+  near(row.actual.dividends, 2000);
+  near(row.actual.economicReferenceValue, 13000);
+  near(row.actual.gain, 3000);
+  near(row.actual.returnPercent, 30);
+  near(row.benchmark.currentValue, 13000);
+  near(row.benchmark.economicReferenceValue, 13000);
+  near(row.benchmark.returnPercent, 30);
+  assert.equal(row.benchmark.dividends, null);
+  near(row.difference.returnPercent, 0);
+  assert.equal(result.dividendTreatment, "embedded");
+  assert.equal(result.virtualLots[0].cashFlows.some((flow) => flow.kind === "dividend"), false);
+  assert.deepEqual(row.actual.dividends, row.trace.actualDividends);
+});
+test("closed and partially sold lots retain dividends in economic value without reducing cost", () => {
+  const levels = [quote("2019-12-31", 100), quote("2022-01-03", 130)];
+  const closed = buildBenchmarkComparison(sourceLots([
+    transaction("closed-buy", "2020-01-01", "buy", 10, 10000),
+    transaction("closed-dividend", "2021-01-01", "dividend", 10, 500),
+    transaction("closed-sale", "2022-01-03", "sell", 10, 12000)
+  ], "fifo", "2022-01-03", 1100), levels, "msci-world", "fifo").lots[0];
+  near(closed.actual.currentValue, 0);
+  near(closed.actual.saleProceeds, 12000);
+  near(closed.actual.dividends, 500);
+  near(closed.actual.economicReferenceValue, 12500);
+  near(closed.actual.gain, 2500);
+  near(closed.actual.returnPercent, 25);
+
+  const partial = buildBenchmarkComparison(sourceLots([
+    transaction("partial-buy", "2020-01-01", "buy", 10, 10000),
+    transaction("partial-sale", "2021-01-01", "sell", 4, 4800),
+    transaction("partial-dividend", "2021-06-01", "dividend", 6, 600)
+  ], "fifo", "2022-01-03", 1100), levels, "msci-world", "fifo").lots[0];
+  near(partial.actual.deployed, 10000);
+  near(partial.actual.remainingCapital, 6000);
+  near(partial.actual.currentValue, 6600);
+  near(partial.actual.saleProceeds, 4800);
+  near(partial.actual.dividends, 600);
+  near(partial.actual.economicReferenceValue, 12000);
+});
+test("benchmark series types explicitly disclose dividend treatment", () => {
+  for (const type of ["net_total_return", "gross_total_return", "total_return", "performance_index"]) {
+    assert.equal(benchmarkDividendTreatment(type), "embedded");
+    assert.match(benchmarkCounterfactualLabel("Index", benchmarkDividendTreatment(type)), /Total-Return Counterfactual/);
+  }
+  for (const type of ["price", "price_index"]) assert.equal(benchmarkDividendTreatment(type), "excluded");
+  assert.equal(benchmarkDividendTreatment("custom"), "unknown");
 });
 test("presentation scaling scales both sides, leaves returns invariant, and makes no mutations", () => {
   const transactions = [buy, transaction("sale", "2021-01-01", "sell", 3, 450)];
   const base = buildBenchmarkComparison(sourceLots(transactions), history, "msci-world", "fifo");
   const scaled = buildBenchmarkComparison(sourceLots(transactions.map((row) => ({ ...row, quantity: row.quantity! * 2, gross_amount: row.gross_amount! * 2 }))), history, "msci-world", "fifo");
-  near(scaled.lots[0].benchmark.referenceValue, base.lots[0].benchmark.referenceValue! * 2);
+  near(scaled.lots[0].benchmark.economicReferenceValue, base.lots[0].benchmark.economicReferenceValue! * 2);
   near(scaled.lots[0].benchmark.returnPercent, base.lots[0].benchmark.returnPercent!);
   near(scaled.lots[0].benchmark.annualizedPercent, base.lots[0].benchmark.annualizedPercent!);
 });

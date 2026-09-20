@@ -4,9 +4,11 @@ import type { LotProfitability } from "./profitability";
 
 export type ComparisonMetrics = {
   deployed: number; remainingCapital: number; currentValue: number | null;
-  referenceValue: number | null; gain: number | null; returnPercent: number | null;
+  saleProceeds: number | null; dividends: number | null; economicReferenceValue: number | null;
+  gain: number | null; returnPercent: number | null;
   annualizedPercent: number | null;
 };
+export type BenchmarkDividendTreatment = "embedded" | "excluded" | "unknown";
 export type BenchmarkExitTrace = {
   transactionId: string; actualSaleDate: string; fractionClosed: number;
   benchmarkObservationDate: string | null; benchmarkLevel: number | null;
@@ -20,7 +22,11 @@ export type BenchmarkCalculationTrace = {
   benchmarkEntryLevel: number | null; virtualBenchmarkUnitsPurchased: number | null;
   exits: BenchmarkExitTrace[]; valuationDate: string | null;
   benchmarkValuationObservationDate: string | null; benchmarkValuationLevel: number | null;
-  remainingVirtualBenchmarkUnits: number | null; counterfactualReferenceValue: number | null;
+  remainingVirtualBenchmarkUnits: number | null;
+  actualCurrentMarketValue: number | null; actualSaleProceeds: number | null;
+  actualDividends: number | null; actualEconomicReferenceValue: number | null; actualGain: number | null;
+  benchmarkDividendTreatment: BenchmarkDividendTreatment; benchmarkSaleProceeds: number | null;
+  benchmarkCurrentValue: number | null; benchmarkEconomicReferenceValue: number | null;
   actualTotalReturnPercent: number | null; benchmarkTotalReturnPercent: number | null;
   returnDifferencePercentPoints: number | null; actualAnnualizedPercent: number | null;
   benchmarkAnnualizedPercent: number | null; annualizedDifferencePercentPoints: number | null;
@@ -28,7 +34,7 @@ export type BenchmarkCalculationTrace = {
 export type DecisionComparison = {
   id: string; securityKey: string; name: string; buyDate: string; currency: string;
   actual: ComparisonMetrics; benchmark: ComparisonMetrics;
-  difference: { value: number | null; currentValue: number | null; referenceValue: number | null; gain: number | null; returnPercent: number | null; annualizedPercent: number | null };
+  difference: { value: number | null; currentValue: number | null; saleProceeds: number | null; economicReferenceValue: number | null; gain: number | null; returnPercent: number | null; annualizedPercent: number | null };
   reason: string | null; valuationDate: string | null; observationDate: string | null;
   trace: BenchmarkCalculationTrace;
 };
@@ -42,6 +48,7 @@ export type VirtualBenchmarkLot = {
 export type BenchmarkTimelinePoint = { date: string; value: number | null; missingLots: number; observationDate: string | null };
 export type BenchmarkComparison = {
   benchmarkId: BenchmarkId; label: string; description: string; matching: LotMatchingMethod;
+  seriesType: string | null; dividendTreatment: BenchmarkDividendTreatment;
   lots: DecisionComparison[]; holdings: Record<string, DecisionComparison>;
   virtualLots: VirtualBenchmarkLot[]; missingLots: number; error: string | null;
 };
@@ -71,17 +78,30 @@ export function benchmarkLevelAtDate(history: BenchmarkObservation[], date: stri
 function subtract(actual: number | null, benchmark: number | null) {
   return actual === null || benchmark === null ? null : actual - benchmark;
 }
-function differences(actual: ComparisonMetrics, benchmark: ComparisonMetrics, holding = false) {
-  return { value: subtract(holding ? actual.currentValue : actual.referenceValue, holding ? benchmark.currentValue : benchmark.referenceValue),
-    currentValue: subtract(actual.currentValue, benchmark.currentValue), referenceValue: subtract(actual.referenceValue, benchmark.referenceValue), gain: subtract(actual.gain, benchmark.gain),
+function differences(actual: ComparisonMetrics, benchmark: ComparisonMetrics) {
+  return { value: subtract(actual.economicReferenceValue, benchmark.economicReferenceValue),
+    currentValue: subtract(actual.currentValue, benchmark.currentValue), saleProceeds: subtract(actual.saleProceeds, benchmark.saleProceeds),
+    economicReferenceValue: subtract(actual.economicReferenceValue, benchmark.economicReferenceValue), gain: subtract(actual.gain, benchmark.gain),
     returnPercent: subtract(actual.returnPercent, benchmark.returnPercent), annualizedPercent: subtract(actual.annualizedPercent, benchmark.annualizedPercent) };
 }
-function metrics(deployed: number, remainingCapital: number, currentValue: number | null, proceeds: number | null, flows: LotCashFlow[], dividends = 0): ComparisonMetrics {
-  const referenceValue = currentValue === null || proceeds === null ? null : currentValue + proceeds;
-  const gain = referenceValue === null ? null : referenceValue + dividends - deployed;
-  return { deployed, remainingCapital, currentValue, referenceValue, gain,
+function metrics(deployed: number, remainingCapital: number, currentValue: number | null, saleProceeds: number | null, flows: LotCashFlow[], dividends: number | null): ComparisonMetrics {
+  const economicReferenceValue = currentValue === null || saleProceeds === null ? null : currentValue + saleProceeds + (dividends ?? 0);
+  const gain = economicReferenceValue === null ? null : economicReferenceValue - deployed;
+  return { deployed, remainingCapital, currentValue, saleProceeds, dividends, economicReferenceValue, gain,
     returnPercent: gain === null || deployed <= 0 ? null : gain / deployed * 100,
-    annualizedPercent: referenceValue === null ? null : calculateXirr(flows).value };
+    annualizedPercent: economicReferenceValue === null ? null : calculateXirr(flows).value };
+}
+export function benchmarkDividendTreatment(seriesType: string | null | undefined): BenchmarkDividendTreatment {
+  if (["net_total_return", "gross_total_return", "total_return", "performance_index"].includes(seriesType ?? "")) return "embedded";
+  if (["price", "price_index"].includes(seriesType ?? "")) return "excluded";
+  return "unknown";
+}
+export function benchmarkDividendTreatmentLabel(treatment: BenchmarkDividendTreatment) {
+  return treatment === "embedded" ? "Embedded in total-return index"
+    : treatment === "excluded" ? "Excluded from price index" : "Unknown from stored series type";
+}
+export function benchmarkCounterfactualLabel(label: string, treatment: BenchmarkDividendTreatment) {
+  return `${label} ${treatment === "embedded" ? "Total-Return" : treatment === "excluded" ? "Price-Index" : ""} Counterfactual`.replace("  ", " ");
 }
 function total(values: (number | null)[]) { return values.some((value) => value === null) ? null : values.reduce<number>((sum, value) => sum + value!, 0); }
 function calendarDaysBetween(start: string, end: string) {
@@ -93,7 +113,8 @@ export function buildBenchmarkComparison(
 ): BenchmarkComparison {
   const levels = prepareHistory(history, id);
   const label = benchmarkOptions.find((option) => option.id === id)?.label ?? "Benchmark";
-  const kind = levels[0]?.series_type;
+  const kind = levels[0]?.series_type ?? null;
+  const dividendTreatment = benchmarkDividendTreatment(kind);
   const description = kind === "net_total_return" ? "Net total return; dividends included"
     : kind === "performance_index" || kind === "total_return" || kind === "gross_total_return" ? "Total return; dividends included"
     : kind === "price_index" || kind === "price" ? "Price index; dividends excluded" : kind ? `Series type: ${kind}` : "History unavailable";
@@ -128,10 +149,10 @@ export function buildBenchmarkComparison(
       originalBenchmarkUnits: units, remainingBenchmarkUnits: remainingUnits, closedBenchmarkValue: proceeds,
       closeDate: lot.remainingQuantity <= 0 ? lastExit : null, cashFlows: flows, exits });
     const actual: ComparisonMetrics = { deployed: lot.costBasis, remainingCapital: lot.remainingCostBasis, currentValue: lot.currentValue,
-      referenceValue: lot.currentValue === null ? null : lot.currentValue + lot.attributedSaleProceeds,
+      saleProceeds: lot.attributedSaleProceeds, dividends: lot.accumulatedDividends, economicReferenceValue: lot.totalEconomicValue,
       gain: lot.totalProfitability, returnPercent: lot.totalReturnPercent,
       annualizedPercent: lot.currentValue === null && lot.remainingQuantity > 0 ? null : lot.annualizedReturnPercent };
-    const benchmark = metrics(lot.costBasis, lot.remainingCostBasis, reason ? null : currentValue, reason ? null : proceeds, flows);
+    const benchmark = metrics(lot.costBasis, lot.remainingCostBasis, reason ? null : currentValue, reason ? null : proceeds, flows, null);
     const difference = differences(actual, benchmark);
     const trace: BenchmarkCalculationTrace = {
       sourceTransactionId: lot.id, security: lot.securityName, purchaseDate: lot.tradeDate, quantity: lot.quantity,
@@ -145,7 +166,11 @@ export function buildBenchmarkComparison(
         benchmarkLevel: sale.level, benchmarkUnitsClosed: sale.units, benchmarkProceeds: sale.value })),
       valuationDate, benchmarkValuationObservationDate: current?.observation_date ?? null,
       benchmarkValuationLevel: current ? Number(current.close_price) : null,
-      remainingVirtualBenchmarkUnits: remainingUnits, counterfactualReferenceValue: benchmark.referenceValue,
+      remainingVirtualBenchmarkUnits: remainingUnits,
+      actualCurrentMarketValue: actual.currentValue, actualSaleProceeds: actual.saleProceeds,
+      actualDividends: actual.dividends, actualEconomicReferenceValue: actual.economicReferenceValue, actualGain: actual.gain,
+      benchmarkDividendTreatment: dividendTreatment, benchmarkSaleProceeds: benchmark.saleProceeds,
+      benchmarkCurrentValue: benchmark.currentValue, benchmarkEconomicReferenceValue: benchmark.economicReferenceValue,
       actualTotalReturnPercent: actual.returnPercent, benchmarkTotalReturnPercent: benchmark.returnPercent,
       returnDifferencePercentPoints: difference.returnPercent, actualAnnualizedPercent: actual.annualizedPercent,
       benchmarkAnnualizedPercent: benchmark.annualizedPercent,
@@ -165,13 +190,13 @@ export function buildBenchmarkComparison(
     const actual = metrics(deployed, remaining, total(compared.map((row) => row.actual.currentValue)), actualLots.reduce((sum, lot) => sum + lot.attributedSaleProceeds, 0),
       actualLots.flatMap((lot) => lot.cashFlows), actualLots.reduce((sum, lot) => sum + lot.accumulatedDividends, 0));
     const benchmark = metrics(deployed, remaining, total(compared.map((row) => row.benchmark.currentValue)),
-      compared.some((row) => row.reason) ? null : total(indices.map((index) => virtualLots[index].closedBenchmarkValue)), indices.flatMap((index) => virtualLots[index].cashFlows));
-    holdings[key] = { ...compared[0], id: key, currency: actualLots.every((lot) => lot.currency === "EUR") ? "EUR" : "non-EUR", actual, benchmark, difference: differences(actual, benchmark, true),
+      compared.some((row) => row.reason) ? null : total(indices.map((index) => virtualLots[index].closedBenchmarkValue)), indices.flatMap((index) => virtualLots[index].cashFlows), null);
+    holdings[key] = { ...compared[0], id: key, currency: actualLots.every((lot) => lot.currency === "EUR") ? "EUR" : "non-EUR", actual, benchmark, difference: differences(actual, benchmark),
       reason: compared.some((row) => row.reason) ? `${compared.filter((row) => row.reason).length} purchase lot(s) have incomplete benchmark coverage. Valid lots remain available in Purchase Lots.` : null,
       valuationDate: compared.map((row) => row.valuationDate).filter((date): date is string => !!date).sort().at(-1) ?? null,
       observationDate: compared.map((row) => row.observationDate).filter((date): date is string => !!date).sort().at(-1) ?? null };
   }
-  return { benchmarkId: id, label, description: description + (levels.some((row) => row.is_derived) ? "; derived EUR series" : ""),
+  return { benchmarkId: id, label, description: description + (levels.some((row) => row.is_derived) ? "; derived EUR series" : ""), seriesType: kind, dividendTreatment,
     matching, lots, holdings, virtualLots, missingLots: lots.filter((lot) => lot.reason).length, error: levels.length ? null : `${label} EUR history is unavailable.` };
 }
 

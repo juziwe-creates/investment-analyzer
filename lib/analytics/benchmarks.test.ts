@@ -8,7 +8,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { annualBenchmarkComparison, annualPriceReturns, benchmarkOptions, normalizeBenchmarkComparison, parseBenchmark, type BenchmarkId, type BenchmarkObservation } from "./benchmarks";
 import { visibleSamples } from "../charts/series";
-import { buildBenchmarkComparison, benchmarkView, calculateVirtualBenchmarkTimeline } from "./benchmark-portfolio";
+import { buildBenchmarkComparison, benchmarkCounterfactualLabel, benchmarkView, calculateVirtualBenchmarkTimeline } from "./benchmark-portfolio";
 import { sourceLots, transaction } from "./benchmark-test-fixtures";
 
 const requireModule = createRequire(__filename);
@@ -133,7 +133,8 @@ test("selector URLs load different histories and the chart renders that benchmar
     react: React, "@/components/time-viewport": { useTimeViewport: () => ({ range }) },
     "@/components/time-series-chart": { TimeSeriesChart: ({ series }: { series: Series[] }) => { renderedSeries = series; return React.createElement("div"); } },
     "@/components/benchmark-comparison": { BenchmarkMethodology: ({ comparison }: { comparison: { error: string | null } }) => React.createElement("p", null, comparison.error) },
-    "@/lib/analytics/benchmarks": options, "@/lib/formatters": { formatCurrency: String }
+    "@/lib/analytics/benchmarks": options, "@/lib/analytics/benchmark-portfolio": { benchmarkCounterfactualLabel },
+    "@/lib/formatters": { formatCurrency: String }
   });
   const endingValues = new Set<number | null>();
   for (const url of hrefs) {
@@ -145,7 +146,7 @@ test("selector URLs load different histories and the chart renders that benchmar
     const comparison = buildBenchmarkComparison(sourceLots([transaction("buy", "2024-01-01", "buy", 10, 1000)], "fifo", "2024-01-31"), reference.data, id, "fifo");
     const timeline = calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, id, portfolio.map((point) => point.date));
     const markup = renderToStaticMarkup(React.createElement(PortfolioDevelopmentChart, { points: portfolio, comparison: benchmarkView(comparison), benchmarkTimeline: timeline }));
-    assert.equal(renderedSeries[1].label, benchmarkOptions.find((option) => option.id === id)!.label + " Benchmark Portfolio");
+    assert.equal(renderedSeries[1].label, benchmarkCounterfactualLabel(benchmarkOptions.find((option) => option.id === id)!.label, comparison.dividendTreatment));
     assert.equal(renderedSeries[0].axisFormat, undefined);
     assert.equal(renderedSeries[2].label, "Current Deployed Capital");
     assert.equal(renderedSeries[1].observations.some((point) => point.value !== null), id !== "sp-500");
@@ -163,7 +164,8 @@ test("purchase-lot comparison renders an auditable trace and stale-entry warning
     "next/link": { default: ({ href, children }: { href: string; children: React.ReactNode }) => React.createElement("a", { href }, children) },
     "@/lib/formatters": { formatCurrency: (value: number | null) => value === null ? "-" : `EUR ${value}`,
       formatDate: String, formatNumber: String, formatPercent: (value: number | null) => value === null ? "-" : `${value}%` },
-    "@/lib/utils": { cn: (...values: unknown[]) => values.filter(Boolean).join(" ") }
+    "@/lib/utils": { cn: (...values: unknown[]) => values.filter(Boolean).join(" ") },
+    "@/lib/analytics/benchmark-portfolio": { benchmarkDividendTreatmentLabel: (value: string) => value === "embedded" ? "Embedded in total-return index" : value }
   });
   const source = sourceLots([{ ...transaction("anonymous-buy", "2025-04-07", "buy", 4, 1000), unit_price: 248 }], "lifo", "2025-04-10");
   const weekly = [{ ...observation("2025-04-01", 100), frequency: "weekly" }, { ...observation("2025-04-10", 120), frequency: "weekly" }];

@@ -155,16 +155,17 @@ function lotProfitabilityFromAnalytics(
 }
 
 test("calculates open-lot value, dividends, and total return", () => {
+  const buy = transaction({
+    id: "buy-1",
+    type: "buy",
+    trade_date: "2020-01-01",
+    quantity: 10,
+    unit_price: 100,
+    gross_amount: 1000
+  });
   const lots = calculatePurchaseLots(
     [
-      transaction({
-        id: "buy-1",
-        type: "buy",
-        trade_date: "2020-01-01",
-        quantity: 10,
-        unit_price: 100,
-        gross_amount: 1000
-      }),
+      buy,
       transaction({
         id: "dividend-1",
         type: "dividend",
@@ -174,15 +175,25 @@ test("calculates open-lot value, dividends, and total return", () => {
     ],
     [price()]
   );
+  const withoutDividend = calculatePurchaseLots([buy], [price()])[0];
 
   assert.equal(lots.length, 1);
   assert.equal(lots[0].remainingQuantity, 10);
   assert.equal(lots[0].remainingAcquisitionCost, 1000);
   assert.equal(lots[0].currentRemainingValue, 1500);
+  assert.equal(lots[0].currentRemainingValue, withoutDividend.currentRemainingValue);
+  assert.equal(lots[0].remainingAcquisitionCost, withoutDividend.remainingAcquisitionCost);
   assert.equal(lots[0].attributedDividends, 180);
+  assert.equal(lots[0].totalEconomicValue, 1680);
   assert.equal(lots[0].totalGain, 680);
   assert.equal(lots[0].totalReturnPercent, 68);
   assert.equal(lots[0].annualizedReturnStatus, "valid");
+  assert.deepEqual(lots[0].cashFlows.find((flow) => flow.kind === "dividend"), {
+    date: "2021-01-01",
+    amount: 180,
+    kind: "dividend",
+    transactionId: "dividend-1"
+  });
 });
 
 test("allocates partial sell proceeds to the oldest open lot using FIFO", () => {

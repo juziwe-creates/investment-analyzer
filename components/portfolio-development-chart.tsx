@@ -5,7 +5,7 @@ import { TimeSeriesChart } from "@/components/time-series-chart";
 import { BenchmarkMethodology } from "@/components/benchmark-comparison";
 import { formatCurrency } from "@/lib/formatters";
 import type { PortfolioDevelopmentPoint } from "@/lib/analytics/portfolio";
-import type { BenchmarkTimelinePoint, BenchmarkView } from "@/lib/analytics/benchmark-portfolio";
+import { benchmarkCounterfactualLabel, type BenchmarkTimelinePoint, type BenchmarkView } from "@/lib/analytics/benchmark-portfolio";
 
 export function PortfolioDevelopmentChart({ points, emptyMessage, comparison, benchmarkTimeline = [] }: {
   points: PortfolioDevelopmentPoint[]; emptyMessage?: string;
@@ -18,7 +18,7 @@ export function PortfolioDevelopmentChart({ points, emptyMessage, comparison, be
     <TimeSeriesChart points={points} label="Portfolio performance" emptyMessage={emptyMessage} series={[
       { label: "Portfolio Value", color: "hsl(var(--chart-portfolio))", value: (point) => point.portfolioValue },
       ...(hasIncompletePricing ? [{ label: "Priced Holdings Value (partial)", color: "hsl(var(--chart-portfolio) / .55)", value: (point: PortfolioDevelopmentPoint) => point.pricedPortfolioValue }] : []),
-      ...(comparison ? [{ label: `${comparison.label} Benchmark Portfolio`, color: "hsl(var(--chart-benchmark))", value: () => null, stepped: true,
+      ...(comparison ? [{ label: benchmarkCounterfactualLabel(comparison.label, comparison.dividendTreatment), color: "hsl(var(--chart-benchmark))", value: () => null, stepped: true,
         observations: benchmarkTimeline.map((point) => ({ date: point.date, value: point.value,
           tooltip: [{ label: comparison.label, value: point.value === null ? "Unavailable" : formatCurrency(point.value, "EUR") },
             { label: "Benchmark observation", value: point.observationDate ?? "Unavailable" }] })) }] : []),
@@ -33,6 +33,7 @@ export function PortfolioDevelopmentChart({ points, emptyMessage, comparison, be
     ]} />
     {benchmarkTimeline.some((point) => point.missingLots > 0) ? <p className="text-xs text-muted-foreground">Some benchmark entry history is missing. Incomplete portfolio benchmark totals are unavailable; covered purchase lots remain available in their comparison view.</p> : null}
     {hasIncompletePricing ? <p className="text-xs text-muted-foreground">Portfolio Value is hidden for periods where one or more open holdings have no historical price. The lighter partial line shows only priced holdings; Current Deployed Capital remains complete.</p> : null}
+    {comparison?.dividendTreatment === "embedded" ? <p className="text-xs text-muted-foreground">Portfolio Value excludes dividends. The benchmark total-return series includes reinvested benchmark dividends. Use Total Return / XIRR for the fair performance comparison.</p> : comparison?.dividendTreatment === "excluded" ? <p className="text-xs text-muted-foreground">Portfolio Value excludes dividends. This benchmark price series also excludes dividends; actual Total Return / XIRR includes recorded dividend cash flows.</p> : null}
     {comparison ? <BenchmarkMethodology comparison={comparison} /> : null}
   </div>;
 }

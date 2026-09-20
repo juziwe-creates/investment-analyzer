@@ -208,6 +208,33 @@ Important consequence:
 - Lots already sold before the dividend date do not receive that dividend.
 - With LIFO analytics, the sell rule can change which lots remain eligible for future dividends.
 
+# Canonical Value, Cost, And Total-Return Semantics
+
+These definitions are authoritative for the shared lot engine and actual-versus-benchmark purchase-lot and holding comparisons.
+
+```text
+current market value = remaining quantity * current market price
+economic reference value = current market value + attributed sale proceeds + attributed dividends
+total gain = economic reference value - original acquisition cost
+total return percent = total gain / original acquisition cost * 100
+```
+
+- Portfolio Value and current market value exclude dividends and sale proceeds.
+- Dividends never reduce original acquisition cost, remaining acquisition cost, or Current Deployed Capital.
+- Recorded dividends use the factual gross amount when present, otherwise net amount, otherwise factual quantity times unit price. No additional tax multiplier is applied in this canonical comparison model.
+- XIRR preserves each dividend as a positive cash flow on its actual transaction date. It does not move dividends to the valuation date or assume actual reinvestment.
+- A fully closed lot has zero current market value; its economic reference value is sale proceeds plus attributed dividends.
+- `referenceValue` in legacy Transaction Analytics remains a valuation/sale reference and is not the canonical economic reference value.
+
+For benchmark comparisons:
+
+```text
+actual economic reference value = current market value + actual sale proceeds + actual dividends
+benchmark economic reference value = current virtual benchmark value + benchmark exit proceeds
+```
+
+Total-return/performance benchmark levels already embed benchmark-methodology dividend reinvestment, so no synthetic benchmark dividend cash flow is added. Price-index benchmarks exclude dividends. The stored benchmark `series_type` determines which disclosure is shown.
+
 # Dividend Tax Assumption
 
 Transaction Analytics and Stock Analytics use a fixed after-tax dividend factor:
@@ -430,7 +457,7 @@ missing price securities are reported
 
 This avoids showing missing prices as fake losses.
 
-CR-04 clarification: the chart's Current Deployed Capital series always shows full remaining acquisition cost, including unpriced lots, so price arrival cannot create a false capital deployment event. Priced acquisition cost still underlies the separately calculated unrealized gain. The chart discloses that its value/capital gap is incomplete when prices are missing. Fully closed positions retain their zero-capital event. Capital and cumulative dividends step at exact transaction dates, without event-dropping decimation.
+CR-04 clarification: the chart's Current Deployed Capital series always shows full remaining acquisition cost, including unpriced lots, so price arrival cannot create a false capital deployment event. Priced acquisition cost still underlies the separately calculated unrealized gain. Complete Portfolio Value is withheld when any open holding lacks a historical price; a separately labeled partial line may show only priced holdings. Fully closed positions retain their zero-capital event. Capital and cumulative dividends step at exact transaction dates, without event-dropping decimation. Portfolio Value never includes cumulative dividends.
 
 # Capital Deployment
 
@@ -473,12 +500,13 @@ The user approved retaining each view's current lot matching and using the exist
 - Dashboard and Current Holdings retain FIFO; Investment Detail, its Position Value chart and Purchase Lots retain LIFO. The methodology disclosure names the active rule. Comparisons across these views can differ after sales.
 - Entry, exit and valuation levels use the latest prior-or-same period date; the actual source observation date must also not be in the future. EUR benchmark levels carry forward between observations and after the latest stored point, with observation dates disclosed. No rebase occurs during zoom or pan.
 - Charts show remaining benchmark units times the dated level, in EUR. They include exact purchase/exit dates and weekly observations. Withdrawn proceeds are excluded from position charts. Price mode retains its existing price and dividend overlays.
-- Lot comparison Value / Reference includes remaining value plus all exit proceeds on both sides. This explicit label differs from the unchanged Actual tab's remaining-value display for partially open lots.
-- Current Holdings current values include remaining positions; gain and returns include all historical lots for each still-held security, including earlier closed lots. Gain = remaining value + sale proceeds + recorded dividends - original acquisition costs. Return = gain / original acquisition costs. Benchmark gain uses counterfactual exit proceeds and no invented dividend cash.
+- Lot and holding benchmark comparisons use Economic Reference Value as their headline monetary performance comparison. Actual Economic Reference Value includes remaining market value, attributed exit proceeds, and recorded dividends. Benchmark Economic Reference Value includes current virtual benchmark value and counterfactual exit proceeds.
+- Current market value and sale proceeds remain separately visible as informational components. They are not presented as equivalent to the total-return benchmark outcome.
+- Current Holdings current values include remaining positions; gain and returns include all historical lots for each still-held security, including earlier closed lots. Gain = economic reference value - original acquisition costs. Return = gain / original acquisition costs. Benchmark gain uses counterfactual exit proceeds and no invented dividend cash.
 - Actual dividends retain the existing gross-first, otherwise net, otherwise factual quantity-times-price convention, with no additional 0.71575 multiplier. The new comparison does not alter the separate legacy after-tax analytics.
 - XIRR reuses the shared 365.25-day solver. Benchmark flows are negative original cost, positive dated counterfactual exits, and remaining value at the actual current valuation date. Closed lots have no terminal flow. Holding XIRR combines lot cash flows, never averages rates.
 - Differences are actual minus benchmark. Monetary differences are EUR; rate differences are percentage points. Both original acquisition cost and remaining cost are shown, separately from current value and total reference value.
-- Series metadata distinguishes net total return, total return/performance index and price index. Benchmark Yield on Cost remains unavailable without factual dividend cash. No synthetic cash dividends are added to total-return levels.
+- Series metadata distinguishes net total return, total return/performance index and price index. Total-return benchmark dividends are labeled embedded; price-index dividends are labeled excluded. Benchmark Yield on Cost remains unavailable without factual dividend cash. No synthetic cash dividends are added to total-return levels.
 - Missing entry history remains unavailable permanently for that purchase; future observations cannot repair its entry. Valid lots remain visible. Aggregates with incomplete lot coverage are withheld and disclosed, never shown as complete partial sums. Non-EUR comparisons are withheld.
 - New models are calculated server-side in memory. The dashboard shares its comparison calculation within the request; viewport gestures reuse the generated timeline and make no database or provider calls. Presentation-scaled inputs scale benchmark units and money consistently while preserving return percentages.
 
@@ -497,7 +525,7 @@ The following are unresolved and must not be silently decided during UI implemen
 1. **Portfolio Total Return after partial/full sales** - exact treatment of realized gains and correct denominator/methodology.
 2. **Realized Gain** - exact portfolio and investment-level definition.
 3. **Lot matching policy** - current behavior differs between the FIFO engine default and LIFO analytical views; one deliberate rule, or explicitly approved context-specific rules, is required.
-4. **Dividend semantics** - gross versus after-tax treatment and whether tax assumptions belong in investment-performance metrics.
+4. **Legacy after-tax analytics** - whether the fixed `0.71575` assumption in Transaction Analytics and Stock Analytics should remain. Canonical lot/holding benchmark comparisons use recorded gross-first dividend cash without an additional multiplier.
 5. **Yield on Cost aggregation** - investment-level is approved above; portfolio-wide and per-lot variants still need definitions.
 6. **EUR / FX** - user-facing V1 analytics require EUR, so multi-currency valuation requires a defined methodology rather than currency relabeling.
 7. **YTD and last-365-day return** - exact return methodology.

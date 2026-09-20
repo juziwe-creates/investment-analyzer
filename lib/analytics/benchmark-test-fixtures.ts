@@ -11,8 +11,8 @@ export const transaction = (id: string, date: string, type: AnalyticsTransaction
   id, trade_date: date, created_at: date, type, quantity, gross_amount: amount, net_amount: null,
   unit_price: null, security_name: key, isin: key, ticker: null, currency: "EUR"
 });
-export function sourceLots(transactions: AnalyticsTransaction[], matching: LotMatchingMethod = "fifo", end = "2022-01-03"): LotProfitability[] {
-  return calculatePurchaseLots(transactions, ["A", "B"].map((key) => ({ security_key: key, price_date: end, price: 200, currency: "EUR" })), end, { lotMatchingMethod: matching }).map((lot) => ({
+export function sourceLots(transactions: AnalyticsTransaction[], matching: LotMatchingMethod = "fifo", end = "2022-01-03", price = 200): LotProfitability[] {
+  return calculatePurchaseLots(transactions, ["A", "B"].map((key) => ({ security_key: key, price_date: end, price, currency: "EUR" })), end, { lotMatchingMethod: matching }).map((lot) => ({
     id: lot.buyTransactionId, tradeDate: lot.buyDate, securityKey: lot.securityKey, securityName: lot.securityName, type: "buy",
     quantity: lot.originalQuantity, remainingQuantity: lot.remainingQuantity, actualPurchasePrice: lot.actualPurchasePrice, buyPrice: lot.acquisitionCostPerShare,
     costBasis: lot.originalAcquisitionCost, remainingCostBasis: lot.remainingAcquisitionCost,

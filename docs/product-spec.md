@@ -76,6 +76,17 @@ V1 includes:
 
 Benchmark comparisons must use a common normalized basis. A benchmark-relative KPI may be labeled `α` only after its statistical definition has been approved.
 
+### Value, Cost, And Investment Performance
+
+- Portfolio Value is only the current market value of currently held securities. It excludes dividends, sale proceeds, and cash balances.
+- Acquisition Cost is the original all-in purchase cost under the approved fee rules. Dividends never reduce it.
+- Current Deployed Capital is the remaining acquisition cost of currently held shares.
+- For a purchase lot or investment, Economic Reference Value equals current market value plus attributed sale proceeds plus recorded dividends.
+- Total Gain equals Economic Reference Value minus original acquisition cost. Total Return divides that gain by original acquisition cost.
+- Actual XIRR uses purchases, dividends, sales, and any terminal market value on their real dates. Actual dividends are not assumed to be reinvested.
+- A total-return/performance benchmark embeds benchmark-methodology dividend reinvestment, so no second benchmark dividend cash flow is added. A price-index benchmark excludes dividends and must be labeled accordingly.
+- Economic Reference Value, Total Gain, Total Return, and XIRR are the primary actual-versus-benchmark performance comparisons. Current market value remains visible as valuation context, not as the headline performance comparison.
+
 ## Investments
 
 Investments is a searchable and filterable inventory with Current, Closed, and All states. Selecting an investment opens Investment Detail.
@@ -148,7 +159,7 @@ The following require explicit product decisions before affected implementation 
 1. Portfolio Total Return after partial or full sales, including realized-gain treatment and denominator/methodology.
 2. Realized Gain at portfolio and investment level.
 3. One deliberate lot-matching policy, because current views use differing FIFO/LIFO behavior.
-4. Dividend semantics, including gross versus after-tax treatment and tax assumptions in performance.
+4. Whether the legacy fixed after-tax assumption in Transaction Analytics and Stock Analytics should be retained, replaced with broker-recorded tax facts, or removed. Canonical lot/holding benchmark comparisons use the recorded gross-first dividend convention without an additional multiplier.
 5. Portfolio-wide and per-lot Yield on Cost aggregation. Investment-level Yield on Cost is now approved by CR-05: last completed calendar-year dividends divided by remaining acquisition cost at that year's final dividend (see Analytics Rules).
 6. EUR/FX valuation methodology for multi-currency assets.
 7. Return Current Year and Return Last 365 Days methodology.
