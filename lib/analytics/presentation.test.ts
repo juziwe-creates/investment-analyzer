@@ -14,6 +14,7 @@ function transaction(overrides: Partial<Transaction>): Transaction {
     trade_date: "2020-01-01", settlement_date: null, quantity: 100, unit_price: 100,
     gross_amount: 10000, net_amount: 10010, currency: "EUR", external_id: "private",
     broker: "private", source_document_id: "document", import_run_id: "import",
+    source_event_type: null, import_fingerprint: null,
     notes: "Actual purchase: 100 shares", created_at: "2020-01-01T00:00:00Z",
     updated_at: "2020-01-01T00:00:00Z", ...overrides
   };

@@ -325,3 +325,15 @@ The Market Data page is the operational control center for this boundary. It sho
 German EODHD exchange prices should be treated as EUR for display and analytics when the provider symbol ends in `.XETRA` or `.F`. This corrects cases where imported security metadata carries the native instrument currency, such as DKK for Novo Nordisk, even though the German exchange price numbers are already EUR-like. The system does not perform FX conversion for these rows; it only corrects the market-data currency label for German exchange symbols.
 
 Bulk market-data refresh should start as an incremental price-only workflow for securities that already have synced market prices and are normal stocks, ETFs, or funds. The refresh uses the latest stored price date per security and asks the provider for prices from the next day onward. Full historical reloads should remain manual and deliberate because they consume more provider quota and rewrite more rows than necessary.
+
+# Comdirect PostBox Boundary
+
+The Comdirect integration is split into three independent layers:
+
+- `lib/comdirect` defines the typed OAuth, Session-TAN, metadata, and document-download adapter boundary. The HTTP implementation remains disabled until the current authenticated comdirect API contract is supplied.
+- `lib/import/comdirect` classifies and parses downloaded PDFs deterministically. Parsing never calls an LLM and extracted text is not persisted.
+- `app/actions/comdirect.ts` orchestrates private storage, duplicate detection, review, and the atomic database import function.
+
+The operational fallback accepts already-downloaded PostBox PDFs. Originals are stored in the private `source-documents` bucket under a user-scoped path. Browser access uses a short-lived signed URL after an ownership check. A single database function creates each transaction and its components and updates the import audit records in one transaction.
+
+See `docs/comdirect-import.md` for supported layouts, security constraints, and the remaining official-API blocker.

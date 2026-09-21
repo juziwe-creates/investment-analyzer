@@ -1,0 +1,8 @@
+Dividendengutschrift
+Gutschrift fälliger Wertpapier-Erträge
+Stk. 10 Beispiel AG, WKN / ISIN: ABC123 / DE000ABC1234
+Dividende pro Stück: EUR 10,00
+Zu Ihren Gunsten vor Steuern: EUR 100,00
+Kapitalertragsteuer: EUR 26,38
+Zu Ihren Gunsten nach Steuern: EUR 73,62
+Valuta: 06.05.2026

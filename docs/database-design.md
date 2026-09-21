@@ -595,6 +595,20 @@ Example fingerprint inputs:
 
 The system should store enough import metadata to explain why a row was imported, skipped, or rejected.
 
+## Comdirect Import Audit Model
+
+Migration `20260921000000_comdirect_postbox_foundation.sql` extends the existing import tables; it does not create parallel import entities.
+
+- `source_documents` stores ownership, private object path, content hash, external document identity, parser version, normalized document class, and parse status.
+- `import_runs` stores bounded-batch counters and resumable cursor metadata.
+- `import_rows` stores a sanitized source summary, normalized candidate, validation result, fingerprint, review status, and resulting transaction link.
+- `transactions` stores `source_event_type` for warrant lifecycle semantics and an idempotent `import_fingerprint`.
+- `transaction_components` remains the canonical store for broker fees and taxes parsed from a document.
+
+The `import_comdirect_candidate` function is the only atomic promotion path from an import row into the transaction ledger. It executes with caller permissions, verifies the authenticated run owner, locks the import row, rechecks the fingerprint, inserts components, and updates audit state in one database transaction. Exact duplicates resolve to the existing transaction without creating a second ledger event.
+
+The `source-documents` Storage bucket is private. Its policies scope object paths by the authenticated user ID. PDF bytes are retained for audit; extracted text is processed in memory and is not stored.
+
 # MVP Schema Scope
 
 Required for MVP:

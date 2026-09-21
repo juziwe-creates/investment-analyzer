@@ -9,7 +9,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "bench:analytics": "tsc -p tsconfig.test.json && node .tmp-tests/lib/analytics/performance.bench.js",
-    "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/analytics/benchmark-portfolio.test.js .tmp-tests/lib/analytics/benchmarks.test.js .tmp-tests/lib/analytics/historical-chart-bugfix.test.js .tmp-tests/lib/transactions/delete.test.js .tmp-tests/lib/charts/series.test.js .tmp-tests/lib/analytics/dividends.test.js .tmp-tests/lib/charts/time-viewport.test.js .tmp-tests/lib/analytics/presentation.test.js .tmp-tests/lib/analytics/currency.test.js .tmp-tests/lib/analytics/engine.test.js .tmp-tests/lib/market-data/currency.test.js .tmp-tests/lib/market-data/symbols.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/analytics/benchmark-portfolio.test.js .tmp-tests/lib/analytics/benchmarks.test.js .tmp-tests/lib/analytics/historical-chart-bugfix.test.js .tmp-tests/lib/transactions/delete.test.js .tmp-tests/lib/charts/series.test.js .tmp-tests/lib/analytics/dividends.test.js .tmp-tests/lib/charts/time-viewport.test.js .tmp-tests/lib/analytics/presentation.test.js .tmp-tests/lib/analytics/currency.test.js .tmp-tests/lib/analytics/engine.test.js .tmp-tests/lib/import/comdirect/comdirect.test.js .tmp-tests/lib/market-data/currency.test.js .tmp-tests/lib/market-data/symbols.test.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
@@ -18,11 +18,12 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
-    "next": "^16.2.9",
+    "next": "^16.3.5",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "unpdf": "^1.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

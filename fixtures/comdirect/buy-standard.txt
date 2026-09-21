@@ -1,0 +1,9 @@
+Wertpapierabrechnung Kauf
+Geschäftstag: 14.05.2026
+Ausführungsplatz: TRADEGATE
+Stk. 5 Beispiel AG, WKN / ISIN: ABC123 / DE000ABC1234
+Zum Kurs von EUR 100,00
+Kurswert: EUR 500,00
+Provision: EUR 5,00
+Zu Ihren Lasten nach Steuern: EUR 505,00
+Valuta 18.05.2026

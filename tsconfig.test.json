@@ -24,6 +24,7 @@
     "lib/analytics/currency.test.ts",
     "lib/analytics/engine.ts",
     "lib/analytics/engine.test.ts",
+    "lib/import/comdirect/comdirect.test.ts",
     "lib/market-data/currency.ts",
     "lib/market-data/currency.test.ts",
     "lib/market-data/symbols.ts",

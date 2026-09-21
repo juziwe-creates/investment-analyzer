@@ -1,0 +1,10 @@
+Wertpapierabrechnung Verkauf
+Geschäftstag: 20.06.2026
+Ausführungsplatz: XETRA
+Stk. 5 Beispiel AG, WKN / ISIN: ABC123 / DE000ABC1234
+Zum Kurs von EUR 120,00
+Kurswert: EUR 600,00
+Provision: EUR 5,00
+Kapitalertragsteuer: EUR 5,00
+Zu Ihren Gunsten nach Steuern: EUR 590,00
+Valuta 22.06.2026

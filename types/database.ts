@@ -58,6 +58,70 @@ export type Database = {
         };
         Relationships: [];
       };
+      source_documents: {
+        Row: {
+          id: string; user_id: string; portfolio_id: string | null; import_run_id: string | null;
+          document_type: Database["public"]["Enums"]["source_document_type"];
+          source_type: Database["public"]["Enums"]["source_type"];
+          storage_path: string | null; original_filename: string | null; content_hash: string | null;
+          broker: string | null; external_document_id: string | null; document_title: string | null;
+          document_date: string | null; mime_type: string | null; normalized_document_type: string | null;
+          source_metadata: Json; parser_name: string | null; parser_version: string | null;
+          parse_status: string; uploaded_at: string; created_at: string; updated_at: string;
+        };
+        Insert: {
+          id?: string; user_id: string; portfolio_id?: string | null; import_run_id?: string | null;
+          document_type: Database["public"]["Enums"]["source_document_type"];
+          source_type: Database["public"]["Enums"]["source_type"];
+          storage_path?: string | null; original_filename?: string | null; content_hash?: string | null;
+          broker?: string | null; external_document_id?: string | null; document_title?: string | null;
+          document_date?: string | null; mime_type?: string | null; normalized_document_type?: string | null;
+          source_metadata?: Json; parser_name?: string | null; parser_version?: string | null;
+          parse_status?: string; uploaded_at?: string; created_at?: string; updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["source_documents"]["Insert"]>;
+        Relationships: [];
+      };
+      import_runs: {
+        Row: {
+          id: string; user_id: string; portfolio_id: string; source_document_id: string | null;
+          source_type: Database["public"]["Enums"]["source_type"]; broker: string | null;
+          status: Database["public"]["Enums"]["import_status"]; started_at: string; finished_at: string | null;
+          rows_total: number | null; rows_imported: number | null; rows_failed: number | null;
+          documents_seen: number; documents_new: number; documents_imported: number; documents_review: number;
+          documents_ignored: number; documents_failed: number; transactions_created: number;
+          cursor_state: Json; error_message: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; user_id: string; portfolio_id: string; source_document_id?: string | null;
+          source_type: Database["public"]["Enums"]["source_type"]; broker?: string | null;
+          status?: Database["public"]["Enums"]["import_status"]; started_at?: string; finished_at?: string | null;
+          rows_total?: number | null; rows_imported?: number | null; rows_failed?: number | null;
+          documents_seen?: number; documents_new?: number; documents_imported?: number; documents_review?: number;
+          documents_ignored?: number; documents_failed?: number; transactions_created?: number;
+          cursor_state?: Json; error_message?: string | null; created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["import_runs"]["Insert"]>;
+        Relationships: [];
+      };
+      import_rows: {
+        Row: {
+          id: string; import_run_id: string; source_document_id: string | null; row_number: number | null;
+          raw_payload: Json; normalized_payload: Json | null; validation_result: Json | null;
+          status: Database["public"]["Enums"]["import_row_status"]; transaction_id: string | null;
+          parser_name: string | null; parser_version: string | null; transaction_fingerprint: string | null;
+          error_message: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; import_run_id: string; source_document_id?: string | null; row_number?: number | null;
+          raw_payload: Json; normalized_payload?: Json | null; validation_result?: Json | null;
+          status?: Database["public"]["Enums"]["import_row_status"]; transaction_id?: string | null;
+          parser_name?: string | null; parser_version?: string | null; transaction_fingerprint?: string | null;
+          error_message?: string | null; created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["import_rows"]["Insert"]>;
+        Relationships: [];
+      };
       transactions: {
         Row: {
           id: string;
@@ -83,6 +147,8 @@ export type Database = {
           broker: string | null;
           source_document_id: string | null;
           import_run_id: string | null;
+          source_event_type: string | null;
+          import_fingerprint: string | null;
           notes: string | null;
           created_at: string;
           updated_at: string;
@@ -111,6 +177,8 @@ export type Database = {
           broker?: string | null;
           source_document_id?: string | null;
           import_run_id?: string | null;
+          source_event_type?: string | null;
+          import_fingerprint?: string | null;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -131,6 +199,8 @@ export type Database = {
           gross_amount?: number | null;
           net_amount?: number | null;
           currency?: string;
+          source_event_type?: string | null;
+          import_fingerprint?: string | null;
           notes?: string | null;
           updated_at?: string;
         };
@@ -548,7 +618,7 @@ export type Database = {
         | "postbox_document"
         | "manual_entry"
         | "api_payload";
-      import_row_status: "pending" | "imported" | "skipped" | "failed";
+      import_row_status: "pending" | "imported" | "skipped" | "failed" | "review" | "ignored";
     };
     CompositeTypes: Record<string, never>;
   };

@@ -1,0 +1,9 @@
+Wertpapierabrechnung Kauf
+Geschäftstag: 01.11.2024
+Ausführungsplatz: FRANKFURT
+Stk. 625 BNP CALL26 BEISPIEL, WKN / ISIN: WA1234 / DE000WA12345
+Zum Kurs von EUR 2,00
+Kurswert: EUR 1.250,00
+Provision: EUR 10,00
+Zu Ihren Lasten nach Steuern: EUR 1.260,00
+Valuta 05.11.2024

@@ -5,6 +5,11 @@ const deploymentDescription = (process.env.VERCEL_GIT_COMMIT_MESSAGE
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "4mb"
+    }
+  },
   env: {
     NEXT_PUBLIC_ALPHA_DEPLOYED_AT: new Date().toISOString(),
     NEXT_PUBLIC_ALPHA_DEPLOYMENT_DESCRIPTION: deploymentDescription

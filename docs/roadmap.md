@@ -302,6 +302,13 @@ Scope:
 - Comdirect postbox document metadata
 - broker-specific field mapping
 - Comdirect duplicate detection
+
+Implementation checkpoint (September 2026):
+
+- Complete: private PDF upload fallback, deterministic buy/sell/dividend/warrant parsing, lifecycle classification, validation, exact and probable duplicate checks, atomic transaction/component writes, audit trail, and review queue.
+- Complete: typed live-connector boundary for OAuth, Session-TAN, PostBox metadata paging, and document download.
+- Blocked: live API transport until the current Swagger or Postman contract is exported from the authenticated comdirect developer area. No endpoints or TAN behavior will be inferred from old examples.
+- Pending after contract delivery: mocked transport integration tests, bounded resumable metadata sync, live connection UX, and a controlled production pilot.
 - source traceability from document to transaction
 
 Success criteria:

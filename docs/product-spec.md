@@ -52,6 +52,8 @@ The intended top-level navigation is:
 Secondary navigation is:
 
 - Import
+
+Import is an auditable ingestion workflow, not a shortcut around the transaction ledger. Comdirect documents are privately retained, deterministically parsed, validated, deduplicated, and either atomically promoted to transactions or placed in a review queue. Unknown layouts must never silently create financial records.
 - Settings
 
 Stock Analytics, Lot Analytics / Transaction Analytics, and Market Data must not remain independent primary analytical destinations in the target V1 experience.
