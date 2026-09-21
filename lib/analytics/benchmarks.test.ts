@@ -6,9 +6,9 @@ import { createRequire } from "node:module";
 import ts from "typescript";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { annualBenchmarkComparison, annualPriceReturns, benchmarkOptions, normalizeBenchmarkComparison, parseBenchmark, type BenchmarkId, type BenchmarkObservation } from "./benchmarks";
+import { annualBenchmarkComparison, annualPriceReturns, benchmarkOptions, normalizeBenchmarkComparison, parseBenchmark, parseBenchmarks, type BenchmarkId, type BenchmarkObservation } from "./benchmarks";
 import { visibleSamples } from "../charts/series";
-import { buildBenchmarkComparison, benchmarkCounterfactualLabel, benchmarkView, calculateVirtualBenchmarkTimeline } from "./benchmark-portfolio";
+import { buildBenchmarkComparison, benchmarkView, calculateVirtualBenchmarkTimeline } from "./benchmark-portfolio";
 import { sourceLots, transaction } from "./benchmark-test-fixtures";
 
 const requireModule = createRequire(__filename);
@@ -117,46 +117,42 @@ test("annual difference is investment minus benchmark in percentage points", () 
   assert.equal(result[1].difference, null);
 });
 
-test("selector URLs load different histories and the chart renders that benchmark's series", async () => {
+test("selector preserves multiple benchmarks and the chart renders every selected series", async () => {
   type Series = { label: string; observations: { date: string; value: number | null }[]; axisFormat?: (value: number) => string };
   let renderedSeries: Series[] = [];
-  const options = { benchmarkOptions, parseBenchmark, normalizeBenchmarkComparison };
-  const { BenchmarkSelector } = loadModule<{ BenchmarkSelector: React.ComponentType<{ selected: BenchmarkId }> }>("components/benchmark-selector.tsx", {
+  const options = { benchmarkOptions, parseBenchmark, parseBenchmarks, normalizeBenchmarkComparison };
+  const { BenchmarkSelector } = loadModule<{ BenchmarkSelector: React.ComponentType<{ selected: BenchmarkId[] }> }>("components/benchmark-selector.tsx", {
     "next/navigation": { usePathname: () => "/dashboard", useSearchParams: () => new URLSearchParams("portfolio=account&from=2024-01-01&security=stock") },
     "next/link": { default: ({ href, children }: { href: string; children: React.ReactNode }) => React.createElement("a", { href }, children) },
     "@/lib/analytics/benchmarks": options, "@/lib/utils": { cn: (...values: unknown[]) => values.filter(Boolean).join(" ") }
   });
-  const selector = renderToStaticMarkup(React.createElement(BenchmarkSelector, { selected: "msci-world" }));
+  const selector = renderToStaticMarkup(React.createElement(BenchmarkSelector, { selected: ["msci-world"] }));
   const hrefs = [...selector.matchAll(/href="([^"]+)"/g)].map((match) => new URL(match[1].replaceAll("&amp;", "&"), "https://example.test"));
   assert.equal(hrefs.length, 3);
+  assert.deepEqual(hrefs[1].searchParams.getAll("benchmark"), ["msci-world", "sp-500"]);
+  assert.deepEqual(hrefs[2].searchParams.getAll("benchmark"), ["msci-world", "dax"]);
+  assert.deepEqual(parseBenchmarks(["dax", "bad", "msci-world"]), ["msci-world", "dax"]);
   const { PortfolioDevelopmentChart } = loadModule<{ PortfolioDevelopmentChart: React.ComponentType<Record<string, unknown>> }>("components/portfolio-development-chart.tsx", {
-    react: React, "@/components/time-viewport": { useTimeViewport: () => ({ range }) },
+    react: React,
     "@/components/time-series-chart": { TimeSeriesChart: ({ series }: { series: Series[] }) => { renderedSeries = series; return React.createElement("div"); } },
     "@/components/benchmark-comparison": { BenchmarkMethodology: ({ comparison }: { comparison: { error: string | null } }) => React.createElement("p", null, comparison.error) },
-    "@/lib/analytics/benchmarks": options, "@/lib/analytics/benchmark-portfolio": { benchmarkCounterfactualLabel },
-    "@/lib/formatters": { formatCurrency: String }
+    "@/lib/formatters": { formatCurrency: String }, "@/lib/utils": { cn: (...values: unknown[]) => values.filter(Boolean).join(" ") }
   });
-  const endingValues = new Set<number | null>();
-  for (const url of hrefs) {
-    assert.equal(url.searchParams.get("portfolio"), "account");
-    assert.equal(url.searchParams.get("from"), "2024-01-01");
-    assert.equal(url.searchParams.get("security"), "stock");
-    const id = parseBenchmark(url.searchParams.get("benchmark") ?? undefined);
+  const source = sourceLots([transaction("buy", "2024-01-01", "buy", 10, 1000)], "fifo", "2024-01-31");
+  const selected = await Promise.all((["msci-world", "dax"] as const).map(async (id) => {
     const reference = await historyHarness().readBenchmarkHistory(id);
-    const comparison = buildBenchmarkComparison(sourceLots([transaction("buy", "2024-01-01", "buy", 10, 1000)], "fifo", "2024-01-31"), reference.data, id, "fifo");
-    const timeline = calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, id, portfolio.map((point) => point.date));
-    const markup = renderToStaticMarkup(React.createElement(PortfolioDevelopmentChart, { points: portfolio, comparison: benchmarkView(comparison), benchmarkTimeline: timeline }));
-    assert.equal(renderedSeries[1].label, benchmarkCounterfactualLabel(benchmarkOptions.find((option) => option.id === id)!.label, comparison.dividendTreatment));
-    assert.equal(renderedSeries[0].axisFormat, undefined);
-    assert.equal(renderedSeries[2].label, "Current Deployed Capital");
-    assert.equal(renderedSeries[1].observations.some((point) => point.value !== null), id !== "sp-500");
-    if (id === "sp-500") assert.match(markup, /history is unavailable/);
-    else endingValues.add(renderedSeries[1].observations.at(-1)!.value);
-  }
-  assert.equal(endingValues.size, 2);
+    const comparison = buildBenchmarkComparison(source, reference.data, id, "fifo");
+    return { comparison: benchmarkView(comparison), timeline: calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, id, portfolio.map((point) => point.date)) };
+  }));
+  renderToStaticMarkup(React.createElement(PortfolioDevelopmentChart, { points: portfolio, benchmarks: selected }));
+  assert.equal(renderedSeries[0].label, "Portfolio Value");
+  assert.equal(renderedSeries[1].label, "MSCI World Counterfactual");
+  assert.equal(renderedSeries[2].label, "DAX Counterfactual");
+  assert.equal(renderedSeries[3].label, "Current Deployed Capital");
+  assert.notEqual(renderedSeries[1].observations.at(-1)?.value, renderedSeries[2].observations.at(-1)?.value);
   const page = readFileSync("app/(app)/dashboard/page.tsx", "utf8");
-  assert.match(page, /readBenchmarkHistory\(benchmark\)/);
-  assert.match(page, /<DashboardPerformance history=\{history\} benchmark=\{benchmark\} benchmarkHistory=\{benchmarkHistory\}/);
+  assert.match(page, /benchmarks\.map\(\(selectedBenchmark\)/);
+  assert.match(page, /<DashboardPerformance history=\{history\} benchmarkHistories=\{benchmarkHistories\}/);
 });
 
 test("purchase-lot comparison renders an auditable trace and stale-entry warning", () => {

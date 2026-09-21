@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AnnualPerformanceGrid } from "@/components/annual-performance-grid";
 import { BenchmarkSelector } from "@/components/benchmark-selector";
-import { annualPriceReturns, benchmarkOptions, parseBenchmark } from "@/lib/analytics/benchmarks";
+import { annualPriceReturns, benchmarkOptions, parseBenchmarks } from "@/lib/analytics/benchmarks";
 import { readBenchmarkHistory } from "@/lib/market-data/benchmark-history";
 import { type InvestmentMarker } from "@/components/investment-detail-chart";
 import { InvestmentHistoryPanel } from "@/components/investment-history-panel";
@@ -26,11 +26,12 @@ function cashAmount(transaction: Transaction) {
   return Math.abs(transaction.gross_amount ?? transaction.net_amount ?? ((transaction.quantity ?? 0) * (transaction.unit_price ?? 0)));
 }
 
-export default async function InvestmentDetailPage({ params, searchParams }: { params: Promise<{ securityKey: string }>; searchParams: Promise<{ portfolio?: string; benchmark?: string }> }) {
+export default async function InvestmentDetailPage({ params, searchParams }: { params: Promise<{ securityKey: string }>; searchParams: Promise<{ portfolio?: string; benchmark?: string | string[] }> }) {
   const { securityKey: encodedKey } = await params;
   const { portfolio: portfolioId, benchmark: rawBenchmark } = await searchParams;
   const securityKey = decodeURIComponent(encodedKey);
-  const benchmark = parseBenchmark(rawBenchmark);
+  const benchmarks = parseBenchmarks(rawBenchmark);
+  const benchmark = benchmarks[0];
   const benchmarkLabel = benchmarkOptions.find((option) => option.id === benchmark)!.label;
   const supabase = await createClient();
   const transactionsQuery = presentationTransactions(portfolioId);
@@ -38,7 +39,7 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
   const manualPricesQuery = supabase.from("manual_security_prices").select("*");
   const marketPricesQuery = readMarketHistory(undefined, securityKey);
   if (portfolioId) { latestPricesQuery.eq("portfolio_id", portfolioId); manualPricesQuery.eq("portfolio_id", portfolioId); }
-  const [{ data: allTransactions, error: transactionError }, { data: latestPrices, error: latestError }, { data: manualPrices, error: manualError }, { data: prices, error: priceError }, reference] = await Promise.all([transactionsQuery, latestPricesQuery, manualPricesQuery, marketPricesQuery, readBenchmarkHistory(benchmark)]);
+  const [{ data: allTransactions, error: transactionError }, { data: latestPrices, error: latestError }, { data: manualPrices, error: manualError }, { data: prices, error: priceError }, references] = await Promise.all([transactionsQuery, latestPricesQuery, manualPricesQuery, marketPricesQuery, Promise.all(benchmarks.map((selectedBenchmark) => readBenchmarkHistory(selectedBenchmark)))]);
   const transactions = (allTransactions ?? []).filter((transaction) => transactionSecurityKey(transaction) === securityKey);
   if (transactions.length === 0) notFound();
   const errors = [transactionError, latestError, manualError, priceError].filter(Boolean);
@@ -50,9 +51,14 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
   const history = investmentHistory(transactions, (prices ?? []).map((price) => ({ security_key: securityKey, price_date: price.price_date,
     price: price.adjusted_close_price ?? price.close_price, currency: marketDataCurrency({ fallbackCurrency: price.currency, providerId: price.provider, providerSymbol: price.provider_symbol }) })));
   const priceDates = new Set((prices ?? []).map((price) => price.price_date));
-  const comparison = buildBenchmarkComparison(lots, reference.data, benchmark, "lifo");
-  if (reference.error) comparison.error = reference.error;
-  const benchmarkTimeline = calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, benchmark, history.map((point) => point.date));
+  const benchmarkSeries = benchmarks.map((selectedBenchmark, index) => {
+    const reference = references[index];
+    const comparison = buildBenchmarkComparison(lots, reference.data, selectedBenchmark, "lifo");
+    if (reference.error) comparison.error = reference.error;
+    return { comparison, reference, timeline: calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, selectedBenchmark, history.map((point) => point.date)) };
+  });
+  const comparison = benchmarkSeries[0].comparison;
+  const reference = benchmarkSeries[0].reference;
   const quotedPoints = history.filter((point) => point.price !== null && priceDates.has(point.date));
   const latestPoint = quotedPoints.at(-1) ?? null;
   const previousPoint = quotedPoints.at(-2) ?? null;
@@ -73,9 +79,9 @@ export default async function InvestmentDetailPage({ params, searchParams }: { p
     <section aria-labelledby="investment-kpis"><p id="investment-kpis" className="alpha-kpi-label">Your investment</p><div className="mt-4 grid gap-x-8 gap-y-6 border-y border-border/70 py-6 sm:grid-cols-2 lg:grid-cols-5"><div className="sm:col-span-2"><p className="text-sm text-muted-foreground">Total Return</p><p className="mt-2 text-3xl font-medium text-muted-foreground">Pending definition</p></div>{[
       ["Annualized Return", stock?.accumulatedDividendsTaxFree ? "Pending dividend policy" : formatPercent(stock?.totalRawProfitabilityAnnualizedPercent ?? null)], ["Current Value", formatCurrency(holding?.marketValue ?? 0, holding?.currency ?? "EUR")], ["Current Deployed", formatCurrency(holding?.investedCapital ?? 0, holding?.currency ?? "EUR")], ["Realized Gain", "Pending definition"], ["Unrealized Gain", formatCurrency(holding?.investmentGain ?? null, holding?.currency ?? "EUR")], ["Dividends", formatCurrency(dividends, metadata.currency)], [`Yield on Cost (${yieldOnCost.year})`, formatPercent(yieldOnCost.yieldPercent)], ["Average Purchase Price", holding && holding.quantity > 0 ? formatCurrency(holding.investedCapital / holding.quantity, holding.currency) : "-"], ["Quantity", formatNumber(holding?.quantity ?? 0)]
     ].map(([label, value]) => <div key={label}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-lg font-medium">{value}</p></div>)}</div></section>
-    <InvestmentHistoryPanel points={history} markers={markers} dividends={investmentDividendEvents(transactions, { lotMatchingMethod: "lifo" })} lots={lots} comparison={benchmarkView(comparison)} benchmarkTimeline={benchmarkTimeline} />
-    <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="alpha-kpi-label">Comparison context</p><p className="mt-1 text-sm text-muted-foreground">One benchmark applies to annual and future normalized comparisons.</p></div><Suspense fallback={<div className="h-9 w-72 animate-pulse rounded-md bg-muted" />}><BenchmarkSelector selected={benchmark} /></Suspense></div>
+    <InvestmentHistoryPanel points={history} markers={markers} dividends={investmentDividendEvents(transactions, { lotMatchingMethod: "lifo" })} lots={lots} comparison={benchmarkView(comparison)} benchmarks={benchmarkSeries.map(({ comparison: seriesComparison, timeline }) => ({ comparison: benchmarkView(seriesComparison), timeline }))} />
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="alpha-kpi-label">Comparison context</p><p className="mt-1 text-sm text-muted-foreground">Select one or more EUR counterfactual benchmarks. The first selected benchmark is used in the tables below.</p></div><Suspense fallback={<div className="h-9 w-72 animate-pulse rounded-md bg-muted" />}><BenchmarkSelector selected={benchmarks} /></Suspense></div>
     <AnnualPerformanceGrid securityName={metadata.security_name} points={annualPriceReturns((prices ?? []).map((price) => ({ date: price.price_date, value: price.adjusted_close_price ?? price.close_price })))} benchmarkLabel={benchmarkLabel} benchmarkPoints={annualPriceReturns(reference.data.filter((price) => price.currency === "EUR").map((price) => ({ date: price.price_date, value: price.close_price })))} benchmarkError={reference.error} />
-    <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">How is this calculated?</summary><div className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground"><p>Transactions are the source of truth. Price history provides dated valuation points; holdings and lots are derived at read time.</p><p>Annual performance is year-end security price divided by the previous year-end price minus one. It is not your personal investment return.</p><p>Metrics marked pending depend on unresolved definitions recorded in the authoritative analytics rules.</p></div></details>
+    <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">How is this calculated?</summary><div className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground"><p>Transactions are the source of truth. Value is the market value of shares held on each date. Economic Value adds cumulative attributed sale proceeds and recorded dividends without changing acquisition cost.</p><p>Actual dividends are dated cash flows. Total-return benchmark dividends are embedded and reinvested according to each index methodology; no synthetic benchmark dividend is added.</p><p>Annual performance is year-end security price divided by the previous year-end price minus one. It is not your personal investment return.</p></div></details>
   </div>;
 }

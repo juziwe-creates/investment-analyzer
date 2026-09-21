@@ -12,6 +12,14 @@ export function parseBenchmark(value: string | undefined): BenchmarkId {
     : "msci-world";
 }
 
+export function parseBenchmarks(value: string | string[] | undefined): BenchmarkId[] {
+  const requested = Array.isArray(value) ? value : value ? [value] : [];
+  const selected = benchmarkOptions
+    .map((option) => option.id)
+    .filter((id) => requested.includes(id));
+  return selected.length ? selected : ["msci-world"];
+}
+
 // Columns verified against the existing benchmark history upload DDL; no migration.
 export type BenchmarkObservation = {
   benchmark_id: string;

@@ -24,11 +24,14 @@ export function HistoryLoading({ label }: { label: string }) {
   return <div className="flex h-[440px] items-center justify-center rounded-md bg-muted/40"><AlphaProgress size="large" status={`Loading ${label}`} /></div>;
 }
 
-export async function DashboardPerformance({ history, benchmark, benchmarkHistory, lots }: Props & { benchmark: BenchmarkId; benchmarkHistory: ReturnType<typeof readBenchmarkHistory>; lots: LotProfitability[] }) {
-  const [{ development, deployment, annual, error }, { comparison, reference }] = await Promise.all([history, loadComparison(lots, benchmark, benchmarkHistory)]);
+export async function DashboardPerformance({ history, benchmarkHistories, lots }: Props & { benchmarkHistories: { benchmark: BenchmarkId; history: ReturnType<typeof readBenchmarkHistory> }[]; lots: LotProfitability[] }) {
+  const [{ development, deployment, annual, error }, comparisons] = await Promise.all([
+    history,
+    Promise.all(benchmarkHistories.map(({ benchmark, history: benchmarkHistory }) => loadComparison(lots, benchmark, benchmarkHistory)))
+  ]);
   const dates = [...development, ...deployment, ...annual].map((point) => point.date);
-  const timeline = calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, benchmark, dates);
-  return <><TimeViewportData dates={dates} />{error ? <p role="alert" className="flex h-[440px] items-center justify-center text-sm text-muted-foreground">{error}</p> : <PortfolioDevelopmentChart points={development} comparison={benchmarkView(comparison)} benchmarkTimeline={timeline} />}</>;
+  const benchmarks = comparisons.map(({ comparison, reference }) => ({ comparison: benchmarkView(comparison), timeline: calculateVirtualBenchmarkTimeline(comparison.virtualLots, reference.data, comparison.benchmarkId, dates) }));
+  return <><TimeViewportData dates={dates} />{error ? <p role="alert" className="flex h-[440px] items-center justify-center text-sm text-muted-foreground">{error}</p> : <PortfolioDevelopmentChart points={development} benchmarks={benchmarks} />}</>;
 }
 
 export async function DashboardHoldings({ holdings, lots, yields, benchmark, benchmarkHistory }: {

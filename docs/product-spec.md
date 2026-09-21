@@ -71,7 +71,7 @@ V1 includes:
 - optional cumulative dividends;
 - period selection;
 - current holdings with sortable performance metrics;
-- one active benchmark selected from MSCI World, S&P 500, and DAX;
+- one or more active benchmarks selected from MSCI World, S&P 500, and DAX;
 - account context that updates all portfolio calculations and views.
 
 Benchmark comparisons must use a common normalized basis. A benchmark-relative KPI may be labeled `α` only after its statistical definition has been approved.
@@ -86,6 +86,9 @@ Benchmark comparisons must use a common normalized basis. A benchmark-relative K
 - Actual XIRR uses purchases, dividends, sales, and any terminal market value on their real dates. Actual dividends are not assumed to be reinvested.
 - A total-return/performance benchmark embeds benchmark-methodology dividend reinvestment, so no second benchmark dividend cash flow is added. A price-index benchmark excludes dividends and must be labeled accordingly.
 - Economic Reference Value, Total Gain, Total Return, and XIRR are the primary actual-versus-benchmark performance comparisons. Current market value remains visible as valuation context, not as the headline performance comparison.
+- Investment History and Portfolio Performance share Value and Economic Value modes. Value shows pure market value; Economic Value adds cumulative recorded dividends and attributed sale proceeds.
+- Multiple EUR counterfactual benchmark lines may be displayed together. Switching modes or benchmarks must not change the chart viewport.
+- Portfolio Economic Value is withheld when the ledger cannot determine whether realized cash funded a later purchase. Investment-level Economic Value remains available because security-level transactions can be attributed without cross-investment funding assumptions.
 
 ## Investments
 

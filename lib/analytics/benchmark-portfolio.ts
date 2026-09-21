@@ -45,7 +45,14 @@ export type VirtualBenchmarkLot = {
   closedBenchmarkValue: number | null; closeDate: string | null; cashFlows: LotCashFlow[];
   exits: { date: string; transactionId: string; observationDate: string | null; level: number | null; units: number | null; value: number | null; fraction: number }[];
 };
-export type BenchmarkTimelinePoint = { date: string; value: number | null; missingLots: number; observationDate: string | null };
+export type BenchmarkTimelinePoint = {
+  date: string;
+  value: number | null;
+  saleProceeds: number | null;
+  economicValue: number | null;
+  missingLots: number;
+  observationDate: string | null;
+};
 export type BenchmarkComparison = {
   benchmarkId: BenchmarkId; label: string; description: string; matching: LotMatchingMethod;
   seriesType: string | null; dividendTreatment: BenchmarkDividendTreatment;
@@ -208,19 +215,27 @@ export function calculateVirtualBenchmarkTimeline(
   if (!virtualLots.length || !chartDates.length) return [];
   const start = virtualLots.map((lot) => lot.buyDate).sort()[0], end = [...chartDates].sort().at(-1)!;
   const events = virtualLots.flatMap((lot) => [
-    { date: lot.buyDate, units: lot.originalBenchmarkUnits ?? 0, missing: lot.originalBenchmarkUnits === null ? 1 : 0 },
+    { date: lot.buyDate, units: lot.originalBenchmarkUnits ?? 0, proceeds: 0, missing: lot.originalBenchmarkUnits === null ? 1 : 0, missingExit: 0 },
     ...lot.exits.map((sale, index) => ({ date: sale.date, units: -(sale.units ?? 0),
-      missing: lot.originalBenchmarkUnits === null && lot.closeDate && index === lot.exits.length - 1 ? -1 : 0 }))
+      proceeds: sale.value ?? 0, missing: lot.originalBenchmarkUnits === null && lot.closeDate && index === lot.exits.length - 1 ? -1 : 0,
+      missingExit: lot.originalBenchmarkUnits !== null && sale.value === null ? 1 : 0 }))
   ]).sort((a, b) => a.date.localeCompare(b.date));
   const dates = [...new Set([...chartDates, ...events.map((event) => event.date), ...levels.map((row) => row.price_date)])].filter((date) => date >= start && date <= end).sort();
-  let eventIndex = 0, units = 0, missing = 0;
+  let eventIndex = 0, units = 0, proceeds = 0, missing = 0, missingExits = 0;
   return dates.map((date) => {
     while (eventIndex < events.length && events[eventIndex].date <= date) {
-      const event = events[eventIndex++]; units += event.units; missing += event.missing;
+      const event = events[eventIndex++];
+      units += event.units;
+      proceeds += event.proceeds;
+      missing += event.missing;
+      missingExits += event.missingExit;
     }
     if (Math.abs(units) < 1e-10) units = 0;
     const level = benchmarkLevelAtDate(levels, date);
-    return { date, value: missing > 0 || (units > 0 && !level) ? null : units * Number(level?.close_price ?? 0),
-      missingLots: missing, observationDate: level?.price_date ?? null };
+    const value = missing > 0 || (units > 0 && !level) ? null : units * Number(level?.close_price ?? 0);
+    const saleProceeds = missingExits > 0 ? null : proceeds;
+    return { date, value, saleProceeds,
+      economicValue: value === null || saleProceeds === null ? null : value + saleProceeds,
+      missingLots: missing + missingExits, observationDate: level?.price_date ?? null };
   });
 }

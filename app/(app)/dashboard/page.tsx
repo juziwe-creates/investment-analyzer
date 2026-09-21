@@ -11,21 +11,22 @@ import { measureAnalytics } from "@/lib/performance";
 import { buildValuationPrices } from "@/lib/analytics/profitability";
 import { Button } from "@/components/ui/button";
 import { buildCurrentAnalytics, findSecuritiesWithoutBuyHistory, transactionSecurityKey } from "@/lib/analytics/portfolio";
-import { parseBenchmark } from "@/lib/analytics/benchmarks";
+import { parseBenchmarks } from "@/lib/analytics/benchmarks";
 import { readBenchmarkHistory } from "@/lib/market-data/benchmark-history";
 import { eurAggregationStatus } from "@/lib/analytics/currency";
 import { formatCurrency } from "@/lib/formatters";
 import { marketDataCurrency } from "@/lib/market-data/currency";
 import { createClient } from "@/lib/supabase/server";
 
-type Params = { interval?: string; from?: string; to?: string; security?: string | string[]; portfolio?: string; benchmark?: string };
+type Params = { interval?: string; from?: string; to?: string; security?: string | string[]; portfolio?: string; benchmark?: string | string[] };
 
 function values(value: string | string[] | undefined) { return Array.isArray(value) ? value : value ? [value] : []; }
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const benchmark = parseBenchmark(params.benchmark);
-  const benchmarkHistory = readBenchmarkHistory(benchmark);
+  const benchmarks = parseBenchmarks(params.benchmark);
+  const benchmark = benchmarks[0];
+  const benchmarkHistories = benchmarks.map((selectedBenchmark) => ({ benchmark: selectedBenchmark, history: readBenchmarkHistory(selectedBenchmark) }));
   const supabase = await createClient();
   const transactionsQuery = presentationTransactions(params.portfolio);
   const latestQuery = supabase.from("latest_market_prices").select("*");
@@ -51,7 +52,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const missingBuyHistory = findSecuritiesWithoutBuyHistory(filteredTransactions);
   const errors = [transactionsError, latestError, manualError].filter(Boolean);
   const history = loadDashboardHistory(filteredTransactions, params.portfolio, currencyReady, buildValuationPrices(latest, manual));
-  const clearParams = new URLSearchParams({ benchmark });
+  const clearParams = new URLSearchParams();
+  benchmarks.forEach((selectedBenchmark) => clearParams.append("benchmark", selectedBenchmark));
   if (params.portfolio) clearParams.set("portfolio", params.portfolio);
 
   return <TimeViewportProvider key={JSON.stringify([params.portfolio, selected])}><div className="space-y-10">
@@ -61,12 +63,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     {unpriced.length ? <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">{unpriced.length} open {unpriced.length === 1 ? "holding has" : "holdings have"} no current price. Portfolio Value shows only the priced subset; missing values are not treated as zero.</div> : null}
     {missingBuyHistory.length ? <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">{missingBuyHistory.length} investments contain sells or dividends without complete buy history and are excluded from holdings.</div> : null}
     <PortfolioMetrics primary={[{ label: "Current deployed", value: currencyReady ? formatCurrency(summary.investedCapital, "EUR") : "Unavailable" }, { label: "Annualized return", value: "Pending definition", muted: true }, { label: "Dividends received", value: currencyReady ? formatCurrency(summary.dividendsReceived, "EUR") : "Unavailable" }]} secondary={[{ label: "Realized gain", value: "Pending definition", muted: true }, { label: "Unrealized gain", value: currencyReady ? formatCurrency(summary.hasCompletePricing ? summary.investmentGain : summary.pricedInvestmentGain, "EUR") : "Unavailable" }, { label: "This year", value: "Pending definition", muted: true }, { label: "Last 365 days", value: "Pending definition", muted: true }]} />
-    <section className="space-y-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="alpha-section-title">Portfolio performance</h2><p className="mt-1 text-sm text-muted-foreground">Portfolio value and currently deployed capital over time.</p></div><Suspense fallback={<div className="h-9 w-72 animate-pulse rounded-md bg-muted" />}><BenchmarkSelector selected={benchmark} /></Suspense></div>
-      <div className="alpha-surface p-3 sm:p-5"><Suspense fallback={<HistoryLoading label="portfolio performance" />}><DashboardPerformance history={history} benchmark={benchmark} benchmarkHistory={benchmarkHistory} lots={lots} /></Suspense></div>
+    <section className="space-y-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="alpha-section-title">Portfolio performance</h2><p className="mt-1 text-sm text-muted-foreground">Portfolio value, economic outcome, and currently deployed capital over time.</p></div><Suspense fallback={<div className="h-9 w-72 animate-pulse rounded-md bg-muted" />}><BenchmarkSelector selected={benchmarks} /></Suspense></div>
+      <div className="alpha-surface p-3 sm:p-5"><Suspense fallback={<HistoryLoading label="portfolio performance" />}><DashboardPerformance history={history} benchmarkHistories={benchmarkHistories} lots={lots} /></Suspense></div>
     </section>
-    <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">Filter analytical context</summary><form className="mt-4 space-y-4"><ViewportFields /><input type="hidden" name="benchmark" value={benchmark} />{params.portfolio ? <input type="hidden" name="portfolio" value={params.portfolio} /> : null}<div className="flex gap-3"><Button type="submit">Apply</Button><Button type="button" asChild variant="outline"><Link href={`/dashboard?${clearParams}`}>Clear</Link></Button></div><fieldset><legend className="text-sm font-medium">Investments</legend><div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{[...optionsByKey.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-sm"><input type="checkbox" name="security" value={key} defaultChecked={selectedSet.has(key)} /><span className="truncate">{label}</span></label>)}</div></fieldset></form></details>
-    <Suspense fallback={<div className="h-72 animate-pulse rounded-lg bg-muted" />}><DashboardHoldings holdings={holdings} lots={lots} benchmark={benchmark} benchmarkHistory={benchmarkHistory} yields={investmentYieldsOnCost(filteredTransactions, new Date().toISOString().slice(0, 10))} /></Suspense>
+    <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">Filter analytical context</summary><form className="mt-4 space-y-4"><ViewportFields />{benchmarks.map((selectedBenchmark) => <input key={selectedBenchmark} type="hidden" name="benchmark" value={selectedBenchmark} />)}{params.portfolio ? <input type="hidden" name="portfolio" value={params.portfolio} /> : null}<div className="flex gap-3"><Button type="submit">Apply</Button><Button type="button" asChild variant="outline"><Link href={`/dashboard?${clearParams}`}>Clear</Link></Button></div><fieldset><legend className="text-sm font-medium">Investments</legend><div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{[...optionsByKey.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-sm"><input type="checkbox" name="security" value={key} defaultChecked={selectedSet.has(key)} /><span className="truncate">{label}</span></label>)}</div></fieldset></form></details>
+    <Suspense fallback={<div className="h-72 animate-pulse rounded-lg bg-muted" />}><DashboardHoldings holdings={holdings} lots={lots} benchmark={benchmark} benchmarkHistory={benchmarkHistories[0].history} yields={investmentYieldsOnCost(filteredTransactions, new Date().toISOString().slice(0, 10))} /></Suspense>
     <section className="space-y-4"><div><h2 className="alpha-section-title">Capital deployment</h2><p className="mt-1 text-sm text-muted-foreground">Cumulative purchase cost minus sale proceeds, alongside received dividends.</p></div><div className="alpha-surface p-3 sm:p-5"><Suspense fallback={<HistoryLoading label="capital deployment" />}><DashboardCapitalDeployment history={history} /></Suspense></div></section>
-    <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">How is this calculated?</summary><div className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground"><p>Portfolio Value uses open quantity multiplied by the latest available price. Current Deployed Capital is remaining cost basis of open lots. Missing prices are excluded and disclosed.</p><p>Total Return, Realized Gain, annualized portfolio return, YTD, last-365-day return, FX conversion, and `α` remain unavailable until their authoritative definitions are approved.</p></div></details>
+    <details className="alpha-surface p-4"><summary className="alpha-focus cursor-pointer font-medium">How is this calculated?</summary><div className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground"><p>Portfolio Value uses open quantity multiplied by the latest available price. Current Deployed Capital is remaining cost basis of open lots. Dividends never alter either amount.</p><p>Economic Value adds cumulative recorded dividends and sale proceeds only when the transaction ledger rules out later redeployment. Where funding lineage is ambiguous, the app withholds portfolio Economic Value instead of double-counting capital.</p><p>Actual dividends are dated cash flows. Total-return benchmark dividends are embedded and reinvested according to the selected index methodology.</p></div></details>
   </div></TimeViewportProvider>;
 }

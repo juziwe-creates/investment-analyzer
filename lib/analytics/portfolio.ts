@@ -84,6 +84,9 @@ export type PortfolioDevelopmentPoint = {
   unpricedOpenLots: number;
   hasCompletePricing: boolean;
   dividendsReceived: number;
+  saleProceedsReceived: number;
+  economicValue: number | null;
+  economicValueReason: string | null;
   currency: string;
 };
 
@@ -406,23 +409,48 @@ export function calculatePortfolioDevelopment(
   interval: ChartInterval,
   options: LotCalculationOptions = {}
 ): PortfolioDevelopmentPoint[] {
+  const chronologicalTransactions = [...transactions].sort((a, b) =>
+    a.trade_date.localeCompare(b.trade_date) || a.created_at.localeCompare(b.created_at)
+  );
+  let realizedCashAvailable = false;
+  const realizedCashMayBeRedeployed = chronologicalTransactions.some((transaction) => {
+    if (transaction.type === "buy" && realizedCashAvailable) return true;
+    if (transaction.type === "sell" && saleProceeds(toAnalyticsTransaction(transaction)) > 0) realizedCashAvailable = true;
+    if (transaction.type === "dividend" && dividendAmount(toAnalyticsTransaction(transaction)) > 0) realizedCashAvailable = true;
+    return false;
+  });
+  const economicValueReason = realizedCashMayBeRedeployed
+    ? "Portfolio Economic Value is unavailable because the ledger does not identify whether earlier sale or dividend cash funded later purchases."
+    : null;
+  let realizedIndex = 0;
+  let cumulativeSaleProceeds = 0;
   const dailyPoints = buildPortfolioTimeline(
     transactions.map(toAnalyticsTransaction),
     toAnalyticsPrices(marketPrices),
     options
   )
-    .map((point): PortfolioDevelopmentPoint => ({
-      date: point.date,
-      investedCapital: point.currentDeployedCapital,
-      investmentGain: point.hasCompletePricing ? point.unrealizedGain : null,
-      portfolioValue: point.hasCompletePricing ? point.portfolioMarketValue : null,
-      pricedPortfolioValue: point.hasCompletePricing || point.pricedCurrentDeployedCapital > 0 ? point.portfolioMarketValue : null,
-      unpricedInvestedCapital: point.unpricedCurrentDeployedCapital,
-      unpricedOpenLots: point.missingPriceSecurityKeys.length,
-      hasCompletePricing: point.hasCompletePricing,
-      dividendsReceived: point.dividendsCollected,
-      currency: point.currency
-    }));
+    .map((point): PortfolioDevelopmentPoint => {
+      while (chronologicalTransactions[realizedIndex]?.trade_date <= point.date) {
+        const transaction = chronologicalTransactions[realizedIndex++];
+        if (transaction.type === "sell") cumulativeSaleProceeds += saleProceeds(toAnalyticsTransaction(transaction));
+      }
+      const portfolioValue = point.hasCompletePricing ? point.portfolioMarketValue : null;
+      return {
+        date: point.date,
+        investedCapital: point.currentDeployedCapital,
+        investmentGain: point.hasCompletePricing ? point.unrealizedGain : null,
+        portfolioValue,
+        pricedPortfolioValue: point.hasCompletePricing || point.pricedCurrentDeployedCapital > 0 ? point.portfolioMarketValue : null,
+        unpricedInvestedCapital: point.unpricedCurrentDeployedCapital,
+        unpricedOpenLots: point.missingPriceSecurityKeys.length,
+        hasCompletePricing: point.hasCompletePricing,
+        dividendsReceived: point.dividendsCollected,
+        saleProceedsReceived: cumulativeSaleProceeds,
+        economicValue: economicValueReason || portfolioValue === null ? null : portfolioValue + cumulativeSaleProceeds + point.dividendsCollected,
+        economicValueReason,
+        currency: point.currency
+      };
+    });
 
   const intervalPoints = new Map<string, PortfolioDevelopmentPoint>();
 

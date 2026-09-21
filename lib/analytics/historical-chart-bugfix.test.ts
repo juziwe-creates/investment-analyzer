@@ -18,6 +18,9 @@ type PortfolioPoint = {
   portfolioValue: number | null;
   pricedPortfolioValue: number | null;
   hasCompletePricing: boolean;
+  saleProceedsReceived: number;
+  economicValue: number | null;
+  economicValueReason: string | null;
 };
 
 const requireModule = createRequire(__filename);
@@ -151,4 +154,37 @@ test("investment detail uses deterministic shared history while preserving portf
   assert.match(page, /presentationTransactions\(portfolioId\)/);
   assert.match(page, /readMarketHistory\(undefined, securityKey\)/);
   assert.match(page, /if \(portfolioId\) \{ latestPricesQuery\.eq\("portfolio_id", portfolioId\); manualPricesQuery\.eq\("portfolio_id", portfolioId\); \}/);
+});
+
+test("investment Economic Value adds dated dividends and exits without changing market value or deployed cost", () => {
+  const transactions: AnalyticsTransaction[] = [
+    { id: "buy", type: "buy", trade_date: "2020-01-01", security_name: "A", isin: "SEC-A", wkn: null, ticker: null, quantity: 10, unit_price: 100, gross_amount: 1000, net_amount: 1000, currency: "EUR", created_at: "2020-01-01T00:00:00.000Z" },
+    { id: "dividend", type: "dividend", trade_date: "2020-02-01", security_name: "A", isin: "SEC-A", wkn: null, ticker: null, quantity: 10, unit_price: null, gross_amount: 100, net_amount: 100, currency: "EUR", created_at: "2020-02-01T00:00:00.000Z" },
+    { id: "sell", type: "sell", trade_date: "2020-03-01", security_name: "A", isin: "SEC-A", wkn: null, ticker: null, quantity: 4, unit_price: 150, gross_amount: 600, net_amount: 600, currency: "EUR", created_at: "2020-03-01T00:00:00.000Z" }
+  ];
+  const chart = investmentHistory(transactions, [
+    { security_key: "SEC-A", price_date: "2020-01-01", price: 100, currency: "EUR" },
+    { security_key: "SEC-A", price_date: "2020-03-01", price: 120, currency: "EUR" }
+  ]);
+  const final = chart.at(-1)!;
+  assert.equal(final.shares, 6);
+  assert.equal(final.positionValue, 720);
+  assert.equal(final.deployedCapital, 600);
+  assert.equal(final.dividendsReceived, 100);
+  assert.equal(final.saleProceedsReceived, 600);
+  assert.equal(final.economicValue, 1420);
+});
+
+test("portfolio Economic Value is withheld when realized cash may fund a later purchase", () => {
+  const first = portfolioBuy("1", "SEC-A", 10, 1000);
+  const sale = { ...portfolioBuy("2", "SEC-A", 10, 1200), type: "sell", trade_date: "2020-02-01", created_at: "2020-02-01T00:00:00.000Z" };
+  const laterBuy = { ...portfolioBuy("3", "SEC-B", 5, 500), trade_date: "2020-03-01", created_at: "2020-03-01T00:00:00.000Z" };
+  const blocked = calculatePortfolioDevelopment([first, sale, laterBuy], [marketPrice("b", "SEC-B", "2020-03-01", 100)], "daily");
+  assert.ok(blocked.every((point) => point.economicValue === null));
+  assert.match(blocked.at(-1)!.economicValueReason!, /funded later purchases/);
+
+  const safe = calculatePortfolioDevelopment([first, sale], [marketPrice("a", "SEC-A", "2020-01-01", 100)], "daily");
+  assert.equal(safe.at(-1)!.saleProceedsReceived, 1200);
+  assert.equal(safe.at(-1)!.economicValue, 1200);
+  assert.equal(safe.at(-1)!.economicValueReason, null);
 });

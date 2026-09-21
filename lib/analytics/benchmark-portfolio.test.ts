@@ -144,7 +144,10 @@ test("portfolio timeline follows buys and exits; investment timeline contains on
   const onlyA = calculateVirtualBenchmarkTimeline(portfolio.virtualLots.filter((lot) => lot.sourceSecurityKey === "A"), history, "msci-world", dates);
   near(all[0].value, 1000);
   near(all.at(-1)!.value, 3000);
+  near(all.at(-1)!.saleProceeds, 1500);
+  near(all.at(-1)!.economicValue, 4500);
   near(onlyA.at(-1)!.value, 0);
+  near(onlyA.at(-1)!.economicValue, 1500);
   assert.equal(onlyA[0].date, buy.trade_date);
 });
 test("missing entry remains missing while covered lots stay valid; incomplete totals are not zeros", () => {
