@@ -5,7 +5,7 @@ import { BenchmarkMethodology } from "@/components/benchmark-comparison";
 import { DecisionDrawer, type DecisionDrawerMetric } from "@/components/decision-drawer";
 import { TimeSeriesChart, type ChartSeries } from "@/components/time-series-chart";
 import { TimePresets } from "@/components/time-viewport";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/formatters";
+import { formatCurrency, formatDate, formatNumber, formatPercent } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { PersonalDividendEvent } from "@/lib/analytics/dividends";
 import type { InvestmentChartPoint } from "@/lib/analytics/investment-history";
@@ -26,6 +26,9 @@ export function InvestmentDetailChart({ points, markers, dividends = [], benchma
   const [showDividends, setShowDividends] = useState(false);
   const [selected, setSelected] = useState<InvestmentMarker | null>(null);
   const close = useCallback(() => setSelected(null), []);
+  const firstUnpriced = points.find((point) => point.shares > 0 && point.positionValue === null);
+  const firstValued = points.find((point) => point.shares > 0 && point.positionValue !== null);
+  const marketValue = (value: number | null, currency: string) => value === null ? "Unavailable" : formatCurrency(value, currency);
   const dividendCurrency = dividends[0]?.currency ?? "EUR";
   const compactCash = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: dividendCurrency, notation: "compact", maximumFractionDigits: 1 }).format(value);
   const series: ChartSeries<InvestmentChartPoint>[] = [
@@ -46,20 +49,21 @@ export function InvestmentDetailChart({ points, markers, dividends = [], benchma
   return <section className="space-y-4" aria-labelledby="investment-history-heading">
     <div className="flex flex-wrap items-end justify-between gap-3"><h2 id="investment-history-heading" className="alpha-section-title">Investment history</h2><TimePresets /></div>
     <div className="flex flex-wrap items-center justify-between gap-3"><div className="inline-flex rounded-md border border-border bg-card p-1">{(["value", "economic"] as const).map((value) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)} className={cn("alpha-focus rounded px-3 py-1.5 text-sm text-muted-foreground", mode === value && "bg-[hsl(var(--accent-subtle))] text-foreground")}>{value === "economic" ? "Economic Value" : "Value"}</button>)}</div><label className="flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={showDividends} onChange={(event) => setShowDividends(event.target.checked)} />Cumulative dividends</label></div>
-    <div className="alpha-surface p-2 sm:p-4"><TimeSeriesChart points={points} label={mode === "economic" ? "Investment economic value" : "Position value"} emptyMessage="Historical prices are required for the investment timeline." series={series}
+    <div className="alpha-surface min-w-0 p-2 sm:p-4"><TimeSeriesChart points={points} label={mode === "economic" ? "Investment economic value" : "Position value"} emptyMessage="Historical prices are required for the investment timeline." series={series}
       markers={markers.filter((marker) => marker.type !== "dividend")} onMarker={(marker) => setSelected(markers.find((item) => item.id === marker.id) ?? null)} tooltip={(point) => mode === "economic" ? [
-        { label: "Economic value", value: formatCurrency(point.economicValue, point.currency) },
-        { label: "Current market value", value: formatCurrency(point.positionValue, point.currency) },
+        { label: "Economic value", value: marketValue(point.economicValue, point.currency) },
+        { label: "Current market value", value: marketValue(point.positionValue, point.currency) },
         { label: "Cumulative dividends", value: formatCurrency(point.dividendsReceived, point.currency) },
         { label: "Cumulative sale proceeds", value: formatCurrency(point.saleProceedsReceived, point.currency) },
         { label: "Current deployed", value: formatCurrency(point.deployedCapital, point.currency) }
       ] : [
-        { label: "Price", value: formatCurrency(point.price, point.currency) },
+        { label: "Price", value: marketValue(point.price, point.currency) },
         { label: "Your shares", value: formatNumber(point.shares) },
-        { label: "Position value", value: formatCurrency(point.positionValue, point.currency) },
+        { label: "Position value", value: marketValue(point.positionValue, point.currency) },
         { label: "Current deployed", value: formatCurrency(point.deployedCapital, point.currency) },
         { label: "Unrealized", value: formatPercent(point.unrealizedReturnPercent) }
       ]} /></div>
+    {firstUnpriced ? <p role="status" className="text-xs text-muted-foreground">Position Value is unavailable for some open-position dates from {formatDate(firstUnpriced.date)}. {firstValued ? `First valued open position: ${formatDate(firstValued.date)}.` : "No eligible historical price has been loaded."} The navigator leaves these dates blank rather than treating them as zero.</p> : null}
     {mode === "value" && benchmarks.some(({ comparison }) => comparison.dividendTreatment === "embedded") ? <p className="text-xs text-muted-foreground">Position Value excludes dividends. Selected total-return benchmark series include reinvested benchmark dividends. Use Economic Value for the fair total-return comparison.</p> : null}
     {mode === "economic" ? <p className="text-xs text-muted-foreground">Economic Value combines current market value, cumulative attributed sale proceeds, and cumulative recorded dividends. It is an analytical performance measure, not Position Value.</p> : null}
     {benchmarks.map(({ comparison }) => <BenchmarkMethodology key={comparison.benchmarkId} comparison={comparison} />)}

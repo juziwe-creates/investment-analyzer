@@ -155,6 +155,25 @@ test("investment detail uses deterministic shared history while preserving portf
   assert.match(page, /readMarketHistory\(undefined, securityKey\)/);
   assert.match(page, /if \(portfolioId\) \{ latestPricesQuery\.eq\("portfolio_id", portfolioId\); manualPricesQuery\.eq\("portfolio_id", portfolioId\); \}/);
 });
+test("investment history never backfills an open position before its first eligible price", () => {
+  const transaction: AnalyticsTransaction = {
+    id: "allianz-buy", type: "buy", trade_date: "2010-08-25", security_name: "Allianz",
+    isin: "DE0008404005", wkn: "840400", ticker: null, quantity: 40,
+    unit_price: 80, gross_amount: 3200, net_amount: 3200, currency: "EUR",
+    created_at: "2010-08-25T00:00:00.000Z"
+  };
+  const history = investmentHistory([transaction], [
+    { security_key: "DE0008404005", price_date: "2024-01-31", price: 250, currency: "EUR" }
+  ]);
+  assert.equal(history[0].positionValue, null);
+  assert.equal(history[0].economicValue, null);
+  assert.equal(history[1].positionValue, 10000);
+  const withEarlierPrice = investmentHistory([transaction], [
+    { security_key: "DE0008404005", price_date: "2010-08-25", price: 81, currency: "EUR" },
+    { security_key: "DE0008404005", price_date: "2024-01-31", price: 250, currency: "EUR" }
+  ]);
+  assert.equal(withEarlierPrice[0].positionValue, 3240);
+});
 
 test("investment Economic Value adds dated dividends and exits without changing market value or deployed cost", () => {
   const transactions: AnalyticsTransaction[] = [

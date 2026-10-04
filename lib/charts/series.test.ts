@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { lotsInViewport, selectionRange, seriesExtent, seriesPath, visibleSamples } from "./series";
+import { lotsInViewport, overviewSamples, selectionRange, seriesExtent, seriesPath, visibleSamples } from "./series";
 import { DAY } from "./time-viewport";
 
 test("secondary axis fits only visible discrete events without interpolation", () => {
@@ -16,6 +16,17 @@ test("cumulative series carries its last known value through a viewport", () => 
 test("unknown values are not converted to zeros or interpolated across gaps", () => {
   assert.deepEqual(visibleSamples([{ time: 0, value: null }, { time: 20, value: 4 }], { start: 5, end: 15 }), []);
   assert.deepEqual(seriesExtent([[{ time: 0, value: null }]]), { min: 0, max: 1 });
+});
+test("navigator starts at the first known value and preserves later gaps", () => {
+  const overview = overviewSamples([
+    { time: 0, value: null }, { time: 1, value: null }, { time: 2, value: 10 },
+    { time: 3, value: 0 }, { time: 4, value: null }, { time: 5, value: 20 }
+  ], 2);
+  assert.deepEqual(overview, [
+    { time: 2, value: 10 }, { time: 3, value: 0 }, { time: 4, value: null }, { time: 5, value: 20 }
+  ]);
+  assert.equal(seriesPath(overview, (value) => value, (value) => value), "M 2 10 L 3 0  M 5 20");
+  assert.deepEqual(overviewSamples([{ time: 0, value: null }]), []);
 });
 test("selection clamps and orders dates independently of zoom minimum", () => {
   const full = { start: 0, end: DAY * 100 };

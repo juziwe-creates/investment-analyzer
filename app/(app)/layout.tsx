@@ -52,7 +52,7 @@ export default async function AppLayout({
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 md:px-8 xl:px-10">{children}</main>
+          <main className="min-w-0 w-full flex-1 px-4 py-6 md:px-8 xl:px-10">{children}</main>
         </div>
       </div>
       <Suspense fallback={null}>

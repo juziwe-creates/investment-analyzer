@@ -15,6 +15,7 @@
     "lib/analytics/benchmark-portfolio.test.ts",
     "lib/analytics/benchmarks.test.ts",
     "lib/analytics/historical-chart-bugfix.test.ts",
+    "lib/portfolio-map/map.test.ts",
     "lib/transactions/delete.test.ts",
     "lib/analytics/dividends.test.ts",
     "lib/charts/series.test.ts",

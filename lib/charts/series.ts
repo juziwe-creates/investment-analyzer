@@ -1,6 +1,26 @@
-import { DAY, lowerBound, type TimeRange } from "./time-viewport";
+import { DAY, decimate, lowerBound, type TimeRange } from "./time-viewport";
 
 export type SeriesSample = { time: number; value: number | null };
+export function overviewSamples(samples: SeriesSample[], budget = 500): SeriesSample[] {
+  const result: SeriesSample[] = [];
+  let segment: SeriesSample[] = [];
+  const flush = () => {
+    if (!segment.length) return;
+    result.push(...decimate(segment, (row) => [row.value!], budget));
+    segment = [];
+  };
+  for (const sample of samples) {
+    if (sample.value === null || !Number.isFinite(sample.value)) {
+      flush();
+      if (result.length && result.at(-1)?.value !== null) result.push({ time: sample.time, value: null });
+    } else {
+      segment.push(sample);
+    }
+  }
+  flush();
+  return result;
+}
+
 export function visibleSamples(samples: SeriesSample[], range: TimeRange, stepped = false, discrete = false, extendLast = true): SeriesSample[] {
   const times = samples.map((row) => row.time);
   const first = lowerBound(times, range.start), after = lowerBound(times, range.end + 1);

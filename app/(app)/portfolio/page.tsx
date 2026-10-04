@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { presentationTransactions } from "@/lib/presentation";
 import { InvestmentInventoryTable } from "@/components/investment-inventory-table";
 import { MissingBuyHistoryTable } from "@/components/missing-buy-history-table";
@@ -47,12 +48,11 @@ export default async function PortfolioPage({
 
   return (
     <div className="space-y-8">
-      <header className="border-b border-border/70 pb-6">
-        <p className="alpha-kpi-label">Investment inventory</p>
-        <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em]">Investments</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Search current and closed investments, then open one to inspect its complete decision history.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-6">
+        <div><p className="alpha-kpi-label">Investment inventory</p>
+          <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em]">Investments</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Search current and closed investments, then open one to inspect its complete decision history.</p></div>
+        <Link href={portfolioId ? `/portfolio/map?portfolio=${encodeURIComponent(portfolioId)}` : "/portfolio/map"} className="alpha-focus inline-flex h-9 items-center rounded-md border border-border bg-card px-3 text-sm font-medium hover:bg-muted">Portfolio Map</Link>
       </header>
 
       {errors.length > 0 ? (

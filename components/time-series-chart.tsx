@@ -5,7 +5,7 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useTimeViewport } from "@/components/time-viewport";
 import { dateString, DAY, decimate, lowerBound, nearestIndex, timestamp, zoomRange, type TimeRange } from "@/lib/charts/time-viewport";
 import { formatDate } from "@/lib/formatters";
-import { selectionRange, seriesExtent, seriesPath, visibleSamples } from "@/lib/charts/series";
+import { overviewSamples, selectionRange, seriesExtent, seriesPath, visibleSamples } from "@/lib/charts/series";
 import { AlphaProgress } from "@/components/alpha-progress";
 
 export type ChartObservation = { id?: string; date: string; value: number | null; tooltip?: { label: string; value: string }[] };
@@ -103,10 +103,10 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
     // Explicit decimals avoid server/browser ICU differences in compact currency notation.
     return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: digits }).format(value / divisor) + (divisor === 1_000_000 ? "M" : divisor === 1000 ? "K" : "");
   };
-  const overview = useMemo(() => decimate(points.map((point, index) => ({ time: pointTimes[index], value: series[0]?.value(point) ?? 0 })), (row) => [row.value], 500), [points, pointTimes, series]);
-  const navMin = overview.reduce((value, row) => Math.min(value, row.value), Infinity);
-  const navMax = overview.reduce((value, row) => Math.max(value, row.value), -Infinity);
-  const navPath = overview.map((row, index) => `${index ? "L" : "M"} ${navX(row.time)} ${39 - (row.value - navMin) / (navMax - navMin || 1) * 30}`).join(" ");
+  const overview = useMemo(() => overviewSamples(points.map((point, index) => ({ time: pointTimes[index], value: series[0]?.value(point) ?? null }))), [points, pointTimes, series]);
+  const navMin = overview.reduce((value, row) => row.value === null ? value : Math.min(value, row.value), Infinity);
+  const navMax = overview.reduce((value, row) => row.value === null ? value : Math.max(value, row.value), -Infinity);
+  const navPath = seriesPath(overview, navX, (value) => 39 - (value - navMin) / (navMax - navMin || 1) * 30);
   const hoverTime = hover && hover.start === range.start && hover.end === range.end && !gesturing ? hoverTimes[hover.index] : undefined;
   const hoverPoint = hoverTime === undefined ? null : points[lowerBound(pointTimes, hoverTime)];
   const hoverRows = hoverTime === undefined ? [] : [
@@ -223,7 +223,7 @@ export function TimeSeriesChart<T extends Point>({ points, series, label, toolti
 
   if (points.length && !times.length) return <div ref={root} className="flex h-[440px] items-center justify-center rounded-md bg-muted/40"><AlphaProgress status="Preparing chart" /></div>;
 
-  return <div ref={root} className="min-w-0 space-y-3" data-time-chart={label}>
+  return <div ref={root} className="min-w-0 w-full max-w-full space-y-3" data-time-chart={label}>
     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs tabular-nums text-muted-foreground" aria-live="off">{times.length ? `${formatDate(dateString(range.start))} – ${formatDate(dateString(range.end))}` : "No history"}</p><div className="flex gap-1">{[
       { label: "Zoom out", icon: Minus, action: () => zoomAt(1 / .7), disabled: atMaximum },
       { label: "Zoom in", icon: Plus, action: () => zoomAt(.7), disabled: atMinimum },

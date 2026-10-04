@@ -35,7 +35,7 @@ export function PortfolioDevelopmentChart({ points, emptyMessage, benchmarks = [
     ...(showDividends ? [{ label: "Cumulative Dividends", color: "hsl(var(--chart-dividend))", value: (point: PortfolioDevelopmentPoint) => point.dividendsReceived, stepped: true }] : [])
   ];
 
-  return <div className="space-y-3">
+  return <div className="min-w-0 max-w-full space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3"><div className="inline-flex rounded-md border border-border bg-card p-1">{(["value", "economic"] as const).map((value) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)} className={cn("alpha-focus rounded px-3 py-1.5 text-sm text-muted-foreground", mode === value && "bg-[hsl(var(--accent-subtle))] text-foreground")}>{value === "economic" ? "Economic Value" : "Value"}</button>)}</div><label className="flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={showDividends} onChange={(event) => setShowDividends(event.target.checked)} />Cumulative dividends</label></div>
     <TimeSeriesChart points={points} label={mode === "economic" ? "Portfolio economic value" : "Portfolio performance"} emptyMessage={mode === "economic" && economicValueReason ? economicValueReason : emptyMessage} series={series} tooltip={(point) => mode === "economic" ? [
       { label: "Economic value", value: formatCurrency(point.economicValue, point.currency) },
