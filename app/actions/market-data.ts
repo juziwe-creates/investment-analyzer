@@ -9,6 +9,7 @@ import {
   createMarketDataProvider
 } from "@/lib/market-data";
 import { marketDataCurrency } from "@/lib/market-data/currency";
+import { priceHistoryCoverage } from "@/lib/market-data/coverage";
 import {
   marketDataProviderSymbol,
   validateMarketDataProviderSymbol
@@ -167,6 +168,7 @@ async function fetchAndStoreSecurityMarketData(input: {
     fromDate: input.fromDate,
     toDate: input.toDate
   });
+  const coverage = priceHistoryCoverage(prices, input.security.first_trade_date);
   const priceRows = prices.map((price) => ({
     user_id: input.userId,
     portfolio_id: input.security.portfolio_id,
@@ -205,12 +207,13 @@ async function fetchAndStoreSecurityMarketData(input: {
   await upsertMarketPrices(priceRows);
 
   let dividendRows: Database["public"]["Tables"]["market_dividends"]["Insert"][] = [];
-  let warningMessage: string | null = null;
+  let warningMessage: string | null = input.includeDividends ? coverage.warning : null;
 
   if (!input.includeDividends) {
     return {
       priceCount: priceRows.length,
       dividendCount: 0,
+      priceCoverage: coverage,
       warningMessage
     };
   }
@@ -242,12 +245,13 @@ async function fetchAndStoreSecurityMarketData(input: {
 
     await upsertMarketDividends(dividendRows);
   } catch (error) {
-    warningMessage = `Prices were synced, but dividend sync failed: ${providerErrorMessage(error)}`;
+    warningMessage = [warningMessage, `Prices were synced, but dividend sync failed: ${providerErrorMessage(error)}`].filter(Boolean).join(" ");
   }
 
   return {
     priceCount: priceRows.length,
     dividendCount: dividendRows.length,
+    priceCoverage: coverage,
     warningMessage
   };
 }
@@ -383,6 +387,7 @@ export async function syncSecurityMarketData(formData: FormData) {
 
     successMessage =
       `Synced ${result.priceCount} prices and ${result.dividendCount} dividends for ${typedSecurity.security_name} via ${providerSymbol}` +
+      `. Price coverage: ${result.priceCoverage.first} to ${result.priceCoverage.last}; requested from ${addDays(typedSecurity.first_trade_date, -7)}.` +
       (result.warningMessage ? `. ${result.warningMessage}` : "");
   } catch (error) {
     const message = providerErrorMessage(error);
