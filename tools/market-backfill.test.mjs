@@ -31,6 +31,12 @@ test("benchmark conversion uses dated FX without future rates or assumed dividen
 test("replacement RPCs are owner scoped, atomic, admin only and preserve transactions", async () => {
   const sql = await readFile(new URL("../supabase/migrations/20261011000000_stock_splits_and_history_reload.sql", import.meta.url), "utf8");
   assert.match(sql, /Portfolio owner mismatch/);
+  assert.match(sql, /create table if not exists public\.market_splits/);
+  assert.match(sql, /drop policy if exists "Users can manage their stock splits"/);
+  assert.match(sql, /create index if not exists market_splits_owner_date_idx/);
+  assert.match(sql, /create or replace function public\.replace_security_market_history/);
+  assert.match(sql, /create or replace function public\.replace_benchmark_history/);
+  assert.match(sql, /i\.indisunique and i\.indisvalid/);
   assert.match(sql, /pg_advisory_xact_lock/);
   assert.match(sql, /revoke all.*from public, anon, authenticated/);
   assert.match(sql, /Benchmark return methodology must match existing history/);

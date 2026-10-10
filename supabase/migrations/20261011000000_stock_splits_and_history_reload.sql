@@ -1,6 +1,6 @@
 begin;
 
-create table public.market_splits (
+create table if not exists public.market_splits (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   portfolio_id uuid not null references public.portfolios(id) on delete cascade,
@@ -14,18 +14,36 @@ create table public.market_splits (
   unique (user_id, portfolio_id, security_key, split_date)
 );
 alter table public.market_splits enable row level security;
+drop policy if exists "Users can manage their stock splits" on public.market_splits;
 create policy "Users can manage their stock splits" on public.market_splits for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id and exists (
     select 1 from public.portfolios p where p.id = portfolio_id and p.user_id = auth.uid()
   ));
-create index market_splits_owner_date_idx on public.market_splits (user_id, portfolio_id, split_date);
+create index if not exists market_splits_owner_date_idx on public.market_splits (user_id, portfolio_id, split_date);
+-- ON CONFLICT requires this identity even when the table was created earlier.
+-- Existing duplicates cause an error and rollback; no split rows are removed.
+do $$
+begin
+  if not exists (
+    select 1 from pg_index i
+    where i.indrelid = 'public.market_splits'::regclass and i.indisunique and i.indisvalid
+      and i.indpred is null and i.indexprs is null and i.indnkeyatts = 4
+      and (select array_agg(a.attname::text order by k.ordinality)
+        from unnest(i.indkey) with ordinality k(attnum, ordinality)
+        join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum
+        where k.ordinality <= i.indnkeyatts
+      ) = array['user_id', 'portfolio_id', 'security_key', 'split_date']
+  ) then
+    create unique index market_splits_identity_idx on public.market_splits (user_id, portfolio_id, security_key, split_date);
+  end if;
+end $$;
 grant select, insert, update, delete on public.market_splits to authenticated;
 grant all on public.market_splits to service_role;
 
 -- Each replacement is one transaction: a failed insert rolls back the deletes.
 -- Only the offline administration tool may invoke this operation.
-create function public.replace_security_market_history(
+create or replace function public.replace_security_market_history(
   p_user_id uuid, p_portfolio_id uuid, p_security_key text,
   p_prices jsonb, p_dividends jsonb, p_splits jsonb
 ) returns void language plpgsql security invoker set search_path = public as $$
@@ -72,7 +90,7 @@ revoke all on function public.replace_security_market_history(uuid, uuid, text, 
 grant execute on function public.replace_security_market_history(uuid, uuid, text, jsonb, jsonb, jsonb) to service_role;
 
 -- Reuses the existing shared benchmark table and its read-only client policies.
-create function public.replace_benchmark_history(p_benchmark_id text, p_rows jsonb)
+create or replace function public.replace_benchmark_history(p_benchmark_id text, p_rows jsonb)
 returns void language plpgsql security invoker set search_path = public as $$
 begin
   if p_benchmark_id is null or p_rows is null or p_benchmark_id not in ('msci-world', 'sp-500', 'dax') or jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) = 0 then
