@@ -10,6 +10,7 @@ import {
 } from "@/lib/market-data";
 import { marketDataCurrency } from "@/lib/market-data/currency";
 import { priceHistoryCoverage } from "@/lib/market-data/coverage";
+import { firstSecurityPurchase } from "@/lib/market-data/purchase-history";
 import {
   marketDataProviderSymbol,
   validateMarketDataProviderSymbol
@@ -295,6 +296,15 @@ export async function syncSecurityMarketData(formData: FormData) {
     redirectWithMessage(returnTo, "Security was not found");
   }
 
+  let firstPurchaseDate: string;
+  try {
+    const purchaseQuery = supabase.from("transactions").select("trade_date");
+    firstPurchaseDate = await firstSecurityPurchase(purchaseQuery as unknown as Parameters<typeof firstSecurityPurchase>[0], user.id, portfolioId, typedSecurity);
+  } catch (error) {
+    redirectWithMessage(returnTo, providerErrorMessage(error));
+  }
+  const historySecurity = { ...typedSecurity, first_trade_date: firstPurchaseDate };
+
   let provider: MarketDataProvider;
 
   try {
@@ -372,9 +382,9 @@ export async function syncSecurityMarketData(formData: FormData) {
       includeDividends: true,
       provider,
       providerSymbol,
-      security: typedSecurity,
+      security: historySecurity,
       userId: user.id,
-      fromDate: addDays(typedSecurity.first_trade_date, -7),
+      fromDate: addDays(firstPurchaseDate, -7),
       toDate: dateOnly()
     });
 
@@ -387,7 +397,7 @@ export async function syncSecurityMarketData(formData: FormData) {
 
     successMessage =
       `Synced ${result.priceCount} prices and ${result.dividendCount} dividends for ${typedSecurity.security_name} via ${providerSymbol}` +
-      `. Price coverage: ${result.priceCoverage.first} to ${result.priceCoverage.last}; requested from ${addDays(typedSecurity.first_trade_date, -7)}.` +
+      `. Price coverage: ${result.priceCoverage.first} to ${result.priceCoverage.last}; first purchase ${firstPurchaseDate}; requested from ${addDays(firstPurchaseDate, -7)}.` +
       (result.warningMessage ? `. ${result.warningMessage}` : "");
   } catch (error) {
     const message = providerErrorMessage(error);

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test:splits": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/analytics/stock-splits.test.js .tmp-tests/lib/market-data/coverage.test.js tools/market-backfill.test.mjs",
+    "test:splits": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/analytics/stock-splits.test.js .tmp-tests/lib/market-data/coverage.test.js .tmp-tests/lib/market-data/purchase-history.test.js tools/market-backfill.test.mjs",
     "bench:analytics": "tsc -p tsconfig.test.json && node .tmp-tests/lib/analytics/performance.bench.js",
     "test": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/analytics/benchmark-portfolio.test.js .tmp-tests/lib/analytics/benchmarks.test.js .tmp-tests/lib/analytics/historical-chart-bugfix.test.js .tmp-tests/lib/portfolio-map/map.test.js .tmp-tests/lib/transactions/delete.test.js .tmp-tests/lib/charts/series.test.js .tmp-tests/lib/analytics/dividends.test.js .tmp-tests/lib/charts/time-viewport.test.js .tmp-tests/lib/analytics/presentation.test.js .tmp-tests/lib/analytics/currency.test.js .tmp-tests/lib/analytics/engine.test.js .tmp-tests/lib/import/comdirect/comdirect.test.js .tmp-tests/lib/market-data/currency.test.js .tmp-tests/lib/market-data/symbols.test.js"
   },
