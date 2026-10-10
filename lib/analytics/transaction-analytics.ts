@@ -95,7 +95,7 @@ function ownershipStatus(lot: LotProfitability): TransactionAnalyticsRow["owners
     return "sold";
   }
 
-  if (lot.remainingQuantity < lot.quantity) {
+  if (lot.saleAllocations.length > 0) {
     return "partially_sold";
   }
 

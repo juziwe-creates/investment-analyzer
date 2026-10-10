@@ -535,3 +535,10 @@ The following are unresolved and must not be silently decided during UI implemen
 7. **YTD and last-365-day return** - exact return methodology.
 
 Additional future decisions include corporate actions such as splits, spin-offs, and stock dividends, and whether the fixed `0.71575` dividend factor should ever become a user setting if after-tax analytics are approved.
+# Dated Stock Splits (2026-10-11)
+
+Actual holdings and historical valuations now use raw closing prices and dated corporate-action events, replacing any earlier preference for provider `adjusted_close_price`. Dividend-adjusted quotes are retained as reference data but never combined with recorded dividend cash in actual returns.
+
+Each split multiplies remaining lot shares and divides current-unit cost per share on its effective date, before same-day trades. Original transaction facts, total acquisition costs and all cash flows remain unchanged. Benchmark exits use consumed acquisition-cost fractions so their virtual quantities are independent of security splits. Annual security price returns rebase raw prices for splits only, excluding dividends.
+
+The full contract, irregular-event review policy, migration and reload procedure are in [stock-splits-and-backfill.md](stock-splits-and-backfill.md).

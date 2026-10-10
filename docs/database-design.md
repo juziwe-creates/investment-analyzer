@@ -656,3 +656,10 @@ Deferrable until after MVP:
 - Should market prices be user-imported initially or fetched from a provider?
 - Should snapshots be calculated on demand first and persisted only when performance requires it?
 - Does the existing `portfolios` model map directly to broker accounts, or is a separate broker-account entity required?
+# Dated Split Events and Administrative Reload (2026-10-11)
+
+`market_splits` stores owner/portfolio/security-specific effective dates and positive new-share/old-share ratios, with one canonical event per security and date. RLS restricts all client access to the portfolio owner. Transactions remain immutable source facts; analytics combine them with these events in memory.
+
+Migration `20261011000000_stock_splits_and_history_reload.sql` adds admin-only atomic replacement functions for a single security's provider history and a single benchmark's existing `benchmark_prices` history. It creates no benchmark table and preserves shared benchmark read-only client permissions. Each replacement validates scope and nonempty observations, locks its identity, then deletes/inserts in one transaction. Transaction rows, personal dividends and document imports are untouched.
+
+See [stock-splits-and-backfill.md](stock-splits-and-backfill.md) for staging, local backups, exact benchmark-methodology confirmation and release prerequisites.

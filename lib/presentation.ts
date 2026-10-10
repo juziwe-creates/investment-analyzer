@@ -7,11 +7,13 @@ import { presentationFactor, scaleTransaction } from "@/lib/analytics/presentati
 import { measureAnalytics } from "@/lib/performance";
 import type { Database } from "@/types/database";
 import type { AnalyticsTransactionComponent } from "@/lib/analytics/engine";
+import type { SecuritySplit } from "@/lib/analytics/splits";
+import { readSecuritySplits } from "@/lib/market-data/splits";
 
 export const presentationCookie = "alpha-presentation";
 export const presentationEnabled = cache(async () => (await cookies()).get(presentationCookie)?.value === "1");
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
-type TransactionWithComponents = Transaction & { components?: AnalyticsTransactionComponent[] };
+type TransactionWithComponents = Transaction & { components?: AnalyticsTransactionComponent[]; splits?: SecuritySplit[] };
 
 // React cache deduplicates within one server render, never across users or requests.
 const sourceTransactions = cache(async (portfolioId?: string) => measureAnalytics("transactions.read", async () => {
@@ -24,7 +26,10 @@ const sourceTransactions = cache(async (portfolioId?: string) => measureAnalytic
     const { data, error } = await query;
     if (error) throw new Error("Unable to load complete transaction history.");
     rows.push(...((data ?? []) as unknown as TransactionWithComponents[]));
-    if (!data || data.length < 1000) return rows;
+    if (!data || data.length < 1000) {
+      const splits = await readSecuritySplits(portfolioId);
+      return rows.map((row) => ({ ...row, splits: (splits.get(row.portfolio_id) ?? []).filter((split) => split.securityKey === (row.isin ?? row.ticker ?? row.security_name)) }));
+    }
   }
 }));
 

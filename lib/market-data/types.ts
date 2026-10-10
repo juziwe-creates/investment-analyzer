@@ -14,7 +14,10 @@ export type MarketDividend = {
   recordDate: string | null;
   paymentDate: string | null;
   amountPerShare: number;
+  currency?: string;
 };
+
+export type MarketSplit = { splitDate: string; numerator: number; denominator: number };
 
 export type FetchMarketDataInput = {
   symbol: string;
@@ -26,4 +29,5 @@ export type MarketDataProvider = {
   id: string;
   fetchDailyPrices(input: FetchMarketDataInput): Promise<DailyMarketPrice[]>;
   fetchDividends(input: FetchMarketDataInput): Promise<MarketDividend[]>;
+  fetchSplits?(input: FetchMarketDataInput): Promise<MarketSplit[]>;
 };

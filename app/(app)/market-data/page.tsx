@@ -1,5 +1,6 @@
 import { refreshSyncedMarketData } from "@/app/actions/market-data";
 import { presentationEnabled } from "@/lib/presentation";
+import { presentationTransactions } from "@/lib/presentation";
 import { MarketDataSyncTable } from "@/components/market-data-sync-table";
 import {
   buildCurrentAnalytics,
@@ -70,11 +71,7 @@ export default async function MarketDataPage({
     .eq("provider", providerId)
     .gte("created_at", oneHourAgo)
     .limit(1000);
-  const transactionsQuery = supabase
-    .from("transactions")
-    .select("*")
-    .order("trade_date", { ascending: true })
-    .order("created_at", { ascending: true });
+  const transactionsQuery = presentationTransactions(portfolioId);
   if (portfolioId) {
     manualPricesQuery.eq("portfolio_id", portfolioId);
     marketPricesQuery.eq("portfolio_id", portfolioId);
@@ -83,7 +80,6 @@ export default async function MarketDataPage({
     providerSymbolsQuery.eq("portfolio_id", portfolioId);
     syncRunsQuery.eq("portfolio_id", portfolioId);
     recentSyncRunsQuery.eq("portfolio_id", portfolioId);
-    transactionsQuery.eq("portfolio_id", portfolioId);
   }
   const [
     { data: manualPrices, error: manualPricesError },

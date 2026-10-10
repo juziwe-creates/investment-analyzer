@@ -137,13 +137,13 @@ export function buildBenchmarkComparison(
     const units = entry && lot.currency === "EUR" && lot.quantity > 0 && lot.costBasis > 0 ? lot.costBasis / Number(entry.close_price) : null;
     const exits = lot.saleAllocations.map((sale) => {
       const level = benchmarkLevelAtDate(levels, sale.date);
-      const fraction = sale.quantity / lot.quantity;
+      const fraction = sale.acquisitionFraction ?? sale.quantity / lot.quantity;
       const closedUnits = units === null ? null : units * fraction;
       return { date: sale.date, transactionId: sale.transactionId, observationDate: level?.observation_date ?? null,
         level: level ? Number(level.close_price) : null, units: closedUnits, fraction,
         value: closedUnits === null || !level ? null : closedUnits * Number(level.close_price) };
     });
-    const remainingUnits = units === null ? null : units * lot.remainingQuantity / lot.quantity;
+    const remainingUnits = units === null || lot.costBasis <= 0 ? null : units * lot.remainingCostBasis / lot.costBasis;
     const current = valuationDate ? benchmarkLevelAtDate(levels, valuationDate) : null;
     const currentValue = lot.remainingQuantity <= 0 ? 0 : remainingUnits === null || !current ? null : remainingUnits * Number(current.close_price);
     const proceeds = total(exits.map((sale) => sale.value));

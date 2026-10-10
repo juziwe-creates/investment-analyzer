@@ -3,7 +3,8 @@ import type {
   FetchMarketDataInput,
   MarketDataProvider,
   MarketDividend
-} from "@/lib/market-data/types";
+} from "../types";
+import { parseSplitRatio } from "../../analytics/splits";
 
 const baseUrl = "https://eodhd.com/api";
 
@@ -27,6 +28,8 @@ type EodhdDividend = {
   value?: number | string | null;
   amount?: number | string | null;
   dividend?: number | string | null;
+  unadjustedValue?: number | string | null;
+  currency?: string;
 };
 
 type EodhdError = {
@@ -90,14 +93,13 @@ async function fetchEodhd<T>(
   url.searchParams.set("api_token", apiToken);
   url.searchParams.set("fmt", "json");
 
-  const response = await fetch(url, {
+  const requestOptions = {
     headers: {
       Accept: "application/json"
     },
-    next: {
-      revalidate: 0
-    }
-  });
+    cache: "no-store" as const
+  };
+  const response = await fetch(url, requestOptions);
 
   const responseText = await response.text();
   let payload: unknown;
@@ -148,6 +150,14 @@ function providerErrorMessage(error: unknown) {
 export function createEodhdProvider(apiToken: string): MarketDataProvider {
   return {
     id: "eodhd",
+
+    async fetchSplits(input: FetchMarketDataInput) {
+      const payload = await fetchEodhd<unknown>(apiToken, `/splits/${encodeTicker(input.symbol)}`, optionalDateParams(input));
+      return assertEodhdArray<{ date: string; split: string }>(payload, "split history").map((row) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date)) throw new Error("EODHD returned an invalid split date");
+        return { splitDate: row.date, ...parseSplitRatio(row.split) };
+      });
+    },
 
     async fetchDailyPrices(input: FetchMarketDataInput): Promise<DailyMarketPrice[]> {
       let payload: unknown;
@@ -217,9 +227,10 @@ export function createEodhdProvider(apiToken: string): MarketDataProvider {
           recordDate: parseDate(dividend.recordDate),
           paymentDate: parseDate(dividend.paymentDate),
           amountPerShare: requireNumber(
-            dividend.value ?? dividend.amount ?? dividend.dividend,
+            dividend.unadjustedValue ?? dividend.value ?? dividend.amount ?? dividend.dividend,
             "dividend amount"
-          )
+          ),
+          currency: dividend.currency
         }))
         .filter((dividend) => dividend.exDividendDate && dividend.amountPerShare > 0);
     }

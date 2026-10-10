@@ -12,6 +12,7 @@
     "incremental": false
   },
   "include": [
+    "lib/analytics/stock-splits.test.ts",
     "lib/analytics/benchmark-portfolio.test.ts",
     "lib/analytics/benchmarks.test.ts",
     "lib/analytics/historical-chart-bugfix.test.ts",

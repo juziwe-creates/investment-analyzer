@@ -12,6 +12,12 @@ export type Database = {
   };
   public: {
     Tables: {
+      market_splits: {
+        Row: { id: string; user_id: string; portfolio_id: string; security_key: string; provider: string; provider_symbol: string; split_date: string; numerator: number; denominator: number; created_at: string };
+        Insert: { id?: string; user_id: string; portfolio_id: string; security_key: string; provider: string; provider_symbol: string; split_date: string; numerator: number; denominator: number; created_at?: string };
+        Update: { provider?: string; provider_symbol?: string; numerator?: number; denominator?: number };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

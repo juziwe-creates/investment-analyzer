@@ -10,7 +10,7 @@ import {
 import { marketDataCurrency } from "@/lib/market-data/currency";
 import type { Database } from "@/types/database";
 
-type Transaction = Database["public"]["Tables"]["transactions"]["Row"] & Pick<AnalyticsTransaction, "components">;
+type Transaction = Database["public"]["Tables"]["transactions"]["Row"] & Pick<AnalyticsTransaction, "components" | "splits">;
 type ManualSecurityPrice = Database["public"]["Tables"]["manual_security_prices"]["Row"];
 type LatestMarketPrice = Database["public"]["Views"]["latest_market_prices"]["Row"];
 
@@ -68,7 +68,8 @@ function toAnalyticsTransaction(transaction: Transaction): AnalyticsTransaction 
     net_amount: transaction.net_amount,
     currency: transaction.currency,
     created_at: transaction.created_at,
-    components: transaction.components
+    components: transaction.components,
+    splits: transaction.splits
   };
 }
 
@@ -143,7 +144,7 @@ export function buildValuationPrices(
   for (const marketPrice of marketPrices) {
     pricesBySecurity.set(marketPrice.security_key, {
       security_key: marketPrice.security_key,
-      price: marketPrice.adjusted_close_price ?? marketPrice.close_price,
+      price: marketPrice.close_price,
       price_date: marketPrice.price_date,
       currency: marketDataCurrency({
         fallbackCurrency: marketPrice.currency,

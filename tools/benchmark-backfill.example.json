@@ -1,0 +1,7 @@
+{
+  "benchmarks": [
+    { "id": "msci-world", "symbol": null, "sourceCurrency": null, "seriesType": "net_total_return", "confirmed": false },
+    { "id": "sp-500", "symbol": null, "sourceCurrency": null, "seriesType": null, "confirmed": false },
+    { "id": "dax", "symbol": null, "sourceCurrency": "EUR", "seriesType": "performance_index", "confirmed": false }
+  ]
+}

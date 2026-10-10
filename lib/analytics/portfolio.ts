@@ -18,7 +18,7 @@ import { marketDataCurrency } from "@/lib/market-data/currency";
 import type { Database } from "@/types/database";
 import type { MarketHistoryPrice } from "@/types/market-history";
 
-type Transaction = Database["public"]["Tables"]["transactions"]["Row"] & Pick<AnalyticsTransaction, "components">;
+type Transaction = Database["public"]["Tables"]["transactions"]["Row"] & Pick<AnalyticsTransaction, "components" | "splits">;
 type ManualSecurityPrice = Database["public"]["Tables"]["manual_security_prices"]["Row"];
 type LatestMarketPrice = Database["public"]["Views"]["latest_market_prices"]["Row"];
 type MarketPrice = MarketHistoryPrice;
@@ -143,14 +143,15 @@ function toAnalyticsTransaction(transaction: Transaction): AnalyticsTransaction 
     net_amount: transaction.net_amount,
     currency: transaction.currency,
     created_at: transaction.created_at,
-    components: transaction.components
+    components: transaction.components,
+    splits: transaction.splits
   };
 }
 
 function toAnalyticsPrices(marketPrices: MarketPrice[]): AnalyticsPrice[] {
   return marketPrices.map((price) => ({
     security_key: price.security_key,
-    price: price.adjusted_close_price ?? price.close_price,
+    price: price.close_price,
     price_date: price.price_date,
     currency: marketDataCurrency({
       fallbackCurrency: price.currency,

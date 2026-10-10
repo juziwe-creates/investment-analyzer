@@ -186,6 +186,22 @@ async function fetchAndStoreSecurityMarketData(input: {
     currency
   }));
 
+  // Fetch corporate actions before saving prices. A failed split request must not
+  // publish quotes without the corresponding inventory events.
+  if (input.provider.fetchSplits) {
+    await sleep(requestDelayMs());
+    const splits = await input.provider.fetchSplits({ symbol: input.providerSymbol, fromDate: input.security.first_trade_date, toDate: input.toDate });
+    const supabase = await createClient();
+    if (splits.length) {
+      const { error } = await supabase.from("market_splits").upsert(splits.map((split) => ({
+        user_id: input.userId, portfolio_id: input.security.portfolio_id,
+        security_key: input.security.security_key, provider: input.provider.id,
+        provider_symbol: input.providerSymbol, split_date: split.splitDate,
+        numerator: split.numerator, denominator: split.denominator
+      })), { onConflict: "user_id,portfolio_id,security_key,split_date" });
+      if (error) throw new Error(`Split history could not be saved: ${error.message}`);
+    }
+  }
   await upsertMarketPrices(priceRows);
 
   let dividendRows: Database["public"]["Tables"]["market_dividends"]["Insert"][] = [];
@@ -221,7 +237,7 @@ async function fetchAndStoreSecurityMarketData(input: {
       record_date: dividend.recordDate,
       payment_date: dividend.paymentDate,
       amount_per_share: dividend.amountPerShare,
-      currency
+      currency: dividend.currency ?? currency
     }));
 
     await upsertMarketDividends(dividendRows);
@@ -353,7 +369,9 @@ export async function syncSecurityMarketData(formData: FormData) {
       provider,
       providerSymbol,
       security: typedSecurity,
-      userId: user.id
+      userId: user.id,
+      fromDate: addDays(typedSecurity.first_trade_date, -7),
+      toDate: dateOnly()
     });
 
     await updateSyncRun(syncRunId, {
@@ -380,6 +398,10 @@ export async function syncSecurityMarketData(formData: FormData) {
   revalidatePath("/market-data");
   revalidatePath("/securities");
   revalidatePath("/transactions");
+  revalidatePath("/dashboard");
+  revalidatePath("/portfolio", "layout");
+  revalidatePath("/stock-analytics");
+  revalidatePath("/transaction-analytics");
   redirectWithMessage(returnTo, successMessage);
 }
 

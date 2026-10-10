@@ -1,4 +1,6 @@
-export type AnalyticsTransactionType = "buy" | "sell" | "dividend" | "fee" | "tax";
+import { splitFactor, splitPrice, uniqueSplits, type SecuritySplit } from "./splits";
+
+export type AnalyticsTransactionType = "buy" | "sell" | "dividend" | "fee" | "tax" | "split";
 
 export type AnalyticsTransactionComponent = {
   component_type: "fee" | "tax" | "withholding_tax" | "exchange_fee" | "broker_fee" | "other";
@@ -21,6 +23,8 @@ export type AnalyticsTransaction = {
   currency: string;
   created_at: string;
   components?: AnalyticsTransactionComponent[];
+  splits?: SecuritySplit[];
+  splitRatio?: number;
 };
 
 export type AnalyticsPrice = {
@@ -37,6 +41,7 @@ export type LotMatchingMethod = "fifo" | "lifo";
 
 export type LotCalculationOptions = {
   lotMatchingMethod?: LotMatchingMethod;
+  asOf?: string;
 };
 
 export type XirrStatus =
@@ -52,7 +57,7 @@ export type LotCashFlow = {
   transactionId?: string;
 };
 
-export type SaleAllocation = { date: string; quantity: number; proceeds: number; transactionId: string };
+export type SaleAllocation = { date: string; quantity: number; proceeds: number; transactionId: string; acquisitionFraction?: number };
 
 export type PurchaseLotAnalytics = {
   saleAllocations: SaleAllocation[];
@@ -127,6 +132,7 @@ type WorkingLot = {
   remainingAcquisitionCost: number;
   attributedSaleProceeds: number;
   attributedSaleCostBasis: number;
+  saleQuantityInCurrentUnits: number;
   attributedDividends: number;
   dividendAllocations: {
     date: string;
@@ -140,6 +146,7 @@ type WorkingLot = {
     quantity: number;
     proceeds: number;
     transactionId: string;
+    acquisitionFraction?: number;
   }[];
   dividendTransactionIds: string[];
   currency: string;
@@ -242,7 +249,7 @@ export function dividendFacts(transaction: AnalyticsTransaction) {
 export function buildInvestmentLedger(transactions: AnalyticsTransaction[], options: LotCalculationOptions = {}) {
   const lots: WorkingLot[] = [];
   const incompleteKeys = new Set<string>();
-  return sortTransactionsChronologically(transactions).map((transaction) => {
+  return datedInvestmentEvents(transactions, options.asOf ?? transactions.map((row) => row.trade_date).sort().at(-1)).map((transaction) => {
     const key = securityKey(transaction);
     const eligible = lots.filter((lot) => lot.securityKey === key && lot.remainingQuantity > 0).reduce((sum, lot) => sum + lot.remainingQuantity, 0);
     if (transaction.type === "buy" && (!(numeric(transaction.quantity) > 0) || (transaction.gross_amount === null && transaction.net_amount === null && transaction.unit_price === null))) incompleteKeys.add(key);
@@ -254,6 +261,7 @@ export function buildInvestmentLedger(transactions: AnalyticsTransaction[], opti
     } : null;
     applyTransactionToLots(transaction, lots, options);
     return { transaction, dividend, complete: incompleteKeys.size === 0,
+      activeShares: lots.filter((lot) => lot.securityKey === key).reduce((sum, lot) => sum + lot.remainingQuantity, 0),
       activeCost: lots.reduce((sum, lot) => sum + (lot.remainingQuantity > 0 ? Math.max(0, lot.remainingAcquisitionCost) : 0), 0) };
   });
 }
@@ -263,7 +271,7 @@ function statusForLot(lot: WorkingLot): LotStatus {
     return "closed";
   }
 
-  if (lot.remainingQuantity < lot.originalQuantity) {
+  if (lot.attributedSaleCostBasis > 0) {
     return "partial";
   }
 
@@ -286,8 +294,27 @@ function sortTransactionsChronologically(transactions: AnalyticsTransaction[]) {
       return dateComparison;
     }
 
+    if (a.type === "split" && b.type !== "split") return -1;
+    if (b.type === "split" && a.type !== "split") return 1;
     return a.created_at.localeCompare(b.created_at);
   });
+}
+
+export function transactionSplits(transactions: AnalyticsTransaction[]) {
+  return uniqueSplits(transactions.flatMap((row) => row.splits ?? []));
+}
+
+export function datedInvestmentEvents(transactions: AnalyticsTransaction[], asOf?: string) {
+  const splits = transactionSplits(transactions);
+  const events = splits.filter((split) => !asOf || split.date <= asOf).flatMap((split) => {
+    const source = transactions.find((row) => securityKey(row) === split.securityKey);
+    const firstBuy = transactions.filter((row) => row.type === "buy" && securityKey(row) === split.securityKey).map((row) => row.trade_date).sort()[0];
+    if (!firstBuy || split.date < firstBuy) return [];
+    return source ? [{ ...source, id: `split:${split.securityKey}:${split.date}`, type: "split" as const,
+      trade_date: split.date, quantity: null, unit_price: null, gross_amount: null, net_amount: null,
+      splitRatio: splitFactor(split), components: [], splits: undefined }] : [];
+  });
+  return sortTransactionsChronologically([...transactions, ...events]);
 }
 
 function xnpv(rate: number, cashFlows: { amount: number; years: number }[]) {
@@ -431,6 +458,18 @@ function applyTransactionToLots(
   const key = securityKey(transaction);
   const lotMatchingMethod = options.lotMatchingMethod ?? "fifo";
 
+  if (transaction.type === "split") {
+    const ratio = transaction.splitRatio!;
+    for (const lot of lots) {
+      if (lot.securityKey !== key || lot.remainingQuantity <= 0) continue;
+      lot.remainingQuantity *= ratio;
+      lot.acquisitionCostPerShare /= ratio;
+      lot.saleQuantityInCurrentUnits *= ratio;
+      for (const allocation of lot.dividendAllocations) allocation.quantity *= ratio;
+    }
+    return;
+  }
+
   if (transaction.type === "buy") {
     const originalQuantity = numeric(transaction.quantity);
     const originalAcquisitionCost = acquisitionCost(transaction);
@@ -453,6 +492,7 @@ function applyTransactionToLots(
       remainingAcquisitionCost: originalAcquisitionCost,
       attributedSaleProceeds: 0,
       attributedSaleCostBasis: 0,
+      saleQuantityInCurrentUnits: 0,
       attributedDividends: 0,
       dividendAllocations: [],
       saleTransactionIds: [],
@@ -486,6 +526,7 @@ function applyTransactionToLots(
 
       const consumedQuantity = Math.min(lot.remainingQuantity, quantityToSell);
       const consumedCostBasis = consumedQuantity * lot.acquisitionCostPerShare;
+      lot.saleQuantityInCurrentUnits += consumedQuantity;
       const allocatedSaleProceeds =
         totalSellQuantity > 0 ? totalSaleProceeds * (consumedQuantity / totalSellQuantity) : 0;
 
@@ -498,7 +539,8 @@ function applyTransactionToLots(
         date: transaction.trade_date,
         quantity: consumedQuantity,
         proceeds: allocatedSaleProceeds,
-        transactionId: transaction.id
+        transactionId: transaction.id,
+        acquisitionFraction: lot.originalAcquisitionCost > 0 ? consumedCostBasis / lot.originalAcquisitionCost : 0
       });
       lot.cashFlows.push({
         date: transaction.trade_date,
@@ -557,10 +599,7 @@ function buildPurchaseLotAnalytics(
 ) {
   return lots.map((lot) => {
     const price = priceMap.get(lot.securityKey);
-    const soldQuantity = lot.saleAllocations.reduce(
-      (sum, allocation) => sum + allocation.quantity,
-      0
-    );
+    const soldQuantity = lot.saleQuantityInCurrentUnits;
     const closingSaleAllocation = lot.saleAllocations.at(-1) ?? null;
     const closingSalePricePerShare =
       lot.remainingQuantity <= 0 && soldQuantity > 0
@@ -612,8 +651,8 @@ function buildPurchaseLotAnalytics(
       lot.remainingQuantity > 0 ? trailingDividendAmount / lot.remainingQuantity : null;
     const yearsHeld = terminalDate ? yearsBetween(lot.buyDate, terminalDate) : 0;
     const averageDividendPerShare =
-      yearsHeld > 0 && lot.originalQuantity > 0
-        ? lot.attributedDividends / yearsHeld / lot.originalQuantity
+      yearsHeld > 0 && lot.acquisitionCostPerShare > 0 && lot.originalAcquisitionCost > 0
+        ? lot.attributedDividends / yearsHeld / (lot.originalAcquisitionCost / lot.acquisitionCostPerShare)
         : null;
     const latestDividendAllocation = lot.dividendAllocations.at(-1) ?? null;
     const latestDividendPerShare =
@@ -681,11 +720,16 @@ export function calculatePurchaseLots(
 ): PurchaseLotAnalytics[] {
   const lots: WorkingLot[] = [];
 
-  for (const transaction of sortTransactionsChronologically(transactions)) {
+  const asOf = options.asOf ?? valuationDate ?? [...transactions.map((row) => row.trade_date), ...prices.map((row) => row.price_date), new Date().toISOString().slice(0, 10)].sort().at(-1)!;
+  const eligible = options.asOf || valuationDate ? transactions.filter((row) => row.trade_date <= asOf) : transactions;
+  for (const transaction of datedInvestmentEvents(eligible, asOf)) {
     applyTransactionToLots(transaction, lots, options);
   }
 
-  return buildPurchaseLotAnalytics(lots, priceMapForValuation(prices, valuationDate), valuationDate);
+  const priceMap = priceMapForValuation(prices, valuationDate);
+  const splits = transactionSplits(transactions);
+  for (const [key, price] of priceMap) priceMap.set(key, { ...price, price: splitPrice(price.price, key, price.price_date, asOf, splits) });
+  return buildPurchaseLotAnalytics(lots, priceMap, valuationDate);
 }
 
 export function calculateLifetimeDeployedCapital(transactions: AnalyticsTransaction[]) {
@@ -699,7 +743,8 @@ export function buildPortfolioTimeline(
   prices: AnalyticsPrice[],
   options: LotCalculationOptions = {}
 ): PortfolioTimelinePoint[] {
-  const chronologicalTransactions = sortTransactionsChronologically(transactions);
+  const chronologicalTransactions = datedInvestmentEvents(transactions, options.asOf ?? [...transactions.map((row) => row.trade_date), ...prices.map((row) => row.price_date)].sort().at(-1));
+  const splits = transactionSplits(transactions);
   // Canonical database dates are YYYY-MM-DD, so lexical order is chronological.
   const chronologicalPrices = [...prices].sort(
     (a, b) => a.price_date < b.price_date ? -1 : a.price_date > b.price_date ? 1 : 0
@@ -756,6 +801,7 @@ export function buildPortfolioTimeline(
     let openLotCount = 0;
     let firstPricedCurrency: string | undefined;
     const missingKeys = new Set<string>();
+    const datedPrices = new Map<string, number>();
     for (const lot of lots) {
       if (lot.remainingQuantity <= 0) continue;
       openLotCount++;
@@ -764,7 +810,8 @@ export function buildPortfolioTimeline(
       const price = latestPriceMap.get(lot.securityKey);
       if (price) {
         pricedCurrentDeployedCapital += cost;
-        portfolioMarketValue += lot.remainingQuantity * price.price;
+        if (!datedPrices.has(lot.securityKey)) datedPrices.set(lot.securityKey, splitPrice(price.price, lot.securityKey, price.price_date, date, splits));
+        portfolioMarketValue += lot.remainingQuantity * datedPrices.get(lot.securityKey)!;
         firstPricedCurrency ??= price.currency;
       } else missingKeys.add(lot.securityKey);
     }
