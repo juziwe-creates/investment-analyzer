@@ -276,7 +276,7 @@ export function MarketDataSyncTable({
         <CardTitle>Market data sync</CardTitle>
         <CardDescription>
           Resolve provider symbols deliberately, then sync one security at a time.
-          Each sync uses about two provider calls: prices and dividends.
+          {providerId === "eodhd" ? "Each history sync uses three provider calls: prices, splits and dividends." : "Each sync uses about two provider calls: prices and dividends."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -371,8 +371,9 @@ export function MarketDataSyncTable({
                     recentlySynced
                   } = row;
                   const marketPriceValue = marketPrice
-                    ? marketPrice.adjusted_close_price ?? marketPrice.close_price
+                    ? marketPrice.close_price
                     : null;
+                  const syncInProgress = syncRun?.status === "processing" && isRecentlySynced(syncRun);
                   const displayCurrency = marketPrice
                     ? marketDataCurrency({
                         fallbackCurrency: marketPrice.currency,
@@ -515,10 +516,21 @@ export function MarketDataSyncTable({
                           >
                             Sync one
                           </ProgressSubmit>
+                          {providerId === "eodhd" ? (
+                            <ProgressSubmit status="Syncing historical prices, splits and dividends"
+                              type="submit"
+                              size="sm"
+                              variant="outline"
+                              disabled={!providerSymbol || syncInProgress}
+                              title="Fetch history from the first transaction, even if recently synced"
+                            >
+                              Sync history
+                            </ProgressSubmit>
+                          ) : null}
                           <div className="text-xs text-muted-foreground">
                             {recentlySynced
                               ? "Synced recently"
-                              : "Estimated calls: 2"}
+                              : `Estimated calls: ${providerId === "eodhd" ? 3 : 2}`}
                           </div>
                         </form>
                       </td>
