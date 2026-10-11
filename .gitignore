@@ -5,6 +5,7 @@ node_modules
 dist
 coverage
 .tmp-tests
+.tmp-npm-cache
 *.tsbuildinfo
 .vercel
 .market-backfill/

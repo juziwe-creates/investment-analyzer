@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   Download,
   Landmark,
+  Orbit,
   ReceiptText,
   Settings,
   WalletCards
@@ -25,6 +26,7 @@ type NavItem = {
 
 const primaryNavItems: NavItem[] = [
   { href: "/dashboard", label: "Portfolio", icon: WalletCards },
+  { href: "/analytics", label: "αnalytics", icon: Orbit },
   { href: "/portfolio", label: "Investments", icon: Landmark },
   { href: "/dividends", label: "Dividends", icon: CircleDollarSign },
   { href: "/transactions", label: "Transactions", icon: ReceiptText }
@@ -37,6 +39,7 @@ const secondaryNavItems: NavItem[] = [
 
 const mobileNavItems: NavItem[] = [
   { href: "/dashboard", label: "Portfolio", icon: WalletCards },
+  { href: "/analytics", label: "αnalytics", icon: Orbit },
   { href: "/portfolio", label: "Investments", icon: Landmark },
   { href: "/dividends", label: "Dividends", icon: CircleDollarSign }
 ];
@@ -168,7 +171,7 @@ export function MobileBottomNavigation() {
           })}
         </div>
       ) : null}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border/80 bg-card/95 px-2 py-2 backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border/80 bg-card/95 px-2 py-2 backdrop-blur md:hidden">
       {mobileNavItems.map((item) => {
         const Icon = item.icon;
         const isActive = pathname === item.href;

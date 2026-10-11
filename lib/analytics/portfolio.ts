@@ -152,7 +152,7 @@ function toAnalyticsTransaction(transaction: Transaction): AnalyticsTransaction 
   };
 }
 
-function toAnalyticsPrices(marketPrices: MarketPrice[]): AnalyticsPrice[] {
+export function toAnalyticsPrices(marketPrices: MarketPrice[]): AnalyticsPrice[] {
   return marketPrices.map((price) => ({
     security_key: price.security_key,
     price: price.close_price,

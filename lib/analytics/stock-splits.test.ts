@@ -15,6 +15,21 @@ function row(id: string, type: AnalyticsTransaction["type"], date: string, quant
 }
 const quote = (date: string, price: number) => ({ security_key: "ALPHABET", price_date: date, price, currency: "EUR" });
 
+test("Universe inventory snapshots preserve split-aware values and fully sold dates", () => {
+  const rows = [row("buy", "buy", "2022-07-01", 10, 20000), row("sale", "sell", "2022-07-20", 200, 21000)];
+  const snapshots = new Map<string, { quantity: number; marketValue: number | null; investmentGain: number | null }[]>();
+  const points = buildPortfolioTimeline(rows, [quote("2022-07-15", 2000)], {}, {
+    dates: new Set([split.date, "2022-07-20"]), emit: (date, holdings) => snapshots.set(date, holdings),
+  });
+  const snapshot = snapshots.get(split.date)!;
+  assert.equal(snapshot[0].quantity, 200);
+  assert.equal(snapshot[0].marketValue, 20000);
+  assert.equal(snapshot[0].investmentGain, 0);
+  assert.equal(points.find((point) => point.date === split.date)?.portfolioMarketValue, snapshot[0].marketValue);
+  assert.equal(snapshots.get("2022-07-20")?.length, 0);
+  assert.equal(points.at(-1)?.portfolioMarketValue, 0);
+});
+
 test("dated 20-for-1 split keeps value and total cost invariant without changing original purchases", () => {
   const rows = [row("buy", "buy", "2022-07-01", 10, 20000)];
   const original = structuredClone(rows);
