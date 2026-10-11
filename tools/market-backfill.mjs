@@ -70,6 +70,36 @@ export function benchmarkRows(config, prices, fx = []) {
   });
 }
 
+export function canonicalSecurities(transactions) {
+  const grouped = new Map();
+  for (const row of [...transactions].sort((a, b) => a.trade_date.localeCompare(b.trade_date) || a.created_at.localeCompare(b.created_at))) {
+    const key = row.isin ?? row.ticker ?? row.security_name;
+    const current = grouped.get(key);
+    grouped.set(key, { ...current, user_id: row.user_id, portfolio_id: row.portfolio_id, security_key: key,
+      security_name: row.security_name, isin: row.isin ?? current?.isin ?? null, ticker: row.ticker ?? current?.ticker ?? null,
+      security_currency: row.security_currency ?? current?.security_currency ?? null, asset_type: row.asset_type ?? current?.asset_type ?? null });
+  }
+  return [...grouped.values()];
+}
+
+export function resolveBackfillSymbol(security, stored, latest, catalogue) {
+  const matches = catalogue.filter((row) => row.Isin === security.isin?.trim() && row.Currency === "EUR" && ["XETRA", "F"].includes(row.Exchange));
+  const eligible = matches.filter((row) => !/warrant|certificate|bond/i.test(row.Type ?? ""));
+  const xetra = eligible.filter((row) => row.Exchange === "XETRA");
+  const exact = xetra.length ? xetra : eligible;
+  const preferred = stored?.trim();
+  if (preferred && germanExchanges.test(preferred)) {
+    const entry = catalogue.find((row) => `${row.Code}.${row.Exchange}` === preferred);
+    if ((!catalogue.length || entry) && (!entry?.Isin || !security.isin || entry.Isin === security.isin.trim())) return preferred;
+  }
+  if (exact.length === 1) return `${exact[0].Code}.${exact[0].Exchange}`;
+  if (latest && germanExchanges.test(latest)) {
+    const entry = catalogue.find((row) => `${row.Code}.${row.Exchange}` === latest);
+    if ((!catalogue.length || entry) && (!entry?.Isin || !security.isin || entry.Isin === security.isin.trim())) return latest;
+  }
+  return null;
+}
+
 async function allRows(db, table, filters) {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
@@ -103,17 +133,29 @@ export async function main(args = process.argv.slice(2)) {
   if (error || !portfolio) throw new Error("Portfolio could not be loaded");
   const filters = { user_id: portfolio.user_id, portfolio_id: portfolioId };
   const transactions = await allRows(db, "transactions", filters);
-  const securities = await allRows(db, "user_securities", filters);
+  const securities = canonicalSecurities(transactions);
   const symbols = await allRows(db, "security_provider_symbols", { ...filters, provider: "eodhd" });
+  const latestPrices = await allRows(db, "latest_provider_market_prices", { ...filters, provider: "eodhd" });
+  const catalogue = option("--catalogue") ? await load(resolve(option("--catalogue"))) : [];
   const today = new Date().toISOString().slice(0, 10);
   const candidates = securities.map((security) => {
     const purchases = transactions.filter((row) => row.type === "buy" && (row.isin ?? row.ticker ?? row.security_name) === security.security_key);
     const first = purchases.map((row) => row.trade_date).sort()[0];
-    const symbol = symbols.find((row) => row.security_key === security.security_key)?.provider_symbol;
+    const stored = symbols.find((row) => row.security_key === security.security_key)?.provider_symbol;
+    const latest = latestPrices.find((row) => row.security_key === security.security_key)?.provider_symbol;
+    const symbol = resolveBackfillSymbol(security, stored, latest, catalogue);
     return { security, symbol, from: first ? new Date(Date.parse(first) - 7 * 86400000).toISOString().slice(0, 10) : null, to: today,
-      skip: !first ? "No purchase history" : !symbol ? "Missing confirmed EODHD symbol" : !germanExchanges.test(symbol) ? "Confirm EUR listing before reload" : null };
+      skip: !first ? "No purchase history" : !symbol ? "Missing unambiguous EUR listing or instrument identity needs review" : null };
   });
   if (option("--security")) candidates.splice(0, candidates.length, ...candidates.filter((row) => row.security.security_key === option("--security")));
+  if (option("--symbol")) {
+    if (!option("--security") || candidates.length !== 1) throw new Error("A symbol override requires one explicit security");
+    const entry = catalogue.find((row) => `${row.Code}.${row.Exchange}` === option("--symbol") && row.Currency === "EUR" && row.Isin === candidates[0].security.isin?.trim());
+    if (!entry || !germanExchanges.test(option("--symbol"))) throw new Error("The symbol override must have an exact ISIN/EUR match in the provider catalogue");
+    candidates[0].symbol = option("--symbol");
+    if (candidates[0].from) candidates[0].skip = null;
+  }
+  if (args.includes("--only-benchmarks")) candidates.splice(0);
   const benchmarkConfig = option("--benchmarks") ? (await load(resolve(option("--benchmarks")))).benchmarks : [];
   const minimumDate = transactions.filter((row) => row.type === "buy").map((row) => row.trade_date).sort()[0];
   if (!minimumDate) throw new Error("No purchase history");
@@ -138,9 +180,13 @@ export async function main(args = process.argv.slice(2)) {
     if (!Array.isArray(data)) throw new Error("EODHD returned an unexpected response");
     return data;
   };
+  const report = [];
+  const reportScope = args.includes("--only-benchmarks") ? "-benchmarks" : option("--security") ? `-${createHash("sha256").update(option("--security")).digest("hex").slice(0, 12)}` : "";
+  const reportPath = resolve(directory, `${mode}${reportScope}-report.json`);
   for (const candidate of candidates) {
     const { security, symbol, skip, from: start, to } = candidate;
-    if (skip) { console.log(`Skipped ${security.security_name}: ${skip}`); continue; }
+    if (skip) { report.push({ key: security.security_key, status: "skipped", reason: skip }); console.log(`Skipped ${security.security_name}: ${skip}`); continue; }
+    try {
     const path = resolve(directory, `${createHash("sha256").update(security.security_key).digest("hex")}.json`);
     if (mode === "download") {
       let previous;
@@ -148,6 +194,7 @@ export async function main(args = process.argv.slice(2)) {
       if (!args.includes("--force") && previous?.transactionFingerprint === plan.fingerprint && previous?.to === to
         && previous?.prices?.[0]?.provider_symbol === symbol) {
         console.log(`Already staged ${security.security_name}; no API calls`);
+        report.push({ key: security.security_key, status: "cached", prices: previous.prices.length });
         continue;
       }
       const raw = validatePrices(await fetchData(`eod/${encodeURIComponent(symbol)}`, start, to), start, to);
@@ -168,10 +215,12 @@ export async function main(args = process.argv.slice(2)) {
       const splitRows = splits.map((row) => ({ ...filters, security_key: security.security_key, provider: "eodhd", provider_symbol: symbol, ...row }));
       await json(path, { portfolioId, key: security.security_key, transactionFingerprint: plan.fingerprint, from: start, to, firstPurchase, lastTransaction, prices, dividends: dividendRows, splits: splitRows });
       console.log(`Staged ${security.security_name}: ${prices.length} prices, ${splits.length} splits, ${dividends.length} dividends; first price ${raw[0].date}`);
+      report.push({ key: security.security_key, status: "staged", prices: prices.length, splits: splits.length });
       continue;
     }
     const staged = await load(path);
-    if (staged.portfolioId !== portfolioId || staged.key !== security.security_key || staged.transactionFingerprint !== plan.fingerprint) throw new Error("Portfolio or transaction history changed; download again");
+    if (staged.portfolioId !== portfolioId || staged.key !== security.security_key || staged.transactionFingerprint !== plan.fingerprint
+      || staged.prices.some((row) => row.provider_symbol !== symbol)) throw new Error("Portfolio, symbol or transaction history changed; download again");
     const raw = validatePrices(staged.prices.map((row) => ({ date: row.price_date, close: row.close_price })), staged.from, staged.to);
     validateCoverage(raw, staged.splits, staged.firstPurchase, staged.lastTransaction);
     const backup = {};
@@ -182,8 +231,23 @@ export async function main(args = process.argv.slice(2)) {
       p_prices: staged.prices, p_dividends: staged.dividends, p_splits: staged.splits
     });
     if (replaceError) throw new Error(`Replacement rolled back: ${replaceError.message}`);
+    const { error: mappingError } = await db.from("security_provider_symbols").upsert({
+      ...filters, security_key: security.security_key, provider: "eodhd", provider_symbol: symbol,
+      source: "api_search", notes: symbols.find((row) => row.security_key === security.security_key)?.notes ?? "EUR listing verified for historical reload",
+      resolved_at: new Date().toISOString()
+    }, { onConflict: "user_id,portfolio_id,security_key,provider" });
+    if (mappingError) throw new Error(`History replaced, but provider mapping could not be saved: ${mappingError.message}`);
     console.log(`Replaced ${security.security_name}: ${staged.prices.length} prices; previous rows backed up`);
+    report.push({ key: security.security_key, status: "replaced", prices: staged.prices.length, splits: staged.splits.length });
+    } catch (error) {
+      const reason = error.code === "ENOENT" ? "No validated staged history; existing rows retained" : error.message;
+      report.push({ key: security.security_key, status: "needs_review", reason });
+      await json(reportPath, { mode, calls, securities: report });
+      console.log(`Review ${security.security_name}: ${reason}`);
+      if (/EODHD status (401|402|403|429)|Configured API-call limit reached|EODHD returned an unexpected response/.test(reason) || (mode === "apply" && error.code !== "ENOENT")) throw error;
+    }
   }
+  await json(reportPath, { mode, calls, securities: report });
   const benchmarkFields = ["benchmark_id", "benchmark_name", "price_date", "observation_date", "close_price", "currency", "frequency", "series_type", "is_derived", "is_partial_period", "provider", "provider_symbol", "source_type", "source_notes"];
   let fx;
   for (const config of benchmarkConfig) {
@@ -202,6 +266,7 @@ export async function main(args = process.argv.slice(2)) {
         continue;
       }
       const raw = validatePrices(await fetchData(`eod/${encodeURIComponent(config.symbol)}`, from, today), from, today);
+      if (raw[0].date > minimumDate) throw new Error(`Benchmark ${config.id} does not cover the first investment date; existing history retained`);
       if (config.sourceCurrency === "USD") fx ??= validatePrices(await fetchData("eod/EURUSD.FOREX", from, today), from, today);
       const rows = benchmarkRows(config, raw, fx);
       await json(path, { config, rows, from, to: today, portfolioId, transactionFingerprint: plan.fingerprint });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { validatePrices, validateCoverage, parseSplits, benchmarkRows } from "./market-backfill.mjs";
+import { validatePrices, validateCoverage, parseSplits, benchmarkRows, canonicalSecurities, resolveBackfillSymbol } from "./market-backfill.mjs";
 
 test("replacement rejects empty, invalid, duplicate and out-of-window history before deletes", () => {
   for (const rows of [[], [{ date: "2022-01-01", close: -1 }], [{ date: "2022-13-01", close: 100 }], [{ date: "2021-01-01", close: 100 }], [{ date: "2022-01-01", close: 1 }, { date: "2022-01-01", close: 2 }]]) {
@@ -42,4 +42,25 @@ test("replacement RPCs are owner scoped, atomic, admin only and preserve transac
   assert.match(sql, /Benchmark return methodology must match existing history/);
   assert.doesNotMatch(sql, /delete from public\.(transactions|transaction_components|benchmark_prices_import)/);
   assert.doesNotMatch(sql, /create table.*benchmark_prices/);
+});
+
+test("plan has one identity per security despite changing names and keeps original identities intact", () => {
+  const source = [{ trade_date: "2022-01-01", created_at: "1", isin: "ISIN", security_name: "Old name", ticker: "OLD" },
+    { trade_date: "2024-01-01", created_at: "2", isin: "ISIN", security_name: "New name", ticker: null }];
+  const result = canonicalSecurities(source);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].security_name, "New name");
+  assert.equal(result[0].ticker, "OLD");
+  assert.equal(source[0].security_name, "Old name");
+});
+test("mapping uses exact ISIN/currency catalogue matches and never treats US quotes as EUR", () => {
+  const security = { isin: "US-ISIN" };
+  const catalogue = [{ Code: "GERMAN", Exchange: "XETRA", Currency: "EUR", Isin: "US-ISIN", Type: "Common Stock" }];
+  assert.equal(resolveBackfillSymbol(security, "INCORRECT.US", "INCORRECT.US", catalogue), "GERMAN.XETRA");
+  assert.equal(resolveBackfillSymbol(security, null, "INCORRECT.US", []), null);
+  assert.equal(resolveBackfillSymbol(security, null, "PRIOR.XETRA", []), "PRIOR.XETRA");
+  assert.equal(resolveBackfillSymbol(security, null, "PRIOR.XETRA", [{ Code: "PRIOR", Exchange: "XETRA", Currency: "EUR", Isin: null }]), "PRIOR.XETRA");
+  assert.equal(resolveBackfillSymbol(security, null, null, [...catalogue, { ...catalogue[0], Code: "AMBIGUOUS" }]), null);
+  assert.equal(resolveBackfillSymbol(security, null, null, [{ ...catalogue[0], Exchange: "F" }]), "GERMAN.F");
+  assert.equal(resolveBackfillSymbol(security, null, null, [...catalogue, { ...catalogue[0], Exchange: "F" }]), "GERMAN.XETRA");
 });
