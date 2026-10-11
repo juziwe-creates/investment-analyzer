@@ -86,6 +86,7 @@ export type PortfolioDevelopmentPoint = {
   hasCompletePricing: boolean;
   dividendsReceived: number;
   saleProceedsReceived: number;
+  missingPriceSecurities: string[];
   cumulativePurchaseCosts: number;
   profitGenerated: number | null;
   economicValue: number | null;
@@ -416,6 +417,7 @@ export function calculatePortfolioDevelopment(
   const chronologicalTransactions = [...transactions].sort((a, b) =>
     a.trade_date.localeCompare(b.trade_date) || a.created_at.localeCompare(b.created_at)
   );
+  const securityNames = new Map(transactions.map((transaction) => [transactionSecurityKey(transaction), transaction.security_name]));
   let realizedCashAvailable = false;
   const realizedCashMayBeRedeployed = chronologicalTransactions.some((transaction) => {
     if (transaction.type === "buy" && realizedCashAvailable) return true;
@@ -448,6 +450,7 @@ export function calculatePortfolioDevelopment(
         unpricedInvestedCapital: point.unpricedCurrentDeployedCapital,
         unpricedOpenLots: point.missingPriceSecurityKeys.length,
         hasCompletePricing: point.hasCompletePricing,
+        missingPriceSecurities: point.missingPriceSecurityKeys.map((key) => `${securityNames.get(key) ?? key} (${key})`),
         dividendsReceived: point.dividendsCollected,
         saleProceedsReceived: cumulativeSaleProceeds,
         cumulativePurchaseCosts: point.lifetimeDeployedCapital,

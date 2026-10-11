@@ -23,6 +23,7 @@ type PortfolioPoint = {
   economicValueReason: string | null;
   cumulativePurchaseCosts: number;
   profitGenerated: number | null;
+  missingPriceSecurities: string[];
 };
 
 const requireModule = createRequire(__filename);
@@ -254,4 +255,19 @@ test("profit generated retains closed-position profit, losses and complete histo
   assert.equal(closed.portfolioValue, 0);
   assert.equal(closed.profitGenerated, -80);
   assert.equal(calculatePortfolioDevelopment([buy], [], "daily")[0].profitGenerated, null);
+});
+
+test("an unpriced acquisition interrupts profit until its price arrives and names the missing holding", () => {
+  const first = { ...portfolioBuy("1", "SEC-A", 10, 1000), trade_date: "2011-01-01" };
+  const missing = { ...portfolioBuy("2", "SEC-B", 25, 2000), security_name: "Historical Linde", trade_date: "2011-08-10" };
+  const points = calculatePortfolioDevelopment([first, missing], [
+    marketPrice("a", "SEC-A", "2011-01-01", 100),
+    marketPrice("b", "SEC-B", "2011-09-01", 80),
+  ], "daily");
+  const gap = points.find((point) => !point.hasCompletePricing)!;
+  assert.equal(gap.date, "2011-08-10");
+  assert.equal(gap.profitGenerated, null);
+  assert.equal(gap.missingPriceSecurities.join(", "), "Historical Linde (SEC-B)");
+  assert.equal(points[0].profitGenerated, 0);
+  assert.equal(points.at(-1)?.profitGenerated, 0);
 });

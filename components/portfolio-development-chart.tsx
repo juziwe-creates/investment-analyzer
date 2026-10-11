@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { BenchmarkMethodology } from "@/components/benchmark-comparison";
 import { TimeSeriesChart, type ChartSeries } from "@/components/time-series-chart";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { PortfolioDevelopmentPoint } from "@/lib/analytics/portfolio";
 import type { BenchmarkTimelinePoint, BenchmarkView } from "@/lib/analytics/benchmark-portfolio";
@@ -19,6 +19,7 @@ export function PortfolioDevelopmentChart({ points, emptyMessage, benchmarks = [
   const [mode, setMode] = useState<"value" | "economic" | "profit">("value");
   const [showDividends, setShowDividends] = useState(false);
   const hasIncompletePricing = points.some((point) => !point.hasCompletePricing);
+  const firstPricingGap = points.find((point) => !point.hasCompletePricing);
   const economicValueReason = points.find((point) => point.economicValueReason)?.economicValueReason ?? null;
   const series: ChartSeries<PortfolioDevelopmentPoint>[] = [
     { label: mode === "profit" ? "Portfolio Profit Generated" : mode === "economic" ? "Portfolio Economic Value" : "Portfolio Value", color: "hsl(var(--chart-portfolio))", value: (point) => mode === "profit" ? point.profitGenerated : mode === "economic" ? point.economicValue : point.portfolioValue },
@@ -41,6 +42,7 @@ export function PortfolioDevelopmentChart({ points, emptyMessage, benchmarks = [
     <TimeSeriesChart points={points} label={mode === "profit" ? "Portfolio profit generated" : mode === "economic" ? "Portfolio economic value" : "Portfolio performance"} emptyMessage={mode === "economic" && economicValueReason ? economicValueReason : emptyMessage} series={series} tooltip={(point) => mode === "profit" ? [
       { label: "Profit generated", value: formatCurrency(point.profitGenerated, point.currency) },
       { label: "Current holdings value", value: formatCurrency(point.portfolioValue, point.currency) },
+      ...(!point.hasCompletePricing ? [{ label: "Missing historical prices", value: point.missingPriceSecurities?.join(", ") || "Open holdings" }] : []),
       { label: "Cumulative purchase costs", value: formatCurrency(point.cumulativePurchaseCosts, point.currency) },
       { label: "Cumulative dividends", value: formatCurrency(point.dividendsReceived, point.currency) },
       { label: "Cumulative sale proceeds", value: formatCurrency(point.saleProceedsReceived, point.currency) }
@@ -59,7 +61,7 @@ export function PortfolioDevelopmentChart({ points, emptyMessage, benchmarks = [
     ]} />
     {mode === "economic" && economicValueReason ? <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">{economicValueReason}</p> : null}
     {mode === "profit" ? <p className="text-xs text-muted-foreground">Profit generated = current holdings value + cumulative sale proceeds + recorded dividends - cumulative purchase costs. Benchmarks match your purchases and proportional exits; this is not a passive buy-and-hold comparison. Total-return index dividends are embedded, not added again.</p> : null}
-    {mode === "profit" && hasIncompletePricing ? <p role="status" className="text-xs text-muted-foreground">Profit generated is unavailable where an open holding has no historical price. Missing values are not treated as zero.</p> : null}
+    {mode === "profit" && firstPricingGap ? <p role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">The blue profit line has a pricing gap starting {formatDate(firstPricingGap.date)}. Missing historical prices: {firstPricingGap.missingPriceSecurities?.join(", ") || "one or more open holdings"}. Total profit is unavailable on incomplete dates; the index can still be shown. Missing prices are not treated as zero.</p> : null}
     {mode === "profit" && benchmarks.some(({ timeline }) => timeline.some((point) => point.profitGenerated === null)) ? <p role="status" className="text-xs text-muted-foreground">Benchmark profit is unavailable where purchase, exit, or valuation history is incomplete, including missing entries for already sold lots.</p> : null}
     {benchmarks.some(({ timeline }) => timeline.some((point) => point.missingLots > 0)) ? <p className="text-xs text-muted-foreground">Some benchmark entry or exit history is missing. Incomplete portfolio benchmark totals are unavailable; covered purchase lots remain available in their comparison view.</p> : null}
     {mode === "value" && hasIncompletePricing ? <p className="text-xs text-muted-foreground">Portfolio Value is hidden for periods where one or more open holdings have no historical price. The lighter partial line shows only priced holdings; Current Deployed Capital remains complete.</p> : null}
