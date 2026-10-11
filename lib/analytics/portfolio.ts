@@ -17,6 +17,7 @@ import {
 import { marketDataCurrency } from "@/lib/market-data/currency";
 import type { Database } from "@/types/database";
 import type { MarketHistoryPrice } from "@/types/market-history";
+import { profitGenerated } from "./profit-generated";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"] & Pick<AnalyticsTransaction, "components" | "splits">;
 type ManualSecurityPrice = Database["public"]["Tables"]["manual_security_prices"]["Row"];
@@ -85,6 +86,8 @@ export type PortfolioDevelopmentPoint = {
   hasCompletePricing: boolean;
   dividendsReceived: number;
   saleProceedsReceived: number;
+  cumulativePurchaseCosts: number;
+  profitGenerated: number | null;
   economicValue: number | null;
   economicValueReason: string | null;
   currency: string;
@@ -447,6 +450,8 @@ export function calculatePortfolioDevelopment(
         hasCompletePricing: point.hasCompletePricing,
         dividendsReceived: point.dividendsCollected,
         saleProceedsReceived: cumulativeSaleProceeds,
+        cumulativePurchaseCosts: point.lifetimeDeployedCapital,
+        profitGenerated: profitGenerated(portfolioValue, cumulativeSaleProceeds, point.dividendsCollected, point.lifetimeDeployedCapital),
         economicValue: economicValueReason || portfolioValue === null ? null : portfolioValue + cumulativeSaleProceeds + point.dividendsCollected,
         economicValueReason,
         currency: point.currency

@@ -21,6 +21,8 @@ type PortfolioPoint = {
   saleProceedsReceived: number;
   economicValue: number | null;
   economicValueReason: string | null;
+  cumulativePurchaseCosts: number;
+  profitGenerated: number | null;
 };
 
 const requireModule = createRequire(__filename);
@@ -194,6 +196,22 @@ test("investment Economic Value adds dated dividends and exits without changing 
   assert.equal(final.economicValue, 1420);
 });
 
+test("fully sold investments retain received dividends without accruing provider dividends", () => {
+  const buy: AnalyticsTransaction = { id: "buy", type: "buy", trade_date: "2020-01-01", security_name: "A", isin: "SEC-A", wkn: null, ticker: null, quantity: 10, unit_price: 100, gross_amount: 1000, net_amount: 1000, currency: "EUR", created_at: "2020-01-01T00:00:00.000Z" };
+  const chart = investmentHistory([
+    buy,
+    { ...buy, id: "dividend", type: "dividend", trade_date: "2020-02-01", gross_amount: 20, net_amount: 20 },
+    { ...buy, id: "sell", type: "sell", trade_date: "2020-03-01", gross_amount: 1200, net_amount: 1200 },
+  ], [
+    { security_key: "SEC-A", price_date: "2020-01-01", price: 100, currency: "EUR" },
+    { security_key: "SEC-A", price_date: "2020-03-01", price: 120, currency: "EUR" },
+    { security_key: "SEC-A", price_date: "2021-03-01", price: 150, currency: "EUR" },
+  ]);
+  const closed = chart.filter((point) => point.date >= "2020-03-01");
+  assert.ok(closed.every((point) => point.shares === 0 && point.positionValue === 0));
+  assert.ok(closed.every((point) => point.dividendsReceived === 20 && point.economicValue === 1220));
+});
+
 test("portfolio Economic Value is withheld when realized cash may fund a later purchase", () => {
   const first = portfolioBuy("1", "SEC-A", 10, 1000);
   const sale = { ...portfolioBuy("2", "SEC-A", 10, 1200), type: "sell", trade_date: "2020-02-01", created_at: "2020-02-01T00:00:00.000Z" };
@@ -206,4 +224,34 @@ test("portfolio Economic Value is withheld when realized cash may fund a later p
   assert.equal(safe.at(-1)!.saleProceedsReceived, 1200);
   assert.equal(safe.at(-1)!.economicValue, 1200);
   assert.equal(safe.at(-1)!.economicValueReason, null);
+});
+
+test("profit generated counts reinvestment purchases once and is available despite funding ambiguity", () => {
+  const first = portfolioBuy("1", "SEC-A", 20, 2000);
+  const dividend = { ...first, id: "2", type: "dividend", trade_date: "2020-02-01", gross_amount: 120, net_amount: 120 };
+  const reinvest = { ...portfolioBuy("3", "SEC-A", 360 / 110, 360), trade_date: "2020-03-01" };
+  const rows = [first, dividend, reinvest];
+  const prices = [marketPrice("a", "SEC-A", "2020-01-01", 100), marketPrice("b", "SEC-A", "2020-03-01", 110)];
+  const final = calculatePortfolioDevelopment(rows, prices, "daily").at(-1)!;
+  assert.equal(final.economicValue, null);
+  assert.equal(final.cumulativePurchaseCosts, 2360);
+  assert.equal(final.portfolioValue, 2560);
+  assert.equal(final.profitGenerated, 320);
+  const investment = investmentHistory(rows as unknown as AnalyticsTransaction[], prices.map((p) => ({ security_key: p.security_key, price_date: p.price_date, price: p.close_price, currency: p.currency }))).at(-1)!;
+  assert.equal(investment.profitGenerated, final.profitGenerated);
+});
+
+test("profit generated retains closed-position profit, losses and complete historical purchase costs", () => {
+  const buy = portfolioBuy("1", "SEC-A", 10, 1000);
+  const dividend = { ...buy, id: "2", type: "dividend", trade_date: "2020-02-01", gross_amount: 20 };
+  const partial = { ...buy, id: "3", type: "sell", trade_date: "2020-03-01", quantity: 4, gross_amount: 600 };
+  const prices = [marketPrice("a", "SEC-A", "2020-01-01", 100), marketPrice("b", "SEC-A", "2020-03-01", 120)];
+  const chart = calculatePortfolioDevelopment([buy, dividend, partial], prices, "daily");
+  assert.equal(chart.at(-1)?.profitGenerated, 340);
+  assert.equal(chart.at(-1)?.cumulativePurchaseCosts, 1000);
+  const close = { ...partial, id: "4", trade_date: "2020-04-01", quantity: 6, gross_amount: 300 };
+  const closed = calculatePortfolioDevelopment([buy, dividend, partial, close], prices, "daily").at(-1)!;
+  assert.equal(closed.portfolioValue, 0);
+  assert.equal(closed.profitGenerated, -80);
+  assert.equal(calculatePortfolioDevelopment([buy], [], "daily")[0].profitGenerated, null);
 });

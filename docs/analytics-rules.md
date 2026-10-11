@@ -524,6 +524,28 @@ The user approved retaining each view's current lot matching and using the exist
 
 # Current Open Decisions
 
+## Profit Generated (Approved 2026-10-11)
+
+Portfolio Performance and Investment History have a third mode, **Profit generated**, alongside the unchanged Value and Economic Value modes.
+
+```text
+profit generated at date t = current holdings value at t
+                          + cumulative sale proceeds through t
+                          + cumulative recorded dividends through t
+                          - cumulative acquisition costs through t
+```
+
+- Acquisition costs use the existing fee-inclusive buy-cost engine. They include every purchase, including reinvestment, not only the cost basis of shares still owned. Splits never change cumulative costs.
+- Sale proceeds and dividends retain the existing canonical conventions above. Dividend cash is gross-first, otherwise net, otherwise factual quantity times price; this is not a new after-tax policy. Provider dividend reference rows do not generate personal cash flows.
+- Reinvestment increases holdings and cumulative purchase costs together. No bank-transfer data, cash-funding assumption, or Economic Value availability check is required for this absolute profit metric.
+- This is lifetime cumulative profit through each chart date, not profit since the start of the visible viewport. Zoom/pan/presets never rebase profit. Negative profits remain negative. Missing open-holding prices remain unavailable, not zero; fully sold holdings have zero market value and retain realized profit and received dividends.
+- Benchmark profit = remaining virtual index value + cumulative proportional benchmark exit proceeds - cumulative original acquisition costs of entered source lots. Total-return index dividends are embedded in levels, never added separately. Price indexes continue to disclose excluded dividends.
+- Both dashboard and single-security charts support the existing MSCI World, S&P 500 and DAX multi-selection, URL context and TimeViewport infrastructure. The single-security selector is above its history chart. The first selected index still supplies table/annual-grid context.
+- Missing benchmark entry history makes profit unavailable permanently for that purchase, even after it is sold. Missing exit/valuation data also withhold profit. No partial benchmark total is presented as complete.
+- This is a transaction-matched investment-decision comparison, not an identical-external-funding passive buy-and-hold comparison. No new percentage return, XIRR, headline Total Return, or alpha definition is introduced.
+- Current Deployed Capital is omitted from Profit generated mode to keep profit and capital distinct; it remains unchanged in Value/Economic Value. Cumulative dividends can still be shown separately and toggling them does not change profit.
+- Derived values remain in memory; no migration or database writes are required. Presentation scaling applies to purchase cost, cash, value and benchmark units consistently.
+
 The following are unresolved and must not be silently decided during UI implementation:
 
 1. **Portfolio Total Return after partial/full sales** - exact treatment of realized gains and correct denominator/methodology.

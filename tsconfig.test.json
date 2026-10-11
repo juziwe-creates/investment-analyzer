@@ -12,6 +12,7 @@
     "incremental": false
   },
   "include": [
+    "lib/market-data/read-pages.test.ts",
     "lib/market-data/purchase-history.test.ts",
     "lib/market-data/coverage.test.ts",
     "lib/analytics/stock-splits.test.ts",

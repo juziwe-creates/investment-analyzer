@@ -11,6 +11,28 @@ import { quote, history, sourceLots, transaction } from "./benchmark-test-fixtur
 const buy = transaction("buy", "2020-01-01", "buy", 10, 1000);
 const near = (a: number | null, b: number) => assert.ok(a !== null && Math.abs(a - b) < 1e-7, `${a} != ${b}`);
 
+test("benchmark profit subtracts all source purchases and retains proportional exit profit", () => {
+  const result = buildBenchmarkComparison(sourceLots([buy, transaction("sale", "2021-01-01", "sell", 3, 450)]), history, "msci-world", "fifo");
+  const timeline = calculateVirtualBenchmarkTimeline(result.virtualLots, history, "msci-world", ["2020-01-01", "2022-01-01"]);
+  near(timeline[0].profitGenerated, 0);
+  near(timeline.at(-1)!.profitGenerated, 410);
+  near(timeline.at(-1)!.cumulativePurchaseCosts, 1000);
+  // Embedded total-return dividends are not added as synthetic cash.
+  near(timeline.at(-1)!.profitGenerated, timeline.at(-1)!.economicValue! - 1000);
+  const closed = buildBenchmarkComparison(sourceLots([buy, transaction("sale", "2021-01-01", "sell", 10, 1500)]), history, "msci-world", "fifo");
+  const last = calculateVirtualBenchmarkTimeline(closed.virtualLots, history, "msci-world", ["2022-01-01"]).at(-1)!;
+  near(last.value, 0);
+  near(last.profitGenerated, 200);
+});
+
+test("missing benchmark entry history remains unavailable for profit after a full sale", () => {
+  const late = history.filter((row) => row.price_date > "2020-01-01");
+  const result = buildBenchmarkComparison(sourceLots([buy, transaction("sale", "2021-01-01", "sell", 10, 1500)]), late, "msci-world", "fifo");
+  const last = calculateVirtualBenchmarkTimeline(result.virtualLots, late, "msci-world", ["2022-01-01"]).at(-1)!;
+  assert.equal(last.profitGenerated, null);
+  assert.equal(last.cumulativePurchaseCosts, 1000);
+});
+
 test("one open lot mirrors acquisition cost and uses a prior entry observation", () => {
   const sources = sourceLots([buy]), before = structuredClone(sources);
   const result = buildBenchmarkComparison(sources, history, "msci-world", "fifo");

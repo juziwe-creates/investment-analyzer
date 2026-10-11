@@ -49,7 +49,8 @@ function historyHarness(failPage = -1) {
     return builder;
   } };
   const reader = loadModule<{ readBenchmarkHistory: (id: BenchmarkId) => Promise<{ data: BenchmarkObservation[]; error: string | null }> }>("lib/market-data/benchmark-history.ts", {
-    "server-only": {}, react: { cache: (fn: unknown) => fn }, "@/lib/supabase/server": { createClient: async () => db }
+    "server-only": {}, react: { cache: (fn: unknown) => fn }, "@/lib/supabase/server": { createClient: async () => db },
+    "@/lib/market-data/read-pages": loadModule("lib/market-data/read-pages.ts", {})
   });
   return { ...reader, calls };
 }
@@ -153,6 +154,51 @@ test("selector preserves multiple benchmarks and the chart renders every selecte
   const page = readFileSync("app/(app)/dashboard/page.tsx", "utf8");
   assert.match(page, /benchmarks\.map\(\(selectedBenchmark\)/);
   assert.match(page, /<DashboardPerformance history=\{history\} benchmarkHistories=\{benchmarkHistories\}/);
+});
+
+test("profit mode renders actual and each selected benchmark on dashboard and investment charts", () => {
+  type Series = { label: string; value: (point: Record<string, unknown>) => number | null; observations?: { value: number | null }[] };
+  let captured: Series[] = [];
+  const point = { date: "2024-01-01", shares: 10, price: 110, profitGenerated: 120, cumulativePurchaseCosts: 1000, portfolioValue: 1100, positionValue: 1100, hasCompletePricing: true, dividendsReceived: 20, saleProceedsReceived: 0, currency: "EUR" };
+  const overlays = ["MSCI World", "DAX"].map((label, i) => ({ comparison: { label, benchmarkId: i ? "dax" : "msci-world", dividendTreatment: "embedded" }, timeline: [{ date: point.date, value: 1150, economicValue: 1150, profitGenerated: 150 + i, cumulativePurchaseCosts: 1000, saleProceeds: 0, missingLots: 0, observationDate: point.date }] }));
+  const mocks = {
+    react: { ...React, useState: (initial: unknown) => [initial === "value" ? "profit" : initial, () => {}] },
+    "@/components/time-series-chart": { TimeSeriesChart: ({ series }: { series: Series[] }) => { captured = series; return React.createElement("div"); } },
+    "@/components/time-viewport": { TimePresets: () => null },
+    "@/components/benchmark-comparison": { BenchmarkMethodology: () => null },
+    "@/components/decision-drawer": { DecisionDrawer: () => null },
+    "@/lib/formatters": { formatCurrency: String, formatDate: String, formatNumber: String, formatPercent: String },
+    "@/lib/utils": { cn: (...values: unknown[]) => values.filter(Boolean).join(" ") }
+  };
+  for (const [path, name] of [["components/portfolio-development-chart.tsx", "PortfolioDevelopmentChart"], ["components/investment-detail-chart.tsx", "InvestmentDetailChart"]]) {
+    const components = loadModule<Record<string, React.ComponentType<Record<string, unknown>>>>(path, mocks);
+    const markup = renderToStaticMarkup(React.createElement(components[name], { points: [point], markers: [], benchmarks: overlays }));
+    assert.match(markup, /Profit generated/);
+    assert.match(markup, /Economic Value/);
+    assert.equal(captured[0].value(point), 120);
+    assert.deepEqual(Array.from(captured.slice(1), (series) => series.label), ["MSCI World Profit Generated", "DAX Profit Generated"]);
+    assert.deepEqual(Array.from(captured.slice(1), (series) => series.observations?.[0].value), [150, 151]);
+  }
+});
+
+test("investment index selector retains security route, portfolio and time context", () => {
+  const { BenchmarkSelector } = loadModule<{ BenchmarkSelector: React.ComponentType<{ selected: BenchmarkId[] }> }>("components/benchmark-selector.tsx", {
+    "next/navigation": { usePathname: () => "/portfolio/SEC-A", useSearchParams: () => new URLSearchParams("portfolio=account&from=2024-01-01&to=2025-01-01") },
+    "next/link": { default: ({ href, children }: { href: string; children: React.ReactNode }) => React.createElement("a", { href }, children) },
+    "@/lib/analytics/benchmarks": { benchmarkOptions }, "@/lib/utils": { cn: (...values: unknown[]) => values.filter(Boolean).join(" ") }
+  });
+  const markup = renderToStaticMarkup(React.createElement(BenchmarkSelector, { selected: ["msci-world"] }));
+  const urls = [...markup.matchAll(/href="([^"]+)"/g)].map((match) => new URL(match[1].replaceAll("&amp;", "&"), "https://example.test"));
+  assert.equal(urls.length, 3);
+  for (const url of urls) {
+    assert.equal(url.pathname, "/portfolio/SEC-A");
+    assert.equal(url.searchParams.get("portfolio"), "account");
+    assert.equal(url.searchParams.get("from"), "2024-01-01");
+    assert.equal(url.searchParams.get("to"), "2025-01-01");
+  }
+  assert.deepEqual(urls[2].searchParams.getAll("benchmark"), ["msci-world", "dax"]);
+  const page = readFileSync("app/(app)/portfolio/[securityKey]/page.tsx", "utf8");
+  assert.ok(page.indexOf("<BenchmarkSelector selected={benchmarks}") < page.indexOf("<InvestmentHistoryPanel"));
 });
 
 test("purchase-lot comparison renders an auditable trace and stale-entry warning", () => {

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:history": "tsc -p tsconfig.test.json && node --test .tmp-tests/lib/market-data/read-pages.test.js .tmp-tests/lib/analytics/historical-chart-bugfix.test.js .tmp-tests/lib/analytics/benchmarks.test.js",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

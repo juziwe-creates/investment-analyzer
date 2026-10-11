@@ -1,6 +1,7 @@
 import { calculateXirr, type LotCashFlow, type LotMatchingMethod } from "./engine";
 import { benchmarkOptions, type BenchmarkId, type BenchmarkObservation } from "./benchmarks";
 import type { LotProfitability } from "./profitability";
+import { profitGenerated } from "./profit-generated";
 
 export type ComparisonMetrics = {
   deployed: number; remainingCapital: number; currentValue: number | null;
@@ -50,6 +51,8 @@ export type BenchmarkTimelinePoint = {
   value: number | null;
   saleProceeds: number | null;
   economicValue: number | null;
+  cumulativePurchaseCosts: number;
+  profitGenerated: number | null;
   missingLots: number;
   observationDate: string | null;
 };
@@ -215,18 +218,20 @@ export function calculateVirtualBenchmarkTimeline(
   if (!virtualLots.length || !chartDates.length) return [];
   const start = virtualLots.map((lot) => lot.buyDate).sort()[0], end = [...chartDates].sort().at(-1)!;
   const events = virtualLots.flatMap((lot) => [
-    { date: lot.buyDate, units: lot.originalBenchmarkUnits ?? 0, proceeds: 0, missing: lot.originalBenchmarkUnits === null ? 1 : 0, missingExit: 0 },
+    { date: lot.buyDate, units: lot.originalBenchmarkUnits ?? 0, proceeds: 0, capital: lot.originalCapital, missingEntry: lot.originalBenchmarkUnits === null ? 1 : 0, missing: lot.originalBenchmarkUnits === null ? 1 : 0, missingExit: 0 },
     ...lot.exits.map((sale, index) => ({ date: sale.date, units: -(sale.units ?? 0),
-      proceeds: sale.value ?? 0, missing: lot.originalBenchmarkUnits === null && lot.closeDate && index === lot.exits.length - 1 ? -1 : 0,
+      proceeds: sale.value ?? 0, capital: 0, missingEntry: 0, missing: lot.originalBenchmarkUnits === null && lot.closeDate && index === lot.exits.length - 1 ? -1 : 0,
       missingExit: lot.originalBenchmarkUnits !== null && sale.value === null ? 1 : 0 }))
   ]).sort((a, b) => a.date.localeCompare(b.date));
   const dates = [...new Set([...chartDates, ...events.map((event) => event.date), ...levels.map((row) => row.price_date)])].filter((date) => date >= start && date <= end).sort();
-  let eventIndex = 0, units = 0, proceeds = 0, missing = 0, missingExits = 0;
+  let eventIndex = 0, units = 0, proceeds = 0, missing = 0, missingExits = 0, purchaseCosts = 0, missingEntries = 0;
   return dates.map((date) => {
     while (eventIndex < events.length && events[eventIndex].date <= date) {
       const event = events[eventIndex++];
       units += event.units;
       proceeds += event.proceeds;
+      purchaseCosts += event.capital;
+      missingEntries += event.missingEntry;
       missing += event.missing;
       missingExits += event.missingExit;
     }
@@ -236,6 +241,8 @@ export function calculateVirtualBenchmarkTimeline(
     const saleProceeds = missingExits > 0 ? null : proceeds;
     return { date, value, saleProceeds,
       economicValue: value === null || saleProceeds === null ? null : value + saleProceeds,
+      cumulativePurchaseCosts: purchaseCosts,
+      profitGenerated: missingEntries > 0 ? null : profitGenerated(value, saleProceeds, 0, purchaseCosts),
       missingLots: missing + missingExits, observationDate: level?.price_date ?? null };
   });
 }

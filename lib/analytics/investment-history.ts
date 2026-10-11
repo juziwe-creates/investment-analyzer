@@ -1,5 +1,7 @@
 import { buildInvestmentLedger, calculatePurchaseLots, transactionSplits, type AnalyticsPrice, type AnalyticsTransaction, type LotCalculationOptions } from "./engine";
 import { splitPrice } from "./splits";
+import { acquisitionCost } from "./engine";
+import { profitGenerated } from "./profit-generated";
 
 export type InvestmentChartPoint = {
   date: string;
@@ -9,6 +11,8 @@ export type InvestmentChartPoint = {
   deployedCapital: number;
   dividendsReceived: number;
   saleProceedsReceived: number;
+  cumulativePurchaseCosts: number;
+  profitGenerated: number | null;
   economicValue: number | null;
   unrealizedReturnPercent: number | null;
   currency: string;
@@ -26,11 +30,12 @@ export function investmentHistory(transactions: AnalyticsTransaction[], prices: 
     .flatMap((lot) => lot.cashFlows)
     .filter((flow) => flow.kind === "sell" || flow.kind === "dividend")
     .sort((a, b) => a.date.localeCompare(b.date));
-  let li = 0, pi = 0, ri = 0, shares = 0, cost = 0, dividends = 0, proceeds = 0;
+  let li = 0, pi = 0, ri = 0, shares = 0, cost = 0, dividends = 0, proceeds = 0, purchaseCosts = 0;
   let quote: AnalyticsPrice | undefined;
   return dates.map((date) => {
     while (li < ledger.length && ledger[li].transaction.trade_date <= date) {
       const row = ledger[li++];
+      purchaseCosts += acquisitionCost(row.transaction);
       shares = row.activeShares;
       cost = row.activeCost;
     }
@@ -45,6 +50,8 @@ export function investmentHistory(transactions: AnalyticsTransaction[], prices: 
     const value = quantity === 0 ? 0 : price !== null ? quantity * price : null;
     return { date, price, shares: quantity, positionValue: value, deployedCapital: cost,
       dividendsReceived: dividends, saleProceedsReceived: proceeds,
+      cumulativePurchaseCosts: purchaseCosts,
+      profitGenerated: profitGenerated(value, proceeds, dividends, purchaseCosts),
       economicValue: value === null ? null : value + dividends + proceeds,
       unrealizedReturnPercent: value !== null && cost > 0 ? (value - cost) / cost * 100 : null,
       currency: quote?.currency ?? transactions[0].currency };
